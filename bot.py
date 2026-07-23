@@ -32,21 +32,21 @@ def init_db():
         image_url TEXT NOT NULL,
         rarity TEXT NOT NULL,
         mint_number INTEGER NOT NULL,
+        edition INTEGER DEFAULT 1,
         grabbed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    
+    # Check if edition column exists for migration
+    cursor.execute("PRAGMA table_info(inventory)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if "edition" not in columns:
+        cursor.execute("ALTER TABLE inventory ADD COLUMN edition INTEGER DEFAULT 1")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
         character_name TEXT PRIMARY KEY,
         current_mint INTEGER NOT NULL
-    )
-    """)
-    
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS cooldowns (
-        user_id INTEGER PRIMARY KEY,
-        last_drop REAL NOT NULL
     )
     """)
     
@@ -70,38 +70,25 @@ def get_next_mint(character_name: str) -> int:
     conn.close()
     return next_mint
 
-def save_card_to_inventory(user_id: int, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int):
+def save_card_to_inventory(user_id: int, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1) -> int:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO inventory (user_id, character_name, series_name, image_url, rarity, mint_number)
-    VALUES (?, ?, ?, ?, ?, ?)
-    """, (user_id, character_name, series_name, image_url, rarity, mint_number))
+    INSERT INTO inventory (user_id, character_name, series_name, image_url, rarity, mint_number, edition)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, character_name, series_name, image_url, rarity, mint_number, edition))
+    inserted_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    return inserted_id
 
 def get_user_inventory(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, character_name, series_name, rarity, mint_number, image_url FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    cursor.execute("SELECT id, character_name, series_name, rarity, mint_number, edition, image_url FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
     rows = cursor.fetchall()
     conn.close()
     return rows
-
-def get_user_cooldown(user_id: int) -> float:
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT last_drop FROM cooldowns WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else 0.0
-
-def set_user_cooldown(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO cooldowns (user_id, last_drop) VALUES (?, ?)", (user_id, time.time()))
-    conn.commit()
-    conn.close()
 
 # ==========================================
 # 🌐 ANILIST PUBLIC API INTEGRATION
@@ -169,7 +156,8 @@ async def fetch_random_anilist_cards(count: int = 3):
                             "name": char_name,
                             "series": series,
                             "image": img_url,
-                            "rarity": rarity
+                            "rarity": rarity,
+                            "edition": 1
                         })
                     return cards
                 else:
@@ -232,7 +220,6 @@ class CardGrabButton(discord.ui.Button):
 
         view.claimed = True
         
-        # Disable all buttons
         for child in view.children:
             child.disabled = True
             if child == self:
@@ -240,22 +227,22 @@ class CardGrabButton(discord.ui.Button):
                 child.style = discord.ButtonStyle.success
 
         mint_num = get_next_mint(self.card_info["name"])
-        save_card_to_inventory(
+        card_db_id = save_card_to_inventory(
             user_id=interaction.user.id,
             character_name=self.card_info["name"],
             series_name=self.card_info["series"],
             image_url=self.card_info["image"],
             rarity=self.card_info["rarity"],
-            mint_number=mint_num
+            mint_number=mint_num,
+            edition=1
         )
 
-        # Keep ONLY the claimed card's embed and remove the other 2!
         claimed_embed = view.embeds[self.index]
-        claimed_embed.set_footer(text=f"Claimed by {interaction.user.display_name} • Mint #{mint_num}")
+        claimed_embed.set_footer(text=f"Card ID: #{card_db_id} • Claimed by {interaction.user.display_name} • Edition 1 • Print #{mint_num}")
 
         await interaction.response.edit_message(embeds=[claimed_embed], view=view)
         await interaction.followup.send(
-            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (Mint **#{mint_num}**) from *{self.card_info['series']}*! {self.card_info['rarity']}"
+            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{mint_num}**) from *{self.card_info['series']}*! {self.card_info['rarity']}\n🆔 **Card ID:** `#{card_db_id}` (Type `/view-card card_id:{card_db_id}` to view!)"
         )
 
 class CardDropView(discord.ui.View):
@@ -372,21 +359,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 # ==========================================
 
 async def execute_card_drop(ctx_or_interaction, user):
-    """Core logic to fetch cards and display 3 individual embeds with full artwork."""
-    user_id = user.id
-    last_drop = get_user_cooldown(user_id)
-    cooldown_seconds = 1800 # 30 minutes
-    elapsed = time.time() - last_drop
-
-    if elapsed < cooldown_seconds:
-        remaining_mins = int((cooldown_seconds - elapsed) // 60)
-        msg = f"Coo coo! ⏳ {user.mention}, you're on drop cooldown! Please wait **{remaining_mins} more minutes** before dropping cards again."
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(msg, ephemeral=True)
-        else:
-            await ctx_or_interaction.send(msg)
-        return
-
+    """Core logic to fetch cards and display 3 individual embeds with full artwork (No Cooldown)."""
     cards = await fetch_random_anilist_cards(3)
     if not cards:
         msg = "Coo coo! ⚠️ Couldn't reach AniList. Please try again in a moment!"
@@ -396,22 +369,20 @@ async def execute_card_drop(ctx_or_interaction, user):
             await ctx_or_interaction.send(msg)
         return
 
-    set_user_cooldown(user_id)
-
     embeds = []
     card_colors = [discord.Color.blue(), discord.Color.purple(), discord.Color.gold()]
 
     for idx, card in enumerate(cards):
         embed = discord.Embed(
             title=f"1️⃣ 2️⃣ 3️⃣"[idx*2:idx*2+2] + f" Card {idx + 1}: {card['name']}",
-            description=f"📺 **Series:** {card['series']}\n✨ **Rarity:** {card['rarity']}",
+            description=f"📺 **Series:** {card['series']}\n✨ **Rarity:** {card['rarity']}\n🏷️ **Release:** Edition 1",
             color=card_colors[idx]
         )
         embed.set_image(url=card["image"])
         if idx == 0:
             embed.set_author(name=f"🎴 {user.display_name}'s Card Drop!")
         if idx == 2:
-            embed.set_footer(text="Coo Coo Card Engine • Click a button below to grab!")
+            embed.set_footer(text="Coo Coo Card Engine • Edition 1 • Click a button below to grab!")
         embeds.append(embed)
 
     view = CardDropView(cards, embeds)
@@ -451,17 +422,18 @@ async def inventory_slash(interaction: discord.Interaction):
     )
 
     for row in rows[:10]:
-        card_id, char_name, series, rarity, mint_num, img_url = row
+        card_id, char_name, series, rarity, mint_num, edition, img_url = row
+        ed_val = edition if edition else 1
         embed.add_field(
-            name=f"#{card_id} • {char_name} (Mint #{mint_num})",
-            value=f"📺 *{series}* | {rarity}",
+            name=f"🆔 Card ID: #{card_id} • {char_name}",
+            value=f"🏷️ Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
             inline=False
         )
 
     if len(rows) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card <id> to see full artwork!")
+        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card card_id:<id> to see full artwork!")
     else:
-        embed.set_footer(text="Type /view-card <id> to see full artwork!")
+        embed.set_footer(text="Type /view-card card_id:<id> to see full artwork!")
 
     await interaction.followup.send(embed=embed)
 
@@ -479,10 +451,11 @@ async def inventory_prefix(ctx):
     )
 
     for row in rows[:10]:
-        card_id, char_name, series, rarity, mint_num, img_url = row
+        card_id, char_name, series, rarity, mint_num, edition, img_url = row
+        ed_val = edition if edition else 1
         embed.add_field(
-            name=f"#{card_id} • {char_name} (Mint #{mint_num})",
-            value=f"📺 *{series}* | {rarity}",
+            name=f"🆔 Card ID: #{card_id} • {char_name}",
+            value=f"🏷️ Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
             inline=False
         )
 
@@ -496,21 +469,28 @@ async def view_card_slash(interaction: discord.Interaction, card_id: int):
         pass
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, user_id, character_name, series_name, rarity, mint_number, image_url, grabbed_at FROM inventory WHERE id = ?", (card_id,))
+    cursor.execute("SELECT id, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE id = ?", (card_id,))
     row = cursor.fetchone()
     conn.close()
 
     if not row:
-        await interaction.followup.send("Coo coo! ⚠️ Card ID not found in database!")
+        await interaction.followup.send(f"Coo coo! ⚠️ Card ID `#{card_id}` not found in database!")
         return
 
-    cid, uid, char_name, series, rarity, mint_num, img_url, grabbed_at = row
+    cid, uid, char_name, series, rarity, mint_num, edition, img_url, grabbed_at = row
     owner = bot.get_user(uid)
     owner_name = owner.display_name if owner else f"User {uid}"
+    ed_val = edition if edition else 1
 
     embed = discord.Embed(
-        title=f"{char_name} (Mint #{mint_num})",
-        description=f"📺 **Series:** {series}\n✨ **Rarity:** {rarity}\n👤 **Owner:** {owner_name}\n📅 **Grabbed:** {grabbed_at}",
+        title=f"🆔 #{cid} • {char_name}",
+        description=(
+            f"🏷️ **Release:** Edition {ed_val} • Print #{mint_num}\n"
+            f"📺 **Series:** {series}\n"
+            f"✨ **Rarity:** {rarity}\n"
+            f"👤 **Owner:** {owner_name}\n"
+            f"📅 **Grabbed:** {grabbed_at}"
+        ),
         color=discord.Color.magenta()
     )
     embed.set_image(url=img_url)
