@@ -8,13 +8,21 @@ import asyncio
 import aiohttp
 import sqlite3
 import time
+import string
+import io
 import traceback
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
+
+def generate_card_code() -> str:
+    """Generates a random 6-character alphanumeric card code (e.g. k93f2a)."""
+    chars = string.ascii_lowercase + string.digits
+    return "".join(random.choices(chars, k=6))
 
 # ==========================================
 # 🗄️ SQLITE DATABASE INITIALIZATION
@@ -26,6 +34,7 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS inventory (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE,
         user_id INTEGER NOT NULL,
         character_name TEXT NOT NULL,
         series_name TEXT NOT NULL,
@@ -37,9 +46,10 @@ def init_db():
     )
     """)
     
-    # Check if edition column exists for migration
     cursor.execute("PRAGMA table_info(inventory)")
     columns = [column[1] for column in cursor.fetchall()]
+    if "code" not in columns:
+        cursor.execute("ALTER TABLE inventory ADD COLUMN code TEXT")
     if "edition" not in columns:
         cursor.execute("ALTER TABLE inventory ADD COLUMN edition INTEGER DEFAULT 1")
     
@@ -70,13 +80,13 @@ def get_next_mint(character_name: str) -> int:
     conn.close()
     return next_mint
 
-def save_card_to_inventory(user_id: int, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1) -> int:
+def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1) -> int:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO inventory (user_id, character_name, series_name, image_url, rarity, mint_number, edition)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, character_name, series_name, image_url, rarity, mint_number, edition))
+    INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition))
     inserted_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -85,10 +95,95 @@ def save_card_to_inventory(user_id: int, character_name: str, series_name: str, 
 def get_user_inventory(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, character_name, series_name, rarity, mint_number, edition, image_url FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+# ==========================================
+# 🎨 PIL KARUTA CARD COMPOSITE RENDERER
+# ==========================================
+RARITY_COLORS = {
+    "✨ Legendary": (255, 215, 0, 255),  # Gold
+    "🟣 Epic": (147, 112, 219, 255),    # Purple
+    "🔷 Rare": (0, 122, 255, 255),       # Blue
+    "⚪ Common": (180, 180, 180, 255)     # Silver
+}
+
+async def fetch_image(session, url):
+    try:
+        async with session.get(url, timeout=8) as resp:
+            if resp.status == 200:
+                data = await resp.read()
+                return Image.open(io.BytesIO(data)).convert("RGBA")
+    except Exception as e:
+        print(f"Failed to fetch image {url}: {e}")
+    img = Image.new("RGBA", (250, 360), (40, 43, 48, 255))
+    return img
+
+async def render_three_cards_composite(cards: list) -> io.BytesIO:
+    """Renders a single horizontal 3-card composite image (800x420 px) with Karuta borders & overlays!"""
+    canvas_w, canvas_h = 800, 420
+    canvas = Image.new("RGBA", (canvas_w, canvas_h), (30, 33, 36, 255))
+    draw = ImageDraw.Draw(canvas)
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch_image(session, card["image"]) for card in cards]
+        raw_images = await asyncio.gather(*tasks)
+
+    card_w, card_h = 240, 370
+    padding = 20
+
+    for idx, card in enumerate(cards):
+        x = padding + idx * (card_w + 15)
+        y = 25
+        
+        raw_img = raw_images[idx]
+        resized_img = raw_img.resize((card_w - 12, card_h - 12), Image.Resampling.LANCZOS)
+        
+        canvas.paste(resized_img, (x + 6, y + 6))
+        
+        border_color = RARITY_COLORS.get(card["rarity"], (180, 180, 180, 255))
+        draw.rectangle([x, y, x + card_w, y + card_h], outline=border_color, width=5)
+        
+        # Top Badge Overlay [1], [2], [3]
+        draw.rectangle([x + 6, y + 6, x + 40, y + 36], fill=(0, 0, 0, 200))
+        draw.text((x + 18, y + 12), str(idx + 1), fill=(255, 255, 255))
+        
+        # Bottom Text Overlay (EDITION 1 • CODE)
+        draw.rectangle([x + 5, y + card_h - 55, x + card_w - 5, y + card_h - 5], fill=(0, 0, 0, 210))
+        draw.text((x + 15, y + card_h - 48), f"EDITION 1 • #{card['temp_mint']}", fill=(255, 215, 0))
+        draw.text((x + 15, y + card_h - 30), f"CODE: {card['code']}", fill=(255, 255, 255))
+
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+async def render_single_card(card_data: dict) -> io.BytesIO:
+    """Renders a single high-quality framed Karuta card for /view-card."""
+    card_w, card_h = 320, 500
+    canvas = Image.new("RGBA", (card_w, card_h), (30, 33, 36, 255))
+    draw = ImageDraw.Draw(canvas)
+
+    async with aiohttp.ClientSession() as session:
+        raw_img = await fetch_image(session, card_data["image_url"])
+
+    resized_img = raw_img.resize((card_w - 16, card_h - 16), Image.Resampling.LANCZOS)
+    canvas.paste(resized_img, (8, 8))
+
+    border_color = RARITY_COLORS.get(card_data["rarity"], (180, 180, 180, 255))
+    draw.rectangle([0, 0, card_w, card_h], outline=border_color, width=8)
+
+    draw.rectangle([8, card_h - 80, card_w - 8, card_h - 8], fill=(0, 0, 0, 220))
+    draw.text((20, card_h - 70), f"EDITION {card_data.get('edition', 1)} • PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
+    draw.text((20, card_h - 48), f"CODE: {card_data['code'].upper()}", fill=(255, 255, 255))
+    draw.text((20, card_h - 26), f"{card_data['rarity']}", fill=(200, 200, 200))
+
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
 
 # ==========================================
 # 🌐 ANILIST PUBLIC API INTEGRATION
@@ -152,11 +247,14 @@ async def fetch_random_anilist_cards(count: int = 3):
                         else:
                             rarity = "⚪ Common"
                             
+                        temp_mint = get_next_mint(char_name)
                         cards.append({
+                            "code": generate_card_code(),
                             "name": char_name,
                             "series": series,
                             "image": img_url,
                             "rarity": rarity,
+                            "temp_mint": temp_mint,
                             "edition": 1
                         })
                     return cards
@@ -226,30 +324,36 @@ class CardGrabButton(discord.ui.Button):
                 child.label = f"Claimed by {interaction.user.display_name}"
                 child.style = discord.ButtonStyle.success
 
-        mint_num = get_next_mint(self.card_info["name"])
         card_db_id = save_card_to_inventory(
             user_id=interaction.user.id,
+            code=self.card_info["code"],
             character_name=self.card_info["name"],
             series_name=self.card_info["series"],
             image_url=self.card_info["image"],
             rarity=self.card_info["rarity"],
-            mint_number=mint_num,
+            mint_number=self.card_info["temp_mint"],
             edition=1
         )
 
-        claimed_embed = view.embeds[self.index]
-        claimed_embed.set_footer(text=f"Card ID: #{card_db_id} • Claimed by {interaction.user.display_name} • Edition 1 • Print #{mint_num}")
+        embed = discord.Embed(
+            title=f"🎉 Claimed: {self.card_info['name']}",
+            description=(
+                f"👤 **Claimed by:** {interaction.user.mention}\n"
+                f"📺 **Series:** {self.card_info['series']}\n"
+                f"🏷️ **Code:** `{self.card_info['code']}` | 🆔 **ID:** `#{card_db_id}`"
+            ),
+            color=discord.Color.gold()
+        )
 
-        await interaction.response.edit_message(embeds=[claimed_embed], view=view)
+        await interaction.response.edit_message(embeds=[embed], view=view)
         await interaction.followup.send(
-            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{mint_num}**) from *{self.card_info['series']}*! {self.card_info['rarity']}\n🆔 **Card ID:** `#{card_db_id}` (Type `/view-card card_id:{card_db_id}` to view!)"
+            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']}**)! `Code: {self.card_info['code']}`"
         )
 
 class CardDropView(discord.ui.View):
-    def __init__(self, cards: list, embeds: list):
+    def __init__(self, cards: list):
         super().__init__(timeout=180)
         self.cards = cards
-        self.embeds = embeds
         self.claimed = False
         for idx, card in enumerate(cards):
             self.add_item(CardGrabButton(idx, card))
@@ -359,7 +463,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 # ==========================================
 
 async def execute_card_drop(ctx_or_interaction, user):
-    """Core logic to fetch cards and display 3 individual embeds with full artwork (No Cooldown)."""
+    """Core logic to fetch cards and render a single horizontal 3-card side-by-side image!"""
     cards = await fetch_random_anilist_cards(3)
     if not cards:
         msg = "Coo coo! ⚠️ Couldn't reach AniList. Please try again in a moment!"
@@ -369,28 +473,28 @@ async def execute_card_drop(ctx_or_interaction, user):
             await ctx_or_interaction.send(msg)
         return
 
-    embeds = []
-    card_colors = [discord.Color.blue(), discord.Color.purple(), discord.Color.gold()]
+    buf = await render_three_cards_composite(cards)
+    file = discord.File(fp=buf, filename="drop.png")
 
-    for idx, card in enumerate(cards):
-        embed = discord.Embed(
-            title=f"1️⃣ 2️⃣ 3️⃣"[idx*2:idx*2+2] + f" Card {idx + 1}: {card['name']}",
-            description=f"📺 **Series:** {card['series']}\n✨ **Rarity:** {card['rarity']}\n🏷️ **Release:** Edition 1",
-            color=card_colors[idx]
-        )
-        embed.set_image(url=card["image"])
-        if idx == 0:
-            embed.set_author(name=f"🎴 {user.display_name}'s Card Drop!")
-        if idx == 2:
-            embed.set_footer(text="Coo Coo Card Engine • Edition 1 • Click a button below to grab!")
-        embeds.append(embed)
+    embed = discord.Embed(
+        title=f"🎴 {user.display_name}'s Card Drop!",
+        description=(
+            f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
+            f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
+            f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
+            f"Click a button below to grab a card!"
+        ),
+        color=discord.Color.gold()
+    )
+    embed.set_image(url="attachment://drop.png")
+    embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
 
-    view = CardDropView(cards, embeds)
+    view = CardDropView(cards)
 
     if isinstance(ctx_or_interaction, discord.Interaction):
-        await ctx_or_interaction.followup.send(embeds=embeds, view=view)
+        await ctx_or_interaction.followup.send(embed=embed, file=file, view=view)
     else:
-        await ctx_or_interaction.send(embeds=embeds, view=view)
+        await ctx_or_interaction.send(embed=embed, file=file, view=view)
 
 @bot.tree.command(name="drop", description="Drops 3 random Anime Cards from AniList!")
 async def drop_slash(interaction: discord.Interaction):
@@ -422,18 +526,19 @@ async def inventory_slash(interaction: discord.Interaction):
     )
 
     for row in rows[:10]:
-        card_id, char_name, series, rarity, mint_num, edition, img_url = row
+        card_id, code, char_name, series, rarity, mint_num, edition, img_url = row
+        code_str = code if code else f"c{card_id:04d}"
         ed_val = edition if edition else 1
         embed.add_field(
-            name=f"🆔 Card ID: #{card_id} • {char_name}",
-            value=f"🏷️ Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
+            name=f"🏷️ Code: `{code_str}` • {char_name}",
+            value=f"🆔 ID: #{card_id} | Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
             inline=False
         )
 
     if len(rows) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card card_id:<id> to see full artwork!")
+        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card search:<code> to see full card artwork!")
     else:
-        embed.set_footer(text="Type /view-card card_id:<id> to see full artwork!")
+        embed.set_footer(text="Type /view-card search:<code> to see full card artwork!")
 
     await interaction.followup.send(embed=embed)
 
@@ -451,52 +556,67 @@ async def inventory_prefix(ctx):
     )
 
     for row in rows[:10]:
-        card_id, char_name, series, rarity, mint_num, edition, img_url = row
+        card_id, code, char_name, series, rarity, mint_num, edition, img_url = row
+        code_str = code if code else f"c{card_id:04d}"
         ed_val = edition if edition else 1
         embed.add_field(
-            name=f"🆔 Card ID: #{card_id} • {char_name}",
-            value=f"🏷️ Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
+            name=f"🏷️ Code: `{code_str}` • {char_name}",
+            value=f"🆔 ID: #{card_id} | Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
             inline=False
         )
 
     await ctx.send(embed=embed)
 
-@bot.tree.command(name="view-card", description="View full details and artwork of a card from your inventory")
-async def view_card_slash(interaction: discord.Interaction, card_id: int):
+@bot.tree.command(name="view-card", description="View full details and artwork of a card by Code or ID")
+async def view_card_slash(interaction: discord.Interaction, search: str):
     try:
         await interaction.response.defer()
     except Exception:
         pass
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE id = ?", (card_id,))
+    
+    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE code = ? OR id = ?", (search.lower().strip(), search.strip()))
     row = cursor.fetchone()
     conn.close()
 
     if not row:
-        await interaction.followup.send(f"Coo coo! ⚠️ Card ID `#{card_id}` not found in database!")
+        await interaction.followup.send(f"Coo coo! ⚠️ Card `{search}` not found in database!")
         return
 
-    cid, uid, char_name, series, rarity, mint_num, edition, img_url, grabbed_at = row
+    cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, grabbed_at = row
     owner = bot.get_user(uid)
     owner_name = owner.display_name if owner else f"User {uid}"
     ed_val = edition if edition else 1
+    code_str = code if code else f"c{cid:04d}"
+
+    card_data = {
+        "id": cid,
+        "code": code_str,
+        "character_name": char_name,
+        "series_name": series,
+        "rarity": rarity,
+        "mint_number": mint_num,
+        "edition": ed_val,
+        "image_url": img_url
+    }
+
+    buf = await render_single_card(card_data)
+    file = discord.File(fp=buf, filename="card.png")
 
     embed = discord.Embed(
-        title=f"🆔 #{cid} • {char_name}",
+        title=f"🏷️ Code: {code_str} • {char_name}",
         description=(
-            f"🏷️ **Release:** Edition {ed_val} • Print #{mint_num}\n"
             f"📺 **Series:** {series}\n"
-            f"✨ **Rarity:** {rarity}\n"
             f"👤 **Owner:** {owner_name}\n"
             f"📅 **Grabbed:** {grabbed_at}"
         ),
         color=discord.Color.magenta()
     )
-    embed.set_image(url=img_url)
-    embed.set_footer(text=f"Coo Coo Card Vault • Card #{cid}")
+    embed.set_image(url="attachment://card.png")
+    embed.set_footer(text=f"Coo Coo Card Vault • Card #{cid} • Code: {code_str}")
 
-    await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embed=embed, file=file)
 
 # ==========================================
 # 🎨 OTHER COMMANDS
