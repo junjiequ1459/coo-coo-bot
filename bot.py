@@ -224,57 +224,67 @@ ANILIST_QUERY = """query ($page: Int, $perPage: Int) {
   }
 }"""
 
+async def fetch_single_card_from_page(session, page: int):
+    variables = {"page": page, "perPage": 25}
+    try:
+        async with session.post(ANILIST_URL, json={"query": ANILIST_QUERY, "variables": variables}, timeout=10) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                char_list = data["data"]["Page"]["characters"]
+                if char_list:
+                    return random.choice(char_list)
+    except Exception as e:
+        print(f"Error fetching page {page}: {e}")
+    return None
+
 async def fetch_random_anilist_cards(count: int = 3):
-    """Fetches random popular anime characters from AniList API."""
-    random_page = random.randint(1, 35)
-    variables = {"page": random_page, "perPage": 25}
+    """Fetches 3 individual random characters from varied AniList popularity tiers."""
+    pages_to_sample = [
+        random.randint(1, 4),    # Top Tier / Legendary / Epic candidates
+        random.randint(5, 18),   # Mid Tier / Epic / Rare candidates
+        random.randint(19, 50)   # Lower Tier / Rare / Common candidates
+    ]
+    random.shuffle(pages_to_sample)
     
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(ANILIST_URL, json={"query": ANILIST_QUERY, "variables": variables}, timeout=10) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    char_list = data["data"]["Page"]["characters"]
-                    selected = random.sample(char_list, min(count, len(char_list)))
-                    
-                    cards = []
-                    for char in selected:
-                        char_name = char["name"]["full"]
-                        img_url = char["image"]["large"]
-                        favs = char.get("favourites", 0)
-                        
-                        media_nodes = char.get("media", {}).get("nodes", [])
-                        if media_nodes and media_nodes[0].get("title"):
-                            series = media_nodes[0]["title"].get("english") or media_nodes[0]["title"].get("romaji") or "Anime Series"
-                        else:
-                            series = "Anime Series"
-                            
-                        if favs >= 15000:
-                            rarity = "✨ Legendary"
-                        elif favs >= 5000:
-                            rarity = "🟣 Epic"
-                        elif favs >= 1500:
-                            rarity = "🔷 Rare"
-                        else:
-                            rarity = "⚪ Common"
-                            
-                        temp_mint = get_next_mint(char_name)
-                        cards.append({
-                            "code": generate_card_code(),
-                            "name": char_name,
-                            "series": series,
-                            "image": img_url,
-                            "rarity": rarity,
-                            "temp_mint": temp_mint,
-                            "edition": 1
-                        })
-                    return cards
-                else:
-                    print(f"AniList API Status Error: {resp.status}")
-                    return None
-        except Exception as e:
-            print(f"AniList Fetch Exception: {e}")
-            return None
+        tasks = [fetch_single_card_from_page(session, p) for p in pages_to_sample[:count]]
+        results = await asyncio.gather(*tasks)
+
+    cards = []
+    for char in results:
+        if not char:
+            continue
+        char_name = char["name"]["full"]
+        img_url = char["image"]["large"]
+        favs = char.get("favourites", 0)
+        
+        media_nodes = char.get("media", {}).get("nodes", [])
+        if media_nodes and media_nodes[0].get("title"):
+            series = media_nodes[0]["title"].get("english") or media_nodes[0]["title"].get("romaji") or "Anime Series"
+        else:
+            series = "Anime Series"
+            
+        # Strictly Individual Rarity Calculation based on each character's exact favorites:
+        if favs >= 12000:
+            rarity = "✨ Legendary"
+        elif favs >= 4000:
+            rarity = "🟣 Epic"
+        elif favs >= 1000:
+            rarity = "🔷 Rare"
+        else:
+            rarity = "⚪ Common"
+            
+        temp_mint = get_next_mint(char_name)
+        cards.append({
+            "code": generate_card_code(),
+            "name": char_name,
+            "series": series,
+            "image": img_url,
+            "rarity": rarity,
+            "temp_mint": temp_mint,
+            "edition": 1
+        })
+    return cards
 
 # ==========================================
 # 🎨 COLOR ROLES CONFIGURATION
