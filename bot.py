@@ -105,9 +105,8 @@ def get_user_inventory(user_id: int):
 # ==========================================
 RARITY_COLORS = {
     "✨ Legendary": (255, 215, 0, 255),  # Gold
-    "🟣 Epic": (147, 112, 219, 255),    # Purple
-    "🔷 Rare": (0, 122, 255, 255),       # Blue
-    "⚪ Common": (180, 180, 180, 255)     # Silver
+    "🔷 Rare": (0, 229, 255, 255),       # Cyan Blue
+    "⚪ Common": (112, 128, 144, 255)     # Slate Silver
 }
 
 async def fetch_image(session, url):
@@ -118,42 +117,43 @@ async def fetch_image(session, url):
                 return Image.open(io.BytesIO(data)).convert("RGBA")
     except Exception as e:
         print(f"Failed to fetch image {url}: {e}")
-    img = Image.new("RGBA", (250, 360), (40, 43, 48, 255))
+    img = Image.new("RGBA", (255, 380), (32, 34, 37, 255))
     return img
 
 async def render_three_cards_composite(cards: list) -> io.BytesIO:
-    """Renders a single horizontal 3-card composite image (800x420 px) with Karuta borders & overlays!"""
-    canvas_w, canvas_h = 800, 420
-    canvas = Image.new("RGBA", (canvas_w, canvas_h), (30, 33, 36, 255))
+    """Renders a single horizontal 3-card composite image (810x430 px) with Karuta borders & overlays!"""
+    canvas_w, canvas_h = 810, 430
+    canvas = Image.new("RGBA", (canvas_w, canvas_h), (24, 25, 28, 255))
     draw = ImageDraw.Draw(canvas)
 
     async with aiohttp.ClientSession() as session:
         tasks = [fetch_image(session, card["image"]) for card in cards]
         raw_images = await asyncio.gather(*tasks)
 
-    card_w, card_h = 240, 370
-    padding = 20
+    card_w, card_h = 245, 380
+    padding_x = 18
+    padding_y = 25
 
     for idx, card in enumerate(cards):
-        x = padding + idx * (card_w + 15)
-        y = 25
+        x = padding_x + idx * (card_w + 18)
+        y = padding_y
         
         raw_img = raw_images[idx]
-        resized_img = raw_img.resize((card_w - 12, card_h - 12), Image.Resampling.LANCZOS)
+        resized_img = raw_img.resize((card_w - 8, card_h - 8), Image.Resampling.LANCZOS)
         
-        canvas.paste(resized_img, (x + 6, y + 6))
+        canvas.paste(resized_img, (x + 4, y + 4))
         
-        border_color = RARITY_COLORS.get(card["rarity"], (180, 180, 180, 255))
-        draw.rectangle([x, y, x + card_w, y + card_h], outline=border_color, width=5)
+        border_color = RARITY_COLORS.get(card["rarity"], (112, 128, 144, 255))
+        draw.rectangle([x, y, x + card_w, y + card_h], outline=border_color, width=4)
         
         # Top Badge Overlay [1], [2], [3]
-        draw.rectangle([x + 6, y + 6, x + 40, y + 36], fill=(0, 0, 0, 200))
-        draw.text((x + 18, y + 12), str(idx + 1), fill=(255, 255, 255))
+        draw.rectangle([x + 4, y + 4, x + 36, y + 32], fill=(0, 0, 0, 220))
+        draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
-        # Bottom Text Overlay (EDITION 1 • CARD ID)
-        draw.rectangle([x + 5, y + card_h - 55, x + card_w - 5, y + card_h - 5], fill=(0, 0, 0, 210))
-        draw.text((x + 15, y + card_h - 48), f"EDITION 1 • #{card['temp_mint']}", fill=(255, 215, 0))
-        draw.text((x + 15, y + card_h - 30), f"ID: {card['code']}", fill=(255, 255, 255))
+        # Bottom Text Overlay (EDITION 1 | PRINT #X & ID: XXX)
+        draw.rectangle([x + 4, y + card_h - 52, x + card_w - 4, y + card_h - 4], fill=(0, 0, 0, 220))
+        draw.text((x + 14, y + card_h - 44), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
+        draw.text((x + 14, y + card_h - 26), f"ID: {card['code']}", fill=(240, 240, 240))
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -163,22 +163,22 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
 async def render_single_card(card_data: dict) -> io.BytesIO:
     """Renders a single high-quality framed Karuta card for /view-card."""
     card_w, card_h = 320, 500
-    canvas = Image.new("RGBA", (card_w, card_h), (30, 33, 36, 255))
+    canvas = Image.new("RGBA", (card_w, card_h), (24, 25, 28, 255))
     draw = ImageDraw.Draw(canvas)
 
     async with aiohttp.ClientSession() as session:
         raw_img = await fetch_image(session, card_data["image_url"])
 
-    resized_img = raw_img.resize((card_w - 16, card_h - 16), Image.Resampling.LANCZOS)
-    canvas.paste(resized_img, (8, 8))
+    resized_img = raw_img.resize((card_w - 12, card_h - 12), Image.Resampling.LANCZOS)
+    canvas.paste(resized_img, (6, 6))
 
-    border_color = RARITY_COLORS.get(card_data["rarity"], (180, 180, 180, 255))
-    draw.rectangle([0, 0, card_w, card_h], outline=border_color, width=8)
+    border_color = RARITY_COLORS.get(card_data["rarity"], (112, 128, 144, 255))
+    draw.rectangle([0, 0, card_w, card_h], outline=border_color, width=6)
 
-    draw.rectangle([8, card_h - 80, card_w - 8, card_h - 8], fill=(0, 0, 0, 220))
-    draw.text((20, card_h - 70), f"EDITION {card_data.get('edition', 1)} • PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
-    draw.text((20, card_h - 48), f"ID: {card_data['code'].upper()}", fill=(255, 255, 255))
-    draw.text((20, card_h - 26), f"{card_data['rarity']}", fill=(200, 200, 200))
+    draw.rectangle([6, card_h - 75, card_w - 6, card_h - 6], fill=(0, 0, 0, 220))
+    draw.text((18, card_h - 65), f"EDITION {card_data.get('edition', 1)}  |  PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
+    draw.text((18, card_h - 44), f"ID: {card_data['code'].upper()}", fill=(255, 255, 255))
+    draw.text((18, card_h - 24), f"{card_data['rarity']}", fill=(200, 200, 200))
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -238,11 +238,9 @@ async def fetch_random_anilist_cards(count: int = 3):
                         else:
                             series = "Anime Series"
                             
-                        if favs > 10000:
+                        if favs > 5000:
                             rarity = "✨ Legendary"
-                        elif favs > 3000:
-                            rarity = "🟣 Epic"
-                        elif favs > 800:
+                        elif favs > 1000:
                             rarity = "🔷 Rare"
                         else:
                             rarity = "⚪ Common"
