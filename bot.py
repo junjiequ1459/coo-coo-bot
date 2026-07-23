@@ -140,25 +140,36 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
+        # 1. Outer Dark Frame & Inner Inset Line
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
         draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
+        # 2. Paste Resized Image
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 66
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
+        # 3. Top-Left Badge
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
         draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
+        # 4. Bottom Info Box
         box_y1 = y + card_h - 58
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
-        draw.text((x + 20, box_y1 + 8), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
-        draw.text((x + 20, box_y1 + 28), f"ID: {card['code']}", fill=(180, 190, 200))
+        # Left Text (Edition, Print #, Card ID)
+        draw.text((x + 18, box_y1 + 6), f"EDITION 1 | #{card['temp_mint']}", fill=(255, 215, 0))
+        draw.text((x + 18, box_y1 + 28), f"ID: {card['code']}", fill=(180, 190, 200))
+
+        # Right Text (Character Name & Series Title on Bottom Right)
+        char_disp = card['name'][:14]
+        series_disp = card['series'][:14]
+        draw.text((x + card_w - 14, box_y1 + 6), char_disp, fill=(255, 255, 255), anchor="ra")
+        draw.text((x + card_w - 14, box_y1 + 28), series_disp, fill=(150, 165, 180), anchor="ra")
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -188,8 +199,15 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     draw.rectangle([8, box_y1, card_w - 8, box_y2], fill=(12, 13, 15, 245))
     draw.line([14, box_y1 + 10, 14, box_y2 - 10], fill=rc, width=4)
 
-    draw.text((26, box_y1 + 10), f"EDITION {card_data.get('edition', 1)}  |  PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
-    draw.text((26, box_y1 + 34), f"ID: {card_data['code'].upper()}", fill=(240, 240, 240))
+    # Left Side Text
+    draw.text((24, box_y1 + 10), f"EDITION {card_data.get('edition', 1)} | #{card_data['mint_number']}", fill=(255, 215, 0))
+    draw.text((24, box_y1 + 34), f"ID: {card_data['code'].upper()}", fill=(240, 240, 240))
+
+    # Right Side Text (Character Name & Series Title)
+    char_disp = card_data['character_name'][:16]
+    series_disp = card_data['series_name'][:16]
+    draw.text((card_w - 18, box_y1 + 10), char_disp, fill=(255, 255, 255), anchor="ra")
+    draw.text((card_w - 18, box_y1 + 34), series_disp, fill=(160, 175, 190), anchor="ra")
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
