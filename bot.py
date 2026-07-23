@@ -105,6 +105,7 @@ def get_user_inventory(user_id: int):
 # ==========================================
 RARITY_COLORS = {
     "✨ Legendary": (255, 215, 0, 255),  # Gold
+    "🟣 Epic": (147, 112, 219, 255),    # Rich Purple
     "🔷 Rare": (0, 229, 255, 255),       # Cyan Blue
     "⚪ Common": (112, 128, 144, 255)     # Slate Silver
 }
@@ -238,9 +239,11 @@ async def fetch_random_anilist_cards(count: int = 3):
                         else:
                             series = "Anime Series"
                             
-                        if favs > 5000:
+                        if favs >= 15000:
                             rarity = "✨ Legendary"
-                        elif favs > 1000:
+                        elif favs >= 5000:
+                            rarity = "🟣 Epic"
+                        elif favs >= 1500:
                             rarity = "🔷 Rare"
                         else:
                             rarity = "⚪ Common"
