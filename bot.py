@@ -118,12 +118,12 @@ async def fetch_image(session, url):
                 return Image.open(io.BytesIO(data)).convert("RGBA")
     except Exception as e:
         print(f"Failed to fetch image {url}: {e}")
-    img = Image.new("RGBA", (255, 380), (32, 34, 37, 255))
+    img = Image.new("RGBA", (255, 390), (32, 34, 37, 255))
     return img
 
 async def render_three_cards_composite(cards: list) -> io.BytesIO:
-    """Renders a single horizontal 3-card composite image (810x430 px) with Karuta borders & overlays!"""
-    canvas_w, canvas_h = 810, 430
+    """Renders a single horizontal 3-card composite image (810x440 px) with Karuta borders & overlays!"""
+    canvas_w, canvas_h = 810, 440
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (24, 25, 28, 255))
     draw = ImageDraw.Draw(canvas)
 
@@ -131,7 +131,7 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         tasks = [fetch_image(session, card["image"]) for card in cards]
         raw_images = await asyncio.gather(*tasks)
 
-    card_w, card_h = 245, 380
+    card_w, card_h = 245, 390
     padding_x = 18
     padding_y = 25
 
@@ -140,21 +140,25 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         
         raw_img = raw_images[idx]
-        resized_img = raw_img.resize((card_w - 8, card_h - 8), Image.Resampling.LANCZOS)
+        resized_img = raw_img.resize((card_w - 12, card_h - 12), Image.Resampling.LANCZOS)
         
-        canvas.paste(resized_img, (x + 4, y + 4))
+        canvas.paste(resized_img, (x + 6, y + 6))
         
+        # 6px thick Rarity-colored Border Frame
         border_color = RARITY_COLORS.get(card["rarity"], (112, 128, 144, 255))
-        draw.rectangle([x, y, x + card_w, y + card_h], outline=border_color, width=4)
+        draw.rectangle([x, y, x + card_w, y + card_h], outline=border_color, width=6)
         
         # Top Badge Overlay [1], [2], [3]
-        draw.rectangle([x + 4, y + 4, x + 36, y + 32], fill=(0, 0, 0, 220))
-        draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
+        draw.rectangle([x + 6, y + 6, x + 38, y + 34], fill=(0, 0, 0, 220))
+        draw.text((x + 18, y + 12), str(idx + 1), fill=(255, 255, 255))
         
-        # Bottom Text Overlay (EDITION 1 | PRINT #X & ID: XXX)
-        draw.rectangle([x + 4, y + card_h - 52, x + card_w - 4, y + card_h - 4], fill=(0, 0, 0, 220))
-        draw.text((x + 14, y + card_h - 44), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
-        draw.text((x + 14, y + card_h - 26), f"ID: {card['code']}", fill=(240, 240, 240))
+        # Bottom Overlay Banner (EDITION 1 | PRINT #X + RARITY + ID)
+        draw.rectangle([x + 6, y + card_h - 68, x + card_w - 6, y + card_h - 6], fill=(0, 0, 0, 220))
+        draw.text((x + 14, y + card_h - 62), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
+        
+        rarity_text = card['rarity'].replace("✨ ", "").replace("🟣 ", "").replace("🔷 ", "").replace("⚪ ", "").upper()
+        draw.text((x + 14, y + card_h - 44), f"RARITY: {rarity_text}", fill=border_color)
+        draw.text((x + 14, y + card_h - 24), f"ID: {card['code']}", fill=(240, 240, 240))
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -174,12 +178,13 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     canvas.paste(resized_img, (6, 6))
 
     border_color = RARITY_COLORS.get(card_data["rarity"], (112, 128, 144, 255))
-    draw.rectangle([0, 0, card_w, card_h], outline=border_color, width=6)
+    draw.rectangle([0, 0, card_w, card_h], outline=border_color, width=8)
 
-    draw.rectangle([6, card_h - 75, card_w - 6, card_h - 6], fill=(0, 0, 0, 220))
-    draw.text((18, card_h - 65), f"EDITION {card_data.get('edition', 1)}  |  PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
-    draw.text((18, card_h - 44), f"ID: {card_data['code'].upper()}", fill=(255, 255, 255))
-    draw.text((18, card_h - 24), f"{card_data['rarity']}", fill=(200, 200, 200))
+    draw.rectangle([6, card_h - 85, card_w - 6, card_h - 6], fill=(0, 0, 0, 220))
+    draw.text((18, card_h - 76), f"EDITION {card_data.get('edition', 1)}  |  PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
+    rarity_text = card_data['rarity'].replace("✨ ", "").replace("🟣 ", "").replace("🔷 ", "").replace("⚪ ", "").upper()
+    draw.text((18, card_h - 54), f"RARITY: {rarity_text}", fill=border_color)
+    draw.text((18, card_h - 30), f"ID: {card_data['code'].upper()}", fill=(255, 255, 255))
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
