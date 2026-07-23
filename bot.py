@@ -20,7 +20,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
 def generate_card_code() -> str:
-    """Generates a random 6-character alphanumeric card code (e.g. 3395a7)."""
+    """Generates a random 6-character alphanumeric card code (e.g. 136hma)."""
     chars = string.ascii_lowercase + string.digits
     return "".join(random.choices(chars, k=6))
 
@@ -101,13 +101,13 @@ def get_user_inventory(user_id: int):
     return rows
 
 # ==========================================
-# 🎨 PIL KARUTA CARD COMPOSITE RENDERER
+# 🎨 PIL KARUTA REFERENCE-MATCHING RENDERER
 # ==========================================
 RARITY_COLORS = {
-    "✨ Legendary": (255, 215, 0, 255),  # Gold
-    "🟣 Epic": (147, 112, 219, 255),    # Rich Purple
-    "🔷 Rare": (0, 229, 255, 255),       # Cyan Blue
-    "⚪ Common": (112, 128, 144, 255)     # Slate Silver
+    "✨ Legendary": (255, 215, 0),   # Gold
+    "🟣 Epic": (147, 112, 219),     # Rich Purple
+    "🔷 Rare": (0, 229, 255),       # Cyan Blue
+    "⚪ Common": (140, 155, 170)    # Slate Silver
 }
 
 async def fetch_image(session, url):
@@ -122,9 +122,9 @@ async def fetch_image(session, url):
     return img
 
 async def render_three_cards_composite(cards: list) -> io.BytesIO:
-    """Renders a single horizontal 3-card composite image (810x440 px) with Karuta borders & overlays!"""
-    canvas_w, canvas_h = 810, 440
-    canvas = Image.new("RGBA", (canvas_w, canvas_h), (24, 25, 28, 255))
+    """Renders a single horizontal 3-card composite image (820x440 px) matching Karuta's exact frame style!"""
+    canvas_w, canvas_h = 820, 440
+    canvas = Image.new("RGBA", (canvas_w, canvas_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
 
     async with aiohttp.ClientSession() as session:
@@ -132,33 +132,42 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         raw_images = await asyncio.gather(*tasks)
 
     card_w, card_h = 245, 390
-    padding_x = 18
+    padding_x = 20
     padding_y = 25
 
     for idx, card in enumerate(cards):
-        x = padding_x + idx * (card_w + 18)
+        x = padding_x + idx * (card_w + 20)
         y = padding_y
+        rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
+        # 1. Outer Dark Metallic Frame
+        draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
+        
+        # 2. Inner Inset Rarity Line
+        draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
+        
+        # 3. Paste Resized Character Image
         raw_img = raw_images[idx]
-        resized_img = raw_img.resize((card_w - 12, card_h - 12), Image.Resampling.LANCZOS)
+        img_w, img_h = card_w - 14, card_h - 66
+        resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
+        canvas.paste(resized_img, (x + 7, y + 7))
         
-        canvas.paste(resized_img, (x + 6, y + 6))
+        # 4. Top-Left Notched Badge [1], [2], [3]
+        badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
+        draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
+        draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
-        # 6px thick Rarity-colored Border Frame
-        border_color = RARITY_COLORS.get(card["rarity"], (112, 128, 144, 255))
-        draw.rectangle([x, y, x + card_w, y + card_h], outline=border_color, width=6)
+        # 5. Bottom Info Box
+        box_y1 = y + card_h - 58
+        box_y2 = y + card_h - 6
+        draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         
-        # Top Badge Overlay [1], [2], [3]
-        draw.rectangle([x + 6, y + 6, x + 38, y + 34], fill=(0, 0, 0, 220))
-        draw.text((x + 18, y + 12), str(idx + 1), fill=(255, 255, 255))
+        # Left Vertical Accent Line (Rarity Color)
+        draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
-        # Bottom Overlay Banner (EDITION 1 | PRINT #X + RARITY + ID)
-        draw.rectangle([x + 6, y + card_h - 68, x + card_w - 6, y + card_h - 6], fill=(0, 0, 0, 220))
-        draw.text((x + 14, y + card_h - 62), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
-        
-        rarity_text = card['rarity'].replace("✨ ", "").replace("🟣 ", "").replace("🔷 ", "").replace("⚪ ", "").upper()
-        draw.text((x + 14, y + card_h - 44), f"RARITY: {rarity_text}", fill=border_color)
-        draw.text((x + 14, y + card_h - 24), f"ID: {card['code']}", fill=(240, 240, 240))
+        # Text
+        draw.text((x + 20, box_y1 + 8), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
+        draw.text((x + 20, box_y1 + 28), f"ID: {card['code']}", fill=(180, 190, 200))
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -168,23 +177,30 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
 async def render_single_card(card_data: dict) -> io.BytesIO:
     """Renders a single high-quality framed Karuta card for /view-card."""
     card_w, card_h = 320, 500
-    canvas = Image.new("RGBA", (card_w, card_h), (24, 25, 28, 255))
+    canvas = Image.new("RGBA", (card_w, card_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
 
     async with aiohttp.ClientSession() as session:
         raw_img = await fetch_image(session, card_data["image_url"])
 
-    resized_img = raw_img.resize((card_w - 12, card_h - 12), Image.Resampling.LANCZOS)
-    canvas.paste(resized_img, (6, 6))
+    rc = RARITY_COLORS.get(card_data["rarity"], (140, 155, 170))
 
-    border_color = RARITY_COLORS.get(card_data["rarity"], (112, 128, 144, 255))
-    draw.rectangle([0, 0, card_w, card_h], outline=border_color, width=8)
+    # Outer Frame & Inner Inset Line
+    draw.rectangle([0, 0, card_w, card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=3)
+    draw.rectangle([5, 5, card_w - 5, card_h - 5], outline=rc, width=3)
 
-    draw.rectangle([6, card_h - 85, card_w - 6, card_h - 6], fill=(0, 0, 0, 220))
-    draw.text((18, card_h - 76), f"EDITION {card_data.get('edition', 1)}  |  PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
-    rarity_text = card_data['rarity'].replace("✨ ", "").replace("🟣 ", "").replace("🔷 ", "").replace("⚪ ", "").upper()
-    draw.text((18, card_h - 54), f"RARITY: {rarity_text}", fill=border_color)
-    draw.text((18, card_h - 30), f"ID: {card_data['code'].upper()}", fill=(255, 255, 255))
+    img_w, img_h = card_w - 18, card_h - 80
+    resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
+    canvas.paste(resized_img, (9, 9))
+
+    # Bottom Info Box
+    box_y1 = card_h - 72
+    box_y2 = card_h - 8
+    draw.rectangle([8, box_y1, card_w - 8, box_y2], fill=(12, 13, 15, 245))
+    draw.line([14, box_y1 + 10, 14, box_y2 - 10], fill=rc, width=4)
+
+    draw.text((26, box_y1 + 10), f"EDITION {card_data.get('edition', 1)}  |  PRINT #{card_data['mint_number']}", fill=(255, 215, 0))
+    draw.text((26, box_y1 + 34), f"ID: {card_data['code'].upper()}", fill=(240, 240, 240))
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -667,7 +683,7 @@ async def coo_slash(interaction: discord.Interaction):
     await interaction.followup.send(f"🐦 **Coo Coo**: {msg}")
 
 if __name__ == "__main__":
-    if not TOKEN or TOKEN == "YOUR_DISCORD_BOT_TOKEN_HERE":
+    if not TOKEN or TOKEN == "YOUR_DISCORD_Bot_TOKEN_HERE":
         print("❌ Error: Please put your Discord Bot Token in the .env file!")
     else:
         bot.run(TOKEN)
