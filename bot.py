@@ -23,7 +23,6 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Table for user inventory
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS inventory (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +36,6 @@ def init_db():
     )
     """)
     
-    # Table for character mint counters
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
         character_name TEXT PRIMARY KEY,
@@ -45,7 +43,6 @@ def init_db():
     )
     """)
     
-    # Table for user drop cooldowns
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS cooldowns (
         user_id INTEGER PRIMARY KEY,
@@ -111,10 +108,10 @@ def set_user_cooldown(user_id: int):
 # ==========================================
 ANILIST_URL = "https://graphql.anilist.co"
 
-ANILIST_QUERY = """
-query ($page: Int, $perPage: Int) {
+ANILIST_QUERY = """query ($page: Int, $perPage: Int) {
   Page(page: $page, perPage: $perPage) {
     characters(sort: FAVOURITES_DESC) {
+      id
       name {
         full
       }
@@ -122,7 +119,7 @@ query ($page: Int, $perPage: Int) {
         large
       }
       favourites
-      media(perPage: 1, sort: POPULARITY_DESC) {
+      media(perPage: 1) {
         nodes {
           title {
             english
@@ -132,54 +129,55 @@ query ($page: Int, $perPage: Int) {
       }
     }
   }
-}
-"""
+}"""
 
 async def fetch_random_anilist_cards(count: int = 3):
     """Fetches random popular anime characters from AniList API."""
-    random_page = random.randint(1, 40)
+    random_page = random.randint(1, 35)
     variables = {"page": random_page, "perPage": 25}
     
     async with aiohttp.ClientSession() as session:
-        async with session.post(ANILIST_URL, json={"query": ANILIST_QUERY, "variables": variables}) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                char_list = data["data"]["Page"]["characters"]
-                selected = random.sample(char_list, min(count, len(char_list)))
-                
-                cards = []
-                for char in selected:
-                    char_name = char["name"]["full"]
-                    img_url = char["image"]["large"]
-                    favs = char.get("favourites", 0)
+        try:
+            async with session.post(ANILIST_URL, json={"query": ANILIST_QUERY, "variables": variables}, timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    char_list = data["data"]["Page"]["characters"]
+                    selected = random.sample(char_list, min(count, len(char_list)))
                     
-                    # Media title
-                    media_nodes = char.get("media", {}).get("nodes", [])
-                    if media_nodes and media_nodes[0].get("title"):
-                        series = media_nodes[0]["title"].get("english") or media_nodes[0]["title"].get("romaji") or "Anime Series"
-                    else:
-                        series = "Anime Series"
+                    cards = []
+                    for char in selected:
+                        char_name = char["name"]["full"]
+                        img_url = char["image"]["large"]
+                        favs = char.get("favourites", 0)
                         
-                    # Determine Rarity based on favorites
-                    if favs > 5000:
-                        rarity = "✨ Legendary"
-                    elif favs > 1500:
-                        rarity = "🟣 Epic"
-                    elif favs > 500:
-                        rarity = "🔷 Rare"
-                    else:
-                        rarity = "⚪ Common"
-                        
-                    cards.append({
-                        "name": char_name,
-                        "series": series,
-                        "image": img_url,
-                        "rarity": rarity
-                    })
-                return cards
-            else:
-                print(f"AniList API status error: {resp.status}")
-                return None
+                        media_nodes = char.get("media", {}).get("nodes", [])
+                        if media_nodes and media_nodes[0].get("title"):
+                            series = media_nodes[0]["title"].get("english") or media_nodes[0]["title"].get("romaji") or "Anime Series"
+                        else:
+                            series = "Anime Series"
+                            
+                        if favs > 10000:
+                            rarity = "✨ Legendary"
+                        elif favs > 3000:
+                            rarity = "🟣 Epic"
+                        elif favs > 800:
+                            rarity = "🔷 Rare"
+                        else:
+                            rarity = "⚪ Common"
+                            
+                        cards.append({
+                            "name": char_name,
+                            "series": series,
+                            "image": img_url,
+                            "rarity": rarity
+                        })
+                    return cards
+                else:
+                    print(f"AniList API Status Error: {resp.status}")
+                    return None
+        except Exception as e:
+            print(f"AniList Fetch Exception: {e}")
+            return None
 
 # ==========================================
 # 🎨 COLOR ROLES CONFIGURATION
@@ -221,7 +219,7 @@ class CardGrabButton(discord.ui.Button):
             label=f"Grab Card {index + 1}",
             emoji=["1️⃣", "2️⃣", "3️⃣"][index],
             style=discord.ButtonStyle.primary,
-            custom_id=f"coocoo_grab_{index}_{random.randint(1000, 9999)}"
+            custom_id=f"coocoo_grab_{index}_{random.randint(10000, 99999)}"
         )
         self.index = index
         self.card_info = card_info
@@ -237,7 +235,6 @@ class CardGrabButton(discord.ui.Button):
         self.label = f"Claimed by {interaction.user.display_name}"
         self.style = discord.ButtonStyle.success
 
-        # Get next mint number & save to SQLite DB
         mint_num = get_next_mint(self.card_info["name"])
         save_card_to_inventory(
             user_id=interaction.user.id,
@@ -380,7 +377,7 @@ async def execute_card_drop(ctx_or_interaction, user):
     # Fetch 3 random AniList cards
     cards = await fetch_random_anilist_cards(3)
     if not cards:
-        msg = "Coo coo! ⚠️ Couldn't reach the AniList database. Please try again in a moment!"
+        msg = "Coo coo! ⚠️ Couldn't reach AniList. Please try again in a moment!"
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg)
         else:
@@ -403,7 +400,6 @@ async def execute_card_drop(ctx_or_interaction, user):
             inline=True
         )
 
-    # Set the image of the first card as thumbnail
     embed.set_thumbnail(url=cards[0]["image"])
     embed.set_footer(text="Coo Coo Card Engine • Cards expire in 3 minutes!")
 
@@ -443,7 +439,7 @@ async def inventory_slash(interaction: discord.Interaction):
         color=discord.Color.purple()
     )
 
-    for row in rows[:10]: # Display top 10 recent
+    for row in rows[:10]:
         card_id, char_name, series, rarity, mint_num, img_url = row
         embed.add_field(
             name=f"#{card_id} • {char_name} (Mint #{mint_num})",
