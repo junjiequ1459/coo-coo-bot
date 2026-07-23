@@ -264,7 +264,6 @@ async def fetch_random_anilist_cards(count: int = 3):
         else:
             series = "Anime Series"
             
-        # Strictly Individual Rarity Calculation based on each character's exact favorites:
         if favs >= 12000:
             rarity = "✨ Legendary"
         elif favs >= 4000:
@@ -373,11 +372,24 @@ class CardGrabButton(discord.ui.Button):
 
 class CardDropView(discord.ui.View):
     def __init__(self, cards: list):
-        super().__init__(timeout=180)
+        super().__init__(timeout=180) # 3 Minutes Expiration like Karuta!
         self.cards = cards
         self.claimed = False
+        self.message = None
         for idx, card in enumerate(cards):
             self.add_item(CardGrabButton(idx, card))
+
+    async def on_timeout(self):
+        if not self.claimed:
+            for child in self.children:
+                child.disabled = True
+                child.label = "Drop Expired"
+                child.style = discord.ButtonStyle.secondary
+            if self.message:
+                try:
+                    await self.message.edit(view=self)
+                except Exception:
+                    pass
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
@@ -513,9 +525,11 @@ async def execute_card_drop(ctx_or_interaction, user):
     view = CardDropView(cards)
 
     if isinstance(ctx_or_interaction, discord.Interaction):
-        await ctx_or_interaction.followup.send(embed=embed, file=file, view=view)
+        msg = await ctx_or_interaction.followup.send(embed=embed, file=file, view=view)
+        view.message = msg
     else:
-        await ctx_or_interaction.send(embed=embed, file=file, view=view)
+        msg = await ctx_or_interaction.send(embed=embed, file=file, view=view)
+        view.message = msg
 
 @bot.tree.command(name="drop", description="Drops 3 random Anime Cards from AniList!")
 async def drop_slash(interaction: discord.Interaction):
