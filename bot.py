@@ -140,32 +140,23 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
-        # 1. Outer Dark Metallic Frame
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
-        
-        # 2. Inner Inset Rarity Line
         draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
-        # 3. Paste Resized Character Image
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 66
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
-        # 4. Top-Left Notched Badge [1], [2], [3]
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
         draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
-        # 5. Bottom Info Box
         box_y1 = y + card_h - 58
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
-        
-        # Left Vertical Accent Line (Rarity Color)
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
-        # Text
         draw.text((x + 20, box_y1 + 8), f"EDITION 1  |  PRINT #{card['temp_mint']}", fill=(255, 215, 0))
         draw.text((x + 20, box_y1 + 28), f"ID: {card['code']}", fill=(180, 190, 200))
 
@@ -185,7 +176,6 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
 
     rc = RARITY_COLORS.get(card_data["rarity"], (140, 155, 170))
 
-    # Outer Frame & Inner Inset Line
     draw.rectangle([0, 0, card_w, card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=3)
     draw.rectangle([5, 5, card_w - 5, card_h - 5], outline=rc, width=3)
 
@@ -193,7 +183,6 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
     canvas.paste(resized_img, (9, 9))
 
-    # Bottom Info Box
     box_y1 = card_h - 72
     box_y2 = card_h - 8
     draw.rectangle([8, box_y1, card_w - 8, box_y2], fill=(12, 13, 15, 245))
@@ -558,9 +547,9 @@ async def inventory_slash(interaction: discord.Interaction):
         )
 
     if len(rows) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card card_id:<code> to see full card artwork!")
+        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card card_code:<code> to see full card artwork!")
     else:
-        embed.set_footer(text="Type /view-card card_id:<code> to see full card artwork!")
+        embed.set_footer(text="Type /view-card card_code:<code> to see full card artwork!")
 
     await interaction.followup.send(embed=embed)
 
@@ -589,21 +578,20 @@ async def inventory_prefix(ctx):
 
     await ctx.send(embed=embed)
 
-@bot.tree.command(name="view-card", description="View full details and artwork of a card by Card ID")
-async def view_card_slash(interaction: discord.Interaction, card_id: str):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
+async def process_view_card(ctx_or_interaction, card_code_query: str):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE code = ? OR id = ?", (card_id.lower().strip(), card_id.strip()))
+    query_str = card_code_query.lower().strip()
+    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE code = ? OR id = ?", (query_str, query_str))
     row = cursor.fetchone()
     conn.close()
 
     if not row:
-        await interaction.followup.send(f"Coo coo! ⚠️ Card ID `{card_id}` not found in database!")
+        msg = f"Coo coo! ⚠️ Card ID `{card_code_query}` not found in database!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
         return
 
     cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, grabbed_at = row
@@ -638,7 +626,26 @@ async def view_card_slash(interaction: discord.Interaction, card_id: str):
     embed.set_image(url="attachment://card.png")
     embed.set_footer(text=f"Coo Coo Card Vault • Card ID: {code_str}")
 
-    await interaction.followup.send(embed=embed, file=file)
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed, file=file)
+    else:
+        await ctx_or_interaction.send(embed=embed, file=file)
+
+@bot.tree.command(name="view-card", description="View full details and artwork of a card by Card ID")
+async def view_card_slash(interaction: discord.Interaction, card_code: str):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_view_card(interaction, card_code)
+
+@bot.command(name="v")
+async def view_card_prefix_v(ctx, card_code: str):
+    await process_view_card(ctx, card_code)
+
+@bot.command(name="view")
+async def view_card_prefix_view(ctx, card_code: str):
+    await process_view_card(ctx, card_code)
 
 # ==========================================
 # 🎨 OTHER COMMANDS
@@ -683,7 +690,7 @@ async def coo_slash(interaction: discord.Interaction):
     await interaction.followup.send(f"🐦 **Coo Coo**: {msg}")
 
 if __name__ == "__main__":
-    if not TOKEN or TOKEN == "YOUR_DISCORD_Bot_TOKEN_HERE":
+    if not TOKEN or TOKEN == "YOUR_DISCORD_BOT_TOKEN_HERE":
         print("❌ Error: Please put your Discord Bot Token in the .env file!")
     else:
         bot.run(TOKEN)
