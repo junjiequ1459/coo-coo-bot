@@ -354,6 +354,16 @@ class CardGrabButton(discord.ui.Button):
             await interaction.response.send_message("Coo coo! ⚠️ This drop has already been claimed!", ephemeral=True)
             return
 
+        # ⏳ 10-Second Dropper Priority Check
+        elapsed = time.time() - view.drop_time
+        if elapsed < 10.0 and interaction.user.id != view.dropper_id:
+            remaining = int(10.0 - elapsed) + 1
+            await interaction.response.send_message(
+                f"Coo coo! ⏳ <@{view.dropper_id}> has **10 seconds of drop priority**! ({remaining}s remaining)",
+                ephemeral=True
+            )
+            return
+
         view.claimed = True
         
         for child in view.children:
@@ -389,9 +399,11 @@ class CardGrabButton(discord.ui.Button):
         )
 
 class CardDropView(discord.ui.View):
-    def __init__(self, cards: list):
+    def __init__(self, cards: list, dropper_id: int):
         super().__init__(timeout=180) # 3 Minutes Expiration like Karuta!
         self.cards = cards
+        self.dropper_id = dropper_id
+        self.drop_time = time.time()
         self.claimed = False
         self.message = None
         for idx, card in enumerate(cards):
@@ -533,6 +545,7 @@ async def execute_card_drop(ctx_or_interaction, user):
             f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
             f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
             f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
+            f"⏳ **Priority:** {user.mention} has 10 seconds of exclusive drop priority!\n"
             f"Click a button below to grab a card!"
         ),
         color=discord.Color.gold()
@@ -540,7 +553,7 @@ async def execute_card_drop(ctx_or_interaction, user):
     embed.set_image(url="attachment://drop.png")
     embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
 
-    view = CardDropView(cards)
+    view = CardDropView(cards, dropper_id=user.id)
 
     if isinstance(ctx_or_interaction, discord.Interaction):
         msg = await ctx_or_interaction.followup.send(embed=embed, file=file, view=view)
