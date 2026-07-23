@@ -118,12 +118,12 @@ async def fetch_image(session, url):
                 return Image.open(io.BytesIO(data)).convert("RGBA")
     except Exception as e:
         print(f"Failed to fetch image {url}: {e}")
-    img = Image.new("RGBA", (255, 390), (32, 34, 37, 255))
+    img = Image.new("RGBA", (260, 400), (32, 34, 37, 255))
     return img
 
 async def render_three_cards_composite(cards: list) -> io.BytesIO:
-    """Renders a single horizontal 3-card composite image (820x440 px) matching Karuta's exact frame style!"""
-    canvas_w, canvas_h = 820, 440
+    """Renders a single horizontal 3-card composite image (850x450 px) matching Karuta's exact frame style!"""
+    canvas_w, canvas_h = 850, 450
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
 
@@ -131,7 +131,7 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         tasks = [fetch_image(session, card["image"]) for card in cards]
         raw_images = await asyncio.gather(*tasks)
 
-    card_w, card_h = 245, 390
+    card_w, card_h = 255, 400
     padding_x = 20
     padding_y = 25
 
@@ -146,7 +146,7 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         
         # 2. Paste Resized Image
         raw_img = raw_images[idx]
-        img_w, img_h = card_w - 14, card_h - 66
+        img_w, img_h = card_w - 14, card_h - 68
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
@@ -156,20 +156,20 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
         # 4. Bottom Info Box
-        box_y1 = y + card_h - 58
+        box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
-        # Left Text (Edition, Print #, Card ID)
-        draw.text((x + 18, box_y1 + 6), f"EDITION 1 | #{card['temp_mint']}", fill=(255, 215, 0))
-        draw.text((x + 18, box_y1 + 28), f"ID: {card['code']}", fill=(180, 190, 200))
+        # Left Text (Short Edition & ID)
+        draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
+        draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
 
-        # Right Text (Character Name & Series Title on Bottom Right)
-        char_disp = card['name'][:14]
-        series_disp = card['series'][:14]
+        # Right Text (Character Name & Series Title up to 24 chars!)
+        char_disp = card['name'][:24]
+        series_disp = card['series'][:24]
         draw.text((x + card_w - 14, box_y1 + 6), char_disp, fill=(255, 255, 255), anchor="ra")
-        draw.text((x + card_w - 14, box_y1 + 28), series_disp, fill=(150, 165, 180), anchor="ra")
+        draw.text((x + card_w - 14, box_y1 + 30), series_disp, fill=(150, 165, 180), anchor="ra")
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -178,7 +178,7 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
 
 async def render_single_card(card_data: dict) -> io.BytesIO:
     """Renders a single high-quality framed Karuta card for /card."""
-    card_w, card_h = 320, 500
+    card_w, card_h = 340, 520
     canvas = Image.new("RGBA", (card_w, card_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
 
@@ -200,12 +200,12 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     draw.line([14, box_y1 + 10, 14, box_y2 - 10], fill=rc, width=4)
 
     # Left Side Text
-    draw.text((24, box_y1 + 10), f"EDITION {card_data.get('edition', 1)} | #{card_data['mint_number']}", fill=(255, 215, 0))
+    draw.text((24, box_y1 + 10), f"ED {card_data.get('edition', 1)} | #{card_data['mint_number']}", fill=(255, 215, 0))
     draw.text((24, box_y1 + 34), f"ID: {card_data['code'].upper()}", fill=(240, 240, 240))
 
     # Right Side Text (Character Name & Series Title)
-    char_disp = card_data['character_name'][:16]
-    series_disp = card_data['series_name'][:16]
+    char_disp = card_data['character_name'][:26]
+    series_disp = card_data['series_name'][:26]
     draw.text((card_w - 18, box_y1 + 10), char_disp, fill=(255, 255, 255), anchor="ra")
     draw.text((card_w - 18, box_y1 + 34), series_disp, fill=(160, 175, 190), anchor="ra")
 
