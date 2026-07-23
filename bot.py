@@ -547,9 +547,9 @@ async def inventory_slash(interaction: discord.Interaction):
         )
 
     if len(rows) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card card_code:<code> to see full card artwork!")
+        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card to see full card artwork!")
     else:
-        embed.set_footer(text="Type /view-card card_code:<code> to see full card artwork!")
+        embed.set_footer(text="Type /view-card to see full card artwork!")
 
     await interaction.followup.send(embed=embed)
 
@@ -578,16 +578,27 @@ async def inventory_prefix(ctx):
 
     await ctx.send(embed=embed)
 
-async def process_view_card(ctx_or_interaction, card_code_query: str):
+async def process_view_card(ctx_or_interaction, card_code_query: str = None):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    query_str = card_code_query.lower().strip()
-    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE code = ? OR id = ?", (query_str, query_str))
+
+    if not card_code_query:
+        # Fetch the user's most recently grabbed card!
+        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+    else:
+        query_str = card_code_query.lower().strip()
+        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE code = ? OR id = ?", (query_str, query_str))
+    
     row = cursor.fetchone()
     conn.close()
 
     if not row:
-        msg = f"Coo coo! ⚠️ Card ID `{card_code_query}` not found in database!"
+        if not card_code_query:
+            msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet! Type `/drop` to grab your first card!"
+        else:
+            msg = f"Coo coo! ⚠️ Card ID `{card_code_query}` not found in database!"
+            
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg)
         else:
@@ -631,8 +642,8 @@ async def process_view_card(ctx_or_interaction, card_code_query: str):
     else:
         await ctx_or_interaction.send(embed=embed, file=file)
 
-@bot.tree.command(name="view-card", description="View full details and artwork of a card by Card ID")
-async def view_card_slash(interaction: discord.Interaction, card_code: str):
+@bot.tree.command(name="view-card", description="View full details and artwork of a card (Defaults to your latest card)")
+async def view_card_slash(interaction: discord.Interaction, card_code: str = None):
     try:
         await interaction.response.defer()
     except Exception:
@@ -640,11 +651,11 @@ async def view_card_slash(interaction: discord.Interaction, card_code: str):
     await process_view_card(interaction, card_code)
 
 @bot.command(name="v")
-async def view_card_prefix_v(ctx, card_code: str):
+async def view_card_prefix_v(ctx, card_code: str = None):
     await process_view_card(ctx, card_code)
 
 @bot.command(name="view")
-async def view_card_prefix_view(ctx, card_code: str):
+async def view_card_prefix_view(ctx, card_code: str = None):
     await process_view_card(ctx, card_code)
 
 # ==========================================
