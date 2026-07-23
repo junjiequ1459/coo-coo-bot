@@ -324,7 +324,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"🐦 Coo Coo is ONLINE as {bot.user.name} ({bot.user.id})!")
-    # Instant Guild Slash Command Sync for immediate appearance in Discord menus!
     for guild in bot.guilds:
         try:
             bot.tree.copy_global_to(guild=guild)
@@ -362,7 +361,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 # ==========================================
 
 async def execute_card_drop(ctx_or_interaction, user):
-    """Core logic to fetch cards and display drop embed."""
+    """Core logic to fetch cards and display 3 individual embeds with full artwork."""
     user_id = user.id
     last_drop = get_user_cooldown(user_id)
     cooldown_seconds = 1800 # 30 minutes
@@ -390,28 +389,29 @@ async def execute_card_drop(ctx_or_interaction, user):
     # Update Cooldown
     set_user_cooldown(user_id)
 
-    embed = discord.Embed(
-        title="🎴 Coo Coo's Anime Card Drop!",
-        description=f"**{user.display_name}** dropped 3 cards from AniList! Click a button below to grab one!",
-        color=discord.Color.gold()
-    )
+    # Build 3 separate embeds — one for each card showing full artwork!
+    embeds = []
+    card_colors = [discord.Color.blue(), discord.Color.purple(), discord.Color.gold()]
 
     for idx, card in enumerate(cards):
-        embed.add_field(
-            name=f"Card {idx + 1}: {card['name']}",
-            value=f"📺 **Series:** {card['series']}\n✨ **Rarity:** {card['rarity']}",
-            inline=True
+        embed = discord.Embed(
+            title=f"1️⃣ 2️⃣ 3️⃣"[idx*2:idx*2+2] + f" Card {idx + 1}: {card['name']}",
+            description=f"📺 **Series:** {card['series']}\n✨ **Rarity:** {card['rarity']}",
+            color=card_colors[idx]
         )
-
-    embed.set_thumbnail(url=cards[0]["image"])
-    embed.set_footer(text="Coo Coo Card Engine • Cards expire in 3 minutes!")
+        embed.set_image(url=card["image"])
+        if idx == 0:
+            embed.set_author(name=f"🎴 {user.display_name}'s Card Drop!")
+        if idx == 2:
+            embed.set_footer(text="Coo Coo Card Engine • Click a button below to grab!")
+        embeds.append(embed)
 
     view = CardDropView(cards)
 
     if isinstance(ctx_or_interaction, discord.Interaction):
-        await ctx_or_interaction.followup.send(embed=embed, view=view)
+        await ctx_or_interaction.followup.send(embeds=embeds, view=view)
     else:
-        await ctx_or_interaction.send(embed=embed, view=view)
+        await ctx_or_interaction.send(embeds=embeds, view=view)
 
 @bot.tree.command(name="drop", description="Drops 3 random Anime Cards from AniList!")
 async def drop_slash(interaction: discord.Interaction):
