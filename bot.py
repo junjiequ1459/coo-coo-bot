@@ -324,11 +324,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"🐦 Coo Coo is ONLINE as {bot.user.name} ({bot.user.id})!")
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} Global Commands!")
-    except Exception as e:
-        print(f"Failed to sync slash commands: {e}")
+    # Instant Guild Slash Command Sync for immediate appearance in Discord menus!
+    for guild in bot.guilds:
+        try:
+            bot.tree.copy_global_to(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            print(f"Synced {len(synced)} Slash Commands to guild '{guild.name}' ({guild.id})!")
+        except Exception as e:
+            print(f"Guild sync error for {guild.name}: {e}")
 
     bot.add_view(ColorPickerView())
 
