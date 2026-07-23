@@ -5,12 +5,185 @@ from discord import app_commands
 from dotenv import load_dotenv
 import random
 import asyncio
+import aiohttp
+import sqlite3
+import time
 import traceback
+from datetime import datetime
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
+# ==========================================
+# 🗄️ SQLITE DATABASE INITIALIZATION
+# ==========================================
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Table for user inventory
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS inventory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        character_name TEXT NOT NULL,
+        series_name TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        rarity TEXT NOT NULL,
+        mint_number INTEGER NOT NULL,
+        grabbed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    
+    # Table for character mint counters
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mints (
+        character_name TEXT PRIMARY KEY,
+        current_mint INTEGER NOT NULL
+    )
+    """)
+    
+    # Table for user drop cooldowns
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS cooldowns (
+        user_id INTEGER PRIMARY KEY,
+        last_drop REAL NOT NULL
+    )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def get_next_mint(character_name: str) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT current_mint FROM mints WHERE character_name = ?", (character_name,))
+    row = cursor.fetchone()
+    if row:
+        next_mint = row[0] + 1
+        cursor.execute("UPDATE mints SET current_mint = ? WHERE character_name = ?", (next_mint, character_name))
+    else:
+        next_mint = 1
+        cursor.execute("INSERT INTO mints (character_name, current_mint) VALUES (?, ?)", (character_name, next_mint))
+    conn.commit()
+    conn.close()
+    return next_mint
+
+def save_card_to_inventory(user_id: int, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO inventory (user_id, character_name, series_name, image_url, rarity, mint_number)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, character_name, series_name, image_url, rarity, mint_number))
+    conn.commit()
+    conn.close()
+
+def get_user_inventory(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, character_name, series_name, rarity, mint_number, image_url FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_user_cooldown(user_id: int) -> float:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT last_drop FROM cooldowns WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else 0.0
+
+def set_user_cooldown(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO cooldowns (user_id, last_drop) VALUES (?, ?)", (user_id, time.time()))
+    conn.commit()
+    conn.close()
+
+# ==========================================
+# 🌐 ANILIST PUBLIC API INTEGRATION
+# ==========================================
+ANILIST_URL = "https://graphql.anilist.co"
+
+ANILIST_QUERY = """
+query ($page: Int, $perPage: Int) {
+  Page(page: $page, perPage: $perPage) {
+    characters(sort: FAVOURITES_DESC) {
+      name {
+        full
+      }
+      image {
+        large
+      }
+      favourites
+      media(perPage: 1, sort: POPULARITY_DESC) {
+        nodes {
+          title {
+            english
+            romaji
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+async def fetch_random_anilist_cards(count: int = 3):
+    """Fetches random popular anime characters from AniList API."""
+    random_page = random.randint(1, 40)
+    variables = {"page": random_page, "perPage": 25}
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(ANILIST_URL, json={"query": ANILIST_QUERY, "variables": variables}) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                char_list = data["data"]["Page"]["characters"]
+                selected = random.sample(char_list, min(count, len(char_list)))
+                
+                cards = []
+                for char in selected:
+                    char_name = char["name"]["full"]
+                    img_url = char["image"]["large"]
+                    favs = char.get("favourites", 0)
+                    
+                    # Media title
+                    media_nodes = char.get("media", {}).get("nodes", [])
+                    if media_nodes and media_nodes[0].get("title"):
+                        series = media_nodes[0]["title"].get("english") or media_nodes[0]["title"].get("romaji") or "Anime Series"
+                    else:
+                        series = "Anime Series"
+                        
+                    # Determine Rarity based on favorites
+                    if favs > 5000:
+                        rarity = "✨ Legendary"
+                    elif favs > 1500:
+                        rarity = "🟣 Epic"
+                    elif favs > 500:
+                        rarity = "🔷 Rare"
+                    else:
+                        rarity = "⚪ Common"
+                        
+                    cards.append({
+                        "name": char_name,
+                        "series": series,
+                        "image": img_url,
+                        "rarity": rarity
+                    })
+                return cards
+            else:
+                print(f"AniList API status error: {resp.status}")
+                return None
+
+# ==========================================
+# 🎨 COLOR ROLES CONFIGURATION
+# ==========================================
 COLOR_ROLES = [
     {"name": "Cherry Pink", "emoji": "🩷", "hex": 0xFFB6C1},
     {"name": "Lavender", "emoji": "💜", "hex": 0x9370DB},
@@ -38,6 +211,53 @@ PIGEON_MESSAGES = [
     "Coo coo! 🌟 Ratan told me to reach for the stars. I reached for a French fry instead, but the energy is the same!",
     "Coo coo! 🍕 Keep pushing forward! Every line you draw brings you closer to your dream!"
 ]
+
+# ==========================================
+# 🎴 CARD DROP BUTTON UI
+# ==========================================
+class CardGrabButton(discord.ui.Button):
+    def __init__(self, index: int, card_info: dict):
+        super().__init__(
+            label=f"Grab Card {index + 1}",
+            emoji=["1️⃣", "2️⃣", "3️⃣"][index],
+            style=discord.ButtonStyle.primary,
+            custom_id=f"coocoo_grab_{index}_{random.randint(1000, 9999)}"
+        )
+        self.index = index
+        self.card_info = card_info
+        self.grabbed = False
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.grabbed:
+            await interaction.response.send_message("Coo coo! ⚠️ This card has already been grabbed!", ephemeral=True)
+            return
+
+        self.grabbed = True
+        self.disabled = True
+        self.label = f"Claimed by {interaction.user.display_name}"
+        self.style = discord.ButtonStyle.success
+
+        # Get next mint number & save to SQLite DB
+        mint_num = get_next_mint(self.card_info["name"])
+        save_card_to_inventory(
+            user_id=interaction.user.id,
+            character_name=self.card_info["name"],
+            series_name=self.card_info["series"],
+            image_url=self.card_info["image"],
+            rarity=self.card_info["rarity"],
+            mint_number=mint_num
+        )
+
+        await interaction.response.edit_message(view=self.view)
+        await interaction.followup.send(
+            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (Mint **#{mint_num}**) from *{self.card_info['series']}*! {self.card_info['rarity']}"
+        )
+
+class CardDropView(discord.ui.View):
+    def __init__(self, cards: list):
+        super().__init__(timeout=180)
+        for idx, card in enumerate(cards):
+            self.add_item(CardGrabButton(idx, card))
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
@@ -95,6 +315,9 @@ class ColorPickerView(discord.ui.View):
         for color in COLOR_ROLES:
             self.add_item(ColorButton(color))
 
+# ==========================================
+# 🤖 BOT DISCORD CLIENT SETUP
+# ==========================================
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -135,7 +358,161 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     print(f"❌ Slash command error: {error}")
 
 # ==========================================
-# 📜 PREFIX & SLASH COMMANDS
+# 🎴 ANILIST CARD DROP & INVENTORY COMMANDS
+# ==========================================
+
+async def execute_card_drop(ctx_or_interaction, user):
+    """Core logic to fetch cards and display drop embed."""
+    user_id = user.id
+    last_drop = get_user_cooldown(user_id)
+    cooldown_seconds = 1800 # 30 minutes
+    elapsed = time.time() - last_drop
+
+    if elapsed < cooldown_seconds:
+        remaining_mins = int((cooldown_seconds - elapsed) // 60)
+        msg = f"Coo coo! ⏳ {user.mention}, you're on drop cooldown! Please wait **{remaining_mins} more minutes** before dropping cards again."
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    # Fetch 3 random AniList cards
+    cards = await fetch_random_anilist_cards(3)
+    if not cards:
+        msg = "Coo coo! ⚠️ Couldn't reach the AniList database. Please try again in a moment!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    # Update Cooldown
+    set_user_cooldown(user_id)
+
+    embed = discord.Embed(
+        title="🎴 Coo Coo's Anime Card Drop!",
+        description=f"**{user.display_name}** dropped 3 cards from AniList! Click a button below to grab one!",
+        color=discord.Color.gold()
+    )
+
+    for idx, card in enumerate(cards):
+        embed.add_field(
+            name=f"Card {idx + 1}: {card['name']}",
+            value=f"📺 **Series:** {card['series']}\n✨ **Rarity:** {card['rarity']}",
+            inline=True
+        )
+
+    # Set the image of the first card as thumbnail
+    embed.set_thumbnail(url=cards[0]["image"])
+    embed.set_footer(text="Coo Coo Card Engine • Cards expire in 3 minutes!")
+
+    view = CardDropView(cards)
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed, view=view)
+    else:
+        await ctx_or_interaction.send(embed=embed, view=view)
+
+@bot.tree.command(name="drop", description="Drops 3 random Anime Cards from AniList!")
+async def drop_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await execute_card_drop(interaction, interaction.user)
+
+@bot.command(name="drop")
+async def drop_prefix(ctx):
+    await execute_card_drop(ctx, ctx.author)
+
+@bot.tree.command(name="inventory", description="View your collected Anime Cards")
+async def inventory_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    rows = get_user_inventory(interaction.user.id)
+    if not rows:
+        await interaction.followup.send("Coo coo! 🎴 You haven't grabbed any cards yet! Type `/drop` to start collecting!")
+        return
+
+    embed = discord.Embed(
+        title=f"🎴 {interaction.user.display_name}'s Card Collection",
+        description=f"Total Cards Collected: **{len(rows)}**",
+        color=discord.Color.purple()
+    )
+
+    for row in rows[:10]: # Display top 10 recent
+        card_id, char_name, series, rarity, mint_num, img_url = row
+        embed.add_field(
+            name=f"#{card_id} • {char_name} (Mint #{mint_num})",
+            value=f"📺 *{series}* | {rarity}",
+            inline=False
+        )
+
+    if len(rows) > 10:
+        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card <id> to see full artwork!")
+    else:
+        embed.set_footer(text="Type /view-card <id> to see full artwork!")
+
+    await interaction.followup.send(embed=embed)
+
+@bot.command(name="inventory")
+async def inventory_prefix(ctx):
+    rows = get_user_inventory(ctx.author.id)
+    if not rows:
+        await ctx.send("Coo coo! 🎴 You haven't grabbed any cards yet! Type `!drop` to start collecting!")
+        return
+
+    embed = discord.Embed(
+        title=f"🎴 {ctx.author.display_name}'s Card Collection",
+        description=f"Total Cards Collected: **{len(rows)}**",
+        color=discord.Color.purple()
+    )
+
+    for row in rows[:10]:
+        card_id, char_name, series, rarity, mint_num, img_url = row
+        embed.add_field(
+            name=f"#{card_id} • {char_name} (Mint #{mint_num})",
+            value=f"📺 *{series}* | {rarity}",
+            inline=False
+        )
+
+    await ctx.send(embed=embed)
+
+@bot.tree.command(name="view-card", description="View full details and artwork of a card from your inventory")
+async def view_card_slash(interaction: discord.Interaction, card_id: int):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, user_id, character_name, series_name, rarity, mint_number, image_url, grabbed_at FROM inventory WHERE id = ?", (card_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        await interaction.followup.send("Coo coo! ⚠️ Card ID not found in database!")
+        return
+
+    cid, uid, char_name, series, rarity, mint_num, img_url, grabbed_at = row
+    owner = bot.get_user(uid)
+    owner_name = owner.display_name if owner else f"User {uid}"
+
+    embed = discord.Embed(
+        title=f"{char_name} (Mint #{mint_num})",
+        description=f"📺 **Series:** {series}\n✨ **Rarity:** {rarity}\n👤 **Owner:** {owner_name}\n📅 **Grabbed:** {grabbed_at}",
+        color=discord.Color.magenta()
+    )
+    embed.set_image(url=img_url)
+    embed.set_footer(text=f"Coo Coo Card Vault • Card #{cid}")
+
+    await interaction.followup.send(embed=embed)
+
+# ==========================================
+# 🎨 OTHER COMMANDS
 # ==========================================
 
 @bot.command(name="setup-colors")
