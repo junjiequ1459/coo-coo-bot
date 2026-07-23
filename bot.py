@@ -100,6 +100,31 @@ def get_user_inventory(user_id: int):
     conn.close()
     return rows
 
+def get_card_by_code_and_owner(code: str, user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int, user2_codes: list):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        for code in user1_codes:
+            cursor.execute("UPDATE inventory SET user_id = ? WHERE code = ?", (user2_id, code))
+        for code in user2_codes:
+            cursor.execute("UPDATE inventory SET user_id = ? WHERE code = ?", (user1_id, code))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error transferring cards: {e}")
+        conn.rollback()
+        conn.close()
+        return False
+
 # ==========================================
 # 🎨 PIL KARUTA REFERENCE-MATCHING RENDERER
 # ==========================================
@@ -140,32 +165,26 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
-        # 1. Outer Dark Frame & Inner Inset Line
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
         draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
-        # 2. Paste Resized Image
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 68
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
-        # 3. Top-Left Badge
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
         draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
-        # 4. Bottom Info Box
         box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
-        # Left Text (Short Edition & ID)
         draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
         draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
 
-        # Right Text (Character Name & Series Title up to 24 chars!)
         char_disp = card['name'][:24]
         series_disp = card['series'][:24]
         draw.text((x + card_w - 14, box_y1 + 6), char_disp, fill=(255, 255, 255), anchor="ra")
@@ -199,11 +218,9 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     draw.rectangle([8, box_y1, card_w - 8, box_y2], fill=(12, 13, 15, 245))
     draw.line([14, box_y1 + 10, 14, box_y2 - 10], fill=rc, width=4)
 
-    # Left Side Text
     draw.text((24, box_y1 + 10), f"ED {card_data.get('edition', 1)} | #{card_data['mint_number']}", fill=(255, 215, 0))
     draw.text((24, box_y1 + 34), f"ID: {card_data['code'].upper()}", fill=(240, 240, 240))
 
-    # Right Side Text (Character Name & Series Title)
     char_disp = card_data['character_name'][:26]
     series_disp = card_data['series_name'][:26]
     draw.text((card_w - 18, box_y1 + 10), char_disp, fill=(255, 255, 255), anchor="ra")
@@ -354,7 +371,6 @@ class CardGrabButton(discord.ui.Button):
             await interaction.response.send_message("Coo coo! ⚠️ This drop has already been claimed!", ephemeral=True)
             return
 
-        # ⏳ 10-Second Dropper Priority Check
         elapsed = time.time() - view.drop_time
         if elapsed < 10.0 and interaction.user.id != view.dropper_id:
             remaining = int(10.0 - elapsed) + 1
@@ -400,7 +416,7 @@ class CardGrabButton(discord.ui.Button):
 
 class CardDropView(discord.ui.View):
     def __init__(self, cards: list, dropper_id: int):
-        super().__init__(timeout=180) # 3 Minutes Expiration like Karuta!
+        super().__init__(timeout=180)
         self.cards = cards
         self.dropper_id = dropper_id
         self.drop_time = time.time()
@@ -420,6 +436,295 @@ class CardDropView(discord.ui.View):
                     await self.message.edit(view=self)
                 except Exception:
                     pass
+
+# ==========================================
+# 🔄 KARUTA-STYLE TRADING ENGINE
+# ==========================================
+ACTIVE_TRADES = {}  # {channel_id: TradeSession}
+
+class AddCardModal(discord.ui.Modal, title="Add Card to Trade"):
+    card_code_input = discord.ui.TextInput(
+        label="Card ID",
+        placeholder="Enter 6-character Card ID (e.g. 136hma)",
+        min_length=3,
+        max_length=10,
+        required=True
+    )
+
+    def __init__(self, trade_session):
+        super().__init__()
+        self.trade_session = trade_session
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.trade_session.add_card(interaction, self.card_code_input.value.strip())
+
+class RemoveCardModal(discord.ui.Modal, title="Remove Card from Trade"):
+    card_code_input = discord.ui.TextInput(
+        label="Card ID to Remove",
+        placeholder="Enter Card ID currently in trade (e.g. 136hma)",
+        min_length=3,
+        max_length=10,
+        required=True
+    )
+
+    def __init__(self, trade_session):
+        super().__init__()
+        self.trade_session = trade_session
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.trade_session.remove_card(interaction, self.card_code_input.value.strip())
+
+class TradeView(discord.ui.View):
+    def __init__(self, trade_session):
+        super().__init__(timeout=300)
+        self.trade_session = trade_session
+
+    @discord.ui.button(label="Offer Card", style=discord.ButtonStyle.primary, emoji="➕")
+    async def offer_card_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.trade_session.p1.id, self.trade_session.p2.id]:
+            await interaction.response.send_message("Coo coo! ⚠️ You are not part of this trade session!", ephemeral=True)
+            return
+        await interaction.response.send_modal(AddCardModal(self.trade_session))
+
+    @discord.ui.button(label="Remove Card", style=discord.ButtonStyle.secondary, emoji="➖")
+    async def remove_card_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.trade_session.p1.id, self.trade_session.p2.id]:
+            await interaction.response.send_message("Coo coo! ⚠️ You are not part of this trade session!", ephemeral=True)
+            return
+        await interaction.response.send_modal(RemoveCardModal(self.trade_session))
+
+    @discord.ui.button(label="Confirm Trade", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm_trade_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.trade_session.p1.id, self.trade_session.p2.id]:
+            await interaction.response.send_message("Coo coo! ⚠️ You are not part of this trade session!", ephemeral=True)
+            return
+        await self.trade_session.confirm_user(interaction, interaction.user.id)
+
+    @discord.ui.button(label="Cancel Trade", style=discord.ButtonStyle.danger, emoji="❌")
+    async def cancel_trade_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.trade_session.p1.id, self.trade_session.p2.id]:
+            await interaction.response.send_message("Coo coo! ⚠️ You are not part of this trade session!", ephemeral=True)
+            return
+        await self.trade_session.cancel_trade(interaction, interaction.user)
+
+class TradeSession:
+    def __init__(self, channel, p1: discord.User, p2: discord.User):
+        self.channel = channel
+        self.p1 = p1
+        self.p2 = p2
+        self.p1_cards = []  # list of card dicts
+        self.p2_cards = []  # list of card dicts
+        self.p1_confirmed = False
+        self.p2_confirmed = False
+        self.message = None
+        self.view = TradeView(self)
+
+    def render_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🔄 Active Trade Session",
+            description=f"Trading between {self.p1.mention} and {self.p2.mention}",
+            color=discord.Color.blue()
+        )
+
+        p1_text = ""
+        if self.p1_cards:
+            for c in self.p1_cards:
+                p1_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
+        else:
+            p1_text = "*No cards offered yet*"
+        p1_status = "✅ **CONFIRMED**" if self.p1_confirmed else "⏳ *Waiting...*"
+
+        p2_text = ""
+        if self.p2_cards:
+            for c in self.p2_cards:
+                p2_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
+        else:
+            p2_text = "*No cards offered yet*"
+        p2_status = "✅ **CONFIRMED**" if self.p2_confirmed else "⏳ *Waiting...*"
+
+        embed.add_field(
+            name=f"👤 {self.p1.display_name}'s Offer ({p1_status})",
+            value=p1_text,
+            inline=True
+        )
+        embed.add_field(
+            name=f"👤 {self.p2.display_name}'s Offer ({p2_status})",
+            value=p2_text,
+            inline=True
+        )
+        embed.set_footer(text="Use buttons below or type !ta <code_or_id> / !tr <code_or_id> in chat!")
+        return embed
+
+    async def update_message(self, interaction=None):
+        embed = self.render_embed()
+        if interaction:
+            try:
+                await interaction.response.edit_message(embed=embed, view=self.view)
+                return
+            except Exception:
+                pass
+        if self.message:
+            try:
+                await self.message.edit(embed=embed, view=self.view)
+            except Exception:
+                pass
+
+    async def add_card(self, interaction_or_ctx, code_str: str):
+        is_p1 = (interaction_or_ctx.user.id if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author.id) == self.p1.id
+        user = self.p1 if is_p1 else self.p2
+        target_list = self.p1_cards if is_p1 else self.p2_cards
+
+        card_row = get_card_by_code_and_owner(code_str, user.id)
+        if not card_row:
+            msg = f"Coo coo! ⚠️ Card `{code_str}` is not in your inventory!"
+            if isinstance(interaction_or_ctx, discord.Interaction):
+                await interaction_or_ctx.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction_or_ctx.send(msg)
+            return
+
+        cid, code, uid, char_name, series, rarity, mint_num, edition = card_row
+        card_code = code if code else f"c{cid:04d}"
+
+        if any(c["code"] == card_code for c in target_list):
+            msg = f"Coo coo! ⚠️ Card `{card_code}` is already in the trade!"
+            if isinstance(interaction_or_ctx, discord.Interaction):
+                await interaction_or_ctx.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction_or_ctx.send(msg)
+            return
+
+        target_list.append({
+            "id": cid,
+            "code": card_code,
+            "character_name": char_name,
+            "rarity": rarity
+        })
+
+        # Reset confirmations on any modification!
+        self.p1_confirmed = False
+        self.p2_confirmed = False
+
+        if isinstance(interaction_or_ctx, discord.Interaction):
+            await self.update_message(interaction_or_ctx)
+        else:
+            await self.update_message()
+
+    async def remove_card(self, interaction_or_ctx, code_str: str):
+        is_p1 = (interaction_or_ctx.user.id if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author.id) == self.p1.id
+        target_list = self.p1_cards if is_p1 else self.p2_cards
+
+        code_clean = code_str.lower().strip()
+        matching = [c for c in target_list if c["code"].lower() == code_clean]
+        if not matching:
+            msg = f"Coo coo! ⚠️ Card `{code_str}` is not in your offered trade list!"
+            if isinstance(interaction_or_ctx, discord.Interaction):
+                await interaction_or_ctx.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction_or_ctx.send(msg)
+            return
+
+        target_list.remove(matching[0])
+
+        # Reset confirmations on any modification!
+        self.p1_confirmed = False
+        self.p2_confirmed = False
+
+        if isinstance(interaction_or_ctx, discord.Interaction):
+            await self.update_message(interaction_or_ctx)
+        else:
+            await self.update_message()
+
+    async def confirm_user(self, interaction_or_ctx, user_id: int):
+        if user_id == self.p1.id:
+            self.p1_confirmed = True
+        elif user_id == self.p2.id:
+            self.p2_confirmed = True
+
+        if self.p1_confirmed and self.p2_confirmed:
+            # Execute Trade Transfer!
+            p1_codes = [c["code"] for c in self.p1_cards]
+            p2_codes = [c["code"] for c in self.p2_cards]
+
+            success = transfer_cards_between_users(self.p1.id, p1_codes, self.p2.id, p2_codes)
+            if success:
+                embed = discord.Embed(
+                    title="🎉 Trade Completed Successfully!",
+                    description=(
+                        f"🤝 **{self.p1.mention}** and **{self.p2.mention}** have swapped cards!\n\n"
+                        f"📦 **{self.p1.display_name} received:** {len(p2_codes)} card(s)\n"
+                        f"📦 **{self.p2.display_name} received:** {len(p1_codes)} card(s)"
+                    ),
+                    color=discord.Color.green()
+                )
+                for child in self.view.children:
+                    child.disabled = True
+                if isinstance(interaction_or_ctx, discord.Interaction):
+                    await interaction_or_ctx.response.edit_message(embed=embed, view=self.view)
+                else:
+                    await self.message.edit(embed=embed, view=self.view)
+            else:
+                msg = "Coo coo! ⚠️ Database transfer error occurred during trade!"
+                if isinstance(interaction_or_ctx, discord.Interaction):
+                    await interaction_or_ctx.response.send_message(msg, ephemeral=True)
+                else:
+                    await interaction_or_ctx.send(msg)
+
+            if self.channel.id in ACTIVE_TRADES:
+                del ACTIVE_TRADES[self.channel.id]
+        else:
+            if isinstance(interaction_or_ctx, discord.Interaction):
+                await self.update_message(interaction_or_ctx)
+            else:
+                await self.update_message()
+
+    async def cancel_trade(self, interaction_or_ctx, user: discord.User):
+        embed = discord.Embed(
+            title="❌ Trade Cancelled",
+            description=f"Trade session was cancelled by {user.mention}.",
+            color=discord.Color.red()
+        )
+        for child in self.view.children:
+            child.disabled = True
+
+        if isinstance(interaction_or_ctx, discord.Interaction):
+            await interaction_or_ctx.response.edit_message(embed=embed, view=self.view)
+        else:
+            await self.message.edit(embed=embed, view=self.view)
+
+        if self.channel.id in ACTIVE_TRADES:
+            del ACTIVE_TRADES[self.channel.id]
+
+# ==========================================
+# 🎨 COLOR ROLES CONFIGURATION
+# ==========================================
+COLOR_ROLES = [
+    {"name": "Cherry Pink", "emoji": "🩷", "hex": 0xFFB6C1},
+    {"name": "Lavender", "emoji": "💜", "hex": 0x9370DB},
+    {"name": "Sunset Red", "emoji": "🔴", "hex": 0xE60023},
+    {"name": "Mint Green", "emoji": "💚", "hex": 0x98FF98},
+    {"name": "Sky Blue", "emoji": "🩵", "hex": 0x87CEEB},
+    {"name": "Lemon Yellow", "emoji": "💛", "hex": 0xFFFACD},
+    {"name": "Peach Coral", "emoji": "🧡", "hex": 0xFF7F50},
+    {"name": "Royal Blue", "emoji": "💙", "hex": 0x007AFF},
+    {"name": "Pure White", "emoji": "🤍", "hex": 0xFFFFFF},
+    {"name": "Midnight", "emoji": "🖤", "hex": 0x36393F},
+]
+
+PIGEON_MESSAGES = [
+    "Coo coo! 🍞 Don't let a bad sketch ruin your day. Even a dropped bagel on 5th Ave gets a second chance!",
+    "Coo coo! 🎨 You don't need perfection, you just need to start. Look at me — I can't read the room, but I still show up!",
+    "Coo coo! 🍟 If someone tells you your goals are too big, tell them you're just aerodynamically blessed like me!",
+    "Coo coo! 🗽 Life is tough, but so is NYC sidewalk pizza. Keep chewing and keep creating!",
+    "Coo coo! 🌾 Take a break, stretch your wrist, and drink water. You can't draw masterpieces on an empty stomach!",
+    "Coo coo! 👔 Wear your bowtie with confidence, even when you're just hunting for breadcrumbs!",
+    "Coo coo! ✨ Art block is temporary, but your talent is forever. Go make something cool!",
+    "Coo coo! 🥯 They said I couldn't fly over the park bench because I was too fat. I waddled instead. Adapt and conquer!",
+    "Coo coo! 💅 Never be afraid to third-wheel your own success!",
+    "Coo coo! 🎨 Yuki told me every artist starts with a rough draft. Mine was a pretzel stain on the sidewalk!",
+    "Coo coo! 🌟 Ratan told me to reach for the stars. I reached for a French fry instead, but the energy is the same!",
+    "Coo coo! 🍕 Keep pushing forward! Every line you draw brings you closer to your dream!"
+]
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
@@ -723,6 +1028,87 @@ async def view_card_prefix_view(ctx, code: str = None):
 @bot.command(name="card")
 async def view_card_prefix_card(ctx, code: str = None):
     await process_view_card(ctx, code)
+
+# ==========================================
+# 🔄 TRADING COMMANDS & SHORTCUTS
+# ==========================================
+async def start_trade_session(ctx_or_interaction, partner: discord.User):
+    author = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    channel = ctx_or_interaction.channel
+
+    if partner.bot:
+        msg = "Coo coo! ⚠️ You cannot trade with bots!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    if partner.id == author.id:
+        msg = "Coo coo! ⚠️ You cannot trade with yourself!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    if channel.id in ACTIVE_TRADES:
+        msg = "Coo coo! ⚠️ There is already an active trade session in this channel!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    session = TradeSession(channel, author, partner)
+    ACTIVE_TRADES[channel.id] = session
+
+    embed = session.render_embed()
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        msg = await ctx_or_interaction.followup.send(embed=embed, view=session.view)
+        session.message = msg
+    else:
+        msg = await ctx_or_interaction.send(embed=embed, view=session.view)
+        session.message = msg
+
+@bot.tree.command(name="trade", description="Initiates a Karuta-style card trade with another player")
+async def trade_slash(interaction: discord.Interaction, partner: discord.User):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await start_trade_session(interaction, partner)
+
+@bot.command(name="trade")
+async def trade_prefix(ctx, partner: discord.User):
+    await start_trade_session(ctx, partner)
+
+@bot.command(name="t")
+async def trade_prefix_shortcut(ctx, partner: discord.User):
+    await start_trade_session(ctx, partner)
+
+@bot.command(name="ta")
+async def trade_add_prefix(ctx, code: str):
+    if ctx.channel.id not in ACTIVE_TRADES:
+        await ctx.send("Coo coo! ⚠️ There is no active trade session in this channel!")
+        return
+    session = ACTIVE_TRADES[ctx.channel.id]
+    if ctx.author.id not in [session.p1.id, session.p2.id]:
+        await ctx.send("Coo coo! ⚠️ You are not part of the active trade in this channel!")
+        return
+    await session.add_card(ctx, code)
+
+@bot.command(name="tr")
+async def trade_remove_prefix(ctx, code: str):
+    if ctx.channel.id not in ACTIVE_TRADES:
+        await ctx.send("Coo coo! ⚠️ There is no active trade session in this channel!")
+        return
+    session = ACTIVE_TRADES[ctx.channel.id]
+    if ctx.author.id not in [session.p1.id, session.p2.id]:
+        await ctx.send("Coo coo! ⚠️ You are not part of the active trade in this channel!")
+        return
+    await session.remove_card(ctx, code)
 
 # ==========================================
 # 🎨 OTHER COMMANDS
