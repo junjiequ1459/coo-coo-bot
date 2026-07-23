@@ -24,8 +24,6 @@ COLOR_ROLES = [
     {"name": "Midnight", "emoji": "🖤", "hex": 0x36393F},
 ]
 
-KARUTA_ROLE_INFO = {"name": "Karuta Drop Ping", "emoji": "🎴"}
-
 PIGEON_MESSAGES = [
     "Coo coo! 🍞 Don't let a bad sketch ruin your day. Even a dropped bagel on 5th Ave gets a second chance!",
     "Coo coo! 🎨 You don't need perfection, you just need to start. Look at me — I can't read the room, but I still show up!",
@@ -91,49 +89,11 @@ class ColorButton(discord.ui.Button):
         else:
             await interaction.followup.send(f"Coo coo! 🐦 You already have **{target_role_name}**!", ephemeral=True)
 
-class KarutaRoleButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="🎴 Karuta Drop Ping Role",
-            style=discord.ButtonStyle.primary,
-            custom_id="coocoo_toggle_karuta_drop_ping"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        member = interaction.user
-        try:
-            await interaction.response.defer(ephemeral=True)
-        except Exception:
-            pass
-
-        role_name = KARUTA_ROLE_INFO["name"]
-        role = discord.utils.get(guild.roles, name=role_name)
-
-        if not role:
-            try:
-                role = await guild.create_role(name=role_name, color=discord.Color.gold(), reason="Coo Coo Karuta Role Creation")
-            except discord.Forbidden:
-                await interaction.followup.send("Coo coo! ⚠️ Need 'Manage Roles' permission!", ephemeral=True)
-                return
-
-        if role in member.roles:
-            await member.remove_roles(role)
-            await interaction.followup.send("Coo coo! ❌ Removed **Karuta Drop Ping** role.", ephemeral=True)
-        else:
-            await member.add_roles(role)
-            await interaction.followup.send("Coo coo! ✅ Added **Karuta Drop Ping** role!", ephemeral=True)
-
 class ColorPickerView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         for color in COLOR_ROLES:
             self.add_item(ColorButton(color))
-
-class KarutaRoleView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(KarutaRoleButton())
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -151,7 +111,6 @@ async def on_ready():
         print(f"Failed to sync slash commands: {e}")
 
     bot.add_view(ColorPickerView())
-    bot.add_view(KarutaRoleView())
 
 @bot.event
 async def on_member_join(member):
@@ -171,24 +130,12 @@ async def on_member_join(member):
             embed.set_thumbnail(url=member.avatar.url)
         await channel.send(embed=embed)
 
-@bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
-
-    content_lower = message.content.strip().lower()
-    if content_lower in ["k!drop", "k!d", "kd", "kdrop"]:
-        await message.channel.send(f"Coo coo! 🍞 30-minute **Karuta Drop** timer set for {message.author.mention}!")
-        asyncio.create_task(schedule_reminder(message.channel, message.author, 1800, "Coo coo! 🎴 Your **Karuta Drop (`k!drop`)** is ready again!"))
-
-    await bot.process_commands(message)
-
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     print(f"❌ Slash command error: {error}")
 
 # ==========================================
-# 🎨 COLOR & MASCOT COMMANDS
+# 📜 PREFIX & SLASH COMMANDS
 # ==========================================
 
 @bot.command(name="setup-colors")
@@ -228,147 +175,6 @@ async def coo_slash(interaction: discord.Interaction):
         pass
     msg = random.choice(PIGEON_MESSAGES)
     await interaction.followup.send(f"🐦 **Coo Coo**: {msg}")
-
-# ==========================================
-# 🎴 KARUTA COMMANDS & TIMERS
-# ==========================================
-
-async def schedule_reminder(channel, user, seconds: int, message: str):
-    await asyncio.sleep(seconds)
-    try:
-        await channel.send(f"⏰ {user.mention} {message}")
-    except Exception as e:
-        print(f"Reminder error: {e}")
-
-@bot.tree.command(name="kdrop", description="Sets a 30-minute Karuta Drop timer")
-async def kdrop_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    await interaction.followup.send(f"Coo coo! 🍞 30-minute **Karuta Drop** timer set for {interaction.user.mention}!")
-    asyncio.create_task(schedule_reminder(interaction.channel, interaction.user, 1800, "Coo coo! 🎴 Your **Karuta Drop (`k!drop`)** is ready again!"))
-
-@bot.command(name="kdrop")
-async def kdrop_prefix(ctx):
-    await ctx.send(f"Coo coo! 🍞 30-minute **Karuta Drop** timer set for {ctx.author.mention}!")
-    asyncio.create_task(schedule_reminder(ctx.channel, ctx.author, 1800, "Coo coo! 🎴 Your **Karuta Drop (`k!drop`)** is ready again!"))
-
-@bot.tree.command(name="kgrab", description="Sets a 10-minute Karuta Grab timer")
-async def kgrab_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    await interaction.followup.send(f"Coo coo! 🎴 10-minute **Karuta Grab** timer set for {interaction.user.mention}!")
-    asyncio.create_task(schedule_reminder(interaction.channel, interaction.user, 600, "Coo coo! ⚡ Your **Karuta Grab (`k!grab`)** is ready!"))
-
-@bot.command(name="kgrab")
-async def kgrab_prefix(ctx):
-    await ctx.send(f"Coo coo! 🎴 10-minute **Karuta Grab** timer set for {ctx.author.mention}!")
-    asyncio.create_task(schedule_reminder(ctx.channel, ctx.author, 600, "Coo coo! ⚡ Your **Karuta Grab (`k!grab`)** is ready!"))
-
-@bot.tree.command(name="kwork", description="Sets a 14-hour Karuta Work timer")
-async def kwork_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    await interaction.followup.send(f"Coo coo! 🛠️ 14-hour **Karuta Work** timer set for {interaction.user.mention}!")
-    asyncio.create_task(schedule_reminder(interaction.channel, interaction.user, 50400, "Coo coo! 🛠️ Your **Karuta Work (`k!work`)** shift is ready!"))
-
-@bot.command(name="kwork")
-async def kwork_prefix(ctx):
-    await ctx.send(f"Coo coo! 🛠️ 14-hour **Karuta Work** timer set for {ctx.author.mention}!")
-    asyncio.create_task(schedule_reminder(ctx.channel, ctx.author, 50400, "Coo coo! 🛠️ Your **Karuta Work (`k!work`)** shift is ready!"))
-
-@bot.tree.command(name="kdaily", description="Sets a 24-hour Karuta Daily timer")
-async def kdaily_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    await interaction.followup.send(f"Coo coo! 🌟 24-hour **Karuta Daily** timer set for {interaction.user.mention}!")
-    asyncio.create_task(schedule_reminder(interaction.channel, interaction.user, 86400, "Coo coo! 🌟 Your **Karuta Daily (`k!vote`)** is ready!"))
-
-@bot.command(name="kdaily")
-async def kdaily_prefix(ctx):
-    await ctx.send(f"Coo coo! 🌟 24-hour **Karuta Daily** timer set for {ctx.author.mention}!")
-    asyncio.create_task(schedule_reminder(ctx.channel, ctx.author, 86400, "Coo coo! 🌟 Your **Karuta Daily (`k!vote`)** is ready!"))
-
-@bot.tree.command(name="karuta-help", description="Displays Karuta commands & guide")
-async def karuta_help_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    embed = discord.Embed(
-        title="🎴 Coo Coo's Karuta Cheat Sheet",
-        description="Here are essential Karuta commands & Coo Coo timer triggers!",
-        color=discord.Color.gold()
-    )
-    embed.add_field(name="🎴 Core Karuta Commands", value=(
-        "`k!d` (or `k!drop`) - Drop 3 cards\n"
-        "`k!g <1-3>` - Grab a dropped card\n"
-        "`k!i` - View your inventory & cards\n"
-        "`k!w` - Work your job for gold & items\n"
-        "`k!v` - Daily vote for rewards\n"
-        "`k!lu <name>` - Lookup a character card"
-    ), inline=False)
-    embed.add_field(name="⏰ Coo Coo Cooldown Timers", value=(
-        "`/kdrop` (or typing `k!drop`) - Set 30-min drop reminder\n"
-        "`/kgrab` - Set 10-min grab reminder\n"
-        "`/kwork` - Set 14-hr work reminder\n"
-        "`/kdaily` - Set 24-hr daily vote reminder"
-    ), inline=False)
-    embed.set_footer(text="Coo Coo • Official Karuta Assistant")
-    await interaction.followup.send(embed=embed)
-
-@bot.command(name="karuta-help")
-async def karuta_help_prefix(ctx):
-    embed = discord.Embed(
-        title="🎴 Coo Coo's Karuta Cheat Sheet",
-        description="Here are essential Karuta commands & Coo Coo timer triggers!",
-        color=discord.Color.gold()
-    )
-    embed.add_field(name="🎴 Core Karuta Commands", value=(
-        "`k!d` (or `k!drop`) - Drop 3 cards\n"
-        "`k!g <1-3>` - Grab a dropped card\n"
-        "`k!i` - View your inventory & cards\n"
-        "`k!w` - Work your job for gold & items\n"
-        "`k!v` - Daily vote for rewards\n"
-        "`k!lu <name>` - Lookup a character card"
-    ), inline=False)
-    embed.add_field(name="⏰ Coo Coo Cooldown Timers", value=(
-        "`!kdrop` (or typing `k!drop`) - Set 30-min drop reminder\n"
-        "`!kgrab` - Set 10-min grab reminder\n"
-        "`!kwork` - Set 14-hr work reminder\n"
-        "`!kdaily` - Set 24-hr daily vote reminder"
-    ), inline=False)
-    embed.set_footer(text="Coo Coo • Official Karuta Assistant")
-    await ctx.send(embed=embed)
-
-@bot.tree.command(name="karuta-role", description="Spawns the Karuta Drop Ping Role Button")
-async def karuta_role_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    embed = discord.Embed(
-        title="🎴 Karuta Drop Notifications",
-        description="Click the button below to toggle the **@Karuta Drop Ping** role and get notified whenever cards are dropped!",
-        color=discord.Color.gold()
-    )
-    await interaction.followup.send(embed=embed, view=KarutaRoleView())
-
-@bot.command(name="karuta-role")
-async def karuta_role_prefix(ctx):
-    embed = discord.Embed(
-        title="🎴 Karuta Drop Notifications",
-        description="Click the button below to toggle the **@Karuta Drop Ping** role and get notified whenever cards are dropped!",
-        color=discord.Color.gold()
-    )
-    await ctx.send(embed=embed, view=KarutaRoleView())
 
 if __name__ == "__main__":
     if not TOKEN or TOKEN == "YOUR_DISCORD_BOT_TOKEN_HERE":
