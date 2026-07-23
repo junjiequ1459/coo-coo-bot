@@ -223,17 +223,21 @@ class CardGrabButton(discord.ui.Button):
         )
         self.index = index
         self.card_info = card_info
-        self.grabbed = False
 
     async def callback(self, interaction: discord.Interaction):
-        if self.grabbed:
-            await interaction.response.send_message("Coo coo! ⚠️ This card has already been grabbed!", ephemeral=True)
+        view: CardDropView = self.view
+        if view.claimed:
+            await interaction.response.send_message("Coo coo! ⚠️ This drop has already been claimed!", ephemeral=True)
             return
 
-        self.grabbed = True
-        self.disabled = True
-        self.label = f"Claimed by {interaction.user.display_name}"
-        self.style = discord.ButtonStyle.success
+        view.claimed = True
+        
+        # Disable all buttons
+        for child in view.children:
+            child.disabled = True
+            if child == self:
+                child.label = f"Claimed by {interaction.user.display_name}"
+                child.style = discord.ButtonStyle.success
 
         mint_num = get_next_mint(self.card_info["name"])
         save_card_to_inventory(
@@ -245,14 +249,21 @@ class CardGrabButton(discord.ui.Button):
             mint_number=mint_num
         )
 
-        await interaction.response.edit_message(view=self.view)
+        # Keep ONLY the claimed card's embed and remove the other 2!
+        claimed_embed = view.embeds[self.index]
+        claimed_embed.set_footer(text=f"Claimed by {interaction.user.display_name} • Mint #{mint_num}")
+
+        await interaction.response.edit_message(embeds=[claimed_embed], view=view)
         await interaction.followup.send(
             f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (Mint **#{mint_num}**) from *{self.card_info['series']}*! {self.card_info['rarity']}"
         )
 
 class CardDropView(discord.ui.View):
-    def __init__(self, cards: list):
+    def __init__(self, cards: list, embeds: list):
         super().__init__(timeout=180)
+        self.cards = cards
+        self.embeds = embeds
+        self.claimed = False
         for idx, card in enumerate(cards):
             self.add_item(CardGrabButton(idx, card))
 
@@ -376,7 +387,6 @@ async def execute_card_drop(ctx_or_interaction, user):
             await ctx_or_interaction.send(msg)
         return
 
-    # Fetch 3 random AniList cards
     cards = await fetch_random_anilist_cards(3)
     if not cards:
         msg = "Coo coo! ⚠️ Couldn't reach AniList. Please try again in a moment!"
@@ -386,10 +396,8 @@ async def execute_card_drop(ctx_or_interaction, user):
             await ctx_or_interaction.send(msg)
         return
 
-    # Update Cooldown
     set_user_cooldown(user_id)
 
-    # Build 3 separate embeds — one for each card showing full artwork!
     embeds = []
     card_colors = [discord.Color.blue(), discord.Color.purple(), discord.Color.gold()]
 
@@ -406,7 +414,7 @@ async def execute_card_drop(ctx_or_interaction, user):
             embed.set_footer(text="Coo Coo Card Engine • Click a button below to grab!")
         embeds.append(embed)
 
-    view = CardDropView(cards)
+    view = CardDropView(cards, embeds)
 
     if isinstance(ctx_or_interaction, discord.Interaction):
         await ctx_or_interaction.followup.send(embeds=embeds, view=view)
