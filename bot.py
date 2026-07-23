@@ -166,7 +166,7 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
     return buf
 
 async def render_single_card(card_data: dict) -> io.BytesIO:
-    """Renders a single high-quality framed Karuta card for /view-card."""
+    """Renders a single high-quality framed Karuta card for /card."""
     card_w, card_h = 320, 500
     canvas = Image.new("RGBA", (card_w, card_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
@@ -547,9 +547,9 @@ async def inventory_slash(interaction: discord.Interaction):
         )
 
     if len(rows) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /view-card to see full card artwork!")
+        embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /card code:<code> to see full card artwork!")
     else:
-        embed.set_footer(text="Type /view-card to see full card artwork!")
+        embed.set_footer(text="Type /card code:<code> to see full card artwork!")
 
     await interaction.followup.send(embed=embed)
 
@@ -584,7 +584,6 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     cursor = conn.cursor()
 
     if not card_code_query:
-        # Fetch the user's most recently grabbed card!
         cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
     else:
         query_str = card_code_query.lower().strip()
@@ -642,21 +641,33 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     else:
         await ctx_or_interaction.send(embed=embed, file=file)
 
-@bot.tree.command(name="view-card", description="View full details and artwork of a card (Defaults to your latest card)")
-async def view_card_slash(interaction: discord.Interaction, card_code: str = None):
+@bot.tree.command(name="card", description="View full details and artwork of a card (Defaults to your latest card)")
+async def card_slash(interaction: discord.Interaction, code: str = None):
     try:
         await interaction.response.defer()
     except Exception:
         pass
-    await process_view_card(interaction, card_code)
+    await process_view_card(interaction, code)
+
+@bot.tree.command(name="view", description="View full details and artwork of a card (Defaults to your latest card)")
+async def view_slash(interaction: discord.Interaction, code: str = None):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_view_card(interaction, code)
 
 @bot.command(name="v")
-async def view_card_prefix_v(ctx, card_code: str = None):
-    await process_view_card(ctx, card_code)
+async def view_card_prefix_v(ctx, code: str = None):
+    await process_view_card(ctx, code)
 
 @bot.command(name="view")
-async def view_card_prefix_view(ctx, card_code: str = None):
-    await process_view_card(ctx, card_code)
+async def view_card_prefix_view(ctx, code: str = None):
+    await process_view_card(ctx, code)
+
+@bot.command(name="card")
+async def view_card_prefix_card(ctx, code: str = None):
+    await process_view_card(ctx, code)
 
 # ==========================================
 # 🎨 OTHER COMMANDS
