@@ -274,31 +274,56 @@ def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int
         conn.close()
         return False
 
+# ==========================================
+# 🎲 WEIGHTED RARITY DROP PROBABILITIES
+# ==========================================
+RARITY_WEIGHTS = [
+    ("⚪ Common", 0.65),     # 65% Drop Rate
+    ("🔷 Rare", 0.23),       # 23% Drop Rate
+    ("🟣 Epic", 0.10),       # 10% Drop Rate
+    ("✨ Legendary", 0.02)   #  2% Drop Rate
+]
+
+def sample_rarity() -> str:
+    rarities, weights = zip(*RARITY_WEIGHTS)
+    return random.choices(rarities, weights=weights, k=1)[0]
+
 def get_cards_from_db_pool(count: int = 3):
+    """Fetches cards using weighted rarity probabilities (65% Common, 23% Rare, 10% Epic, 2% Legendary)."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("""
-    SELECT character_name, series_name, image_url, rarity
-    FROM cards_pool
-    ORDER BY RANDOM()
-    LIMIT ?
-    """, (count,))
-    rows = cursor.fetchall()
-    conn.close()
 
     cards = []
-    for row in rows:
-        char_name, series, img_url, rarity = row
-        temp_mint = get_next_mint(char_name)
-        cards.append({
-            "code": generate_card_code(),
-            "name": char_name,
-            "series": series,
-            "image": img_url,
-            "rarity": rarity,
-            "temp_mint": temp_mint,
-            "edition": 1
-        })
+    for _ in range(count):
+        target_rarity = sample_rarity()
+        cursor.execute("""
+        SELECT character_name, series_name, image_url, rarity
+        FROM cards_pool
+        WHERE rarity = ?
+        ORDER BY RANDOM()
+        LIMIT 1
+        """, (target_rarity,))
+        row = cursor.fetchone()
+        
+        # Fallback if pool doesn't have a card matching target rarity
+        if not row:
+            cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool ORDER BY RANDOM() LIMIT 1")
+            row = cursor.fetchone()
+
+        if row:
+            char_name, series, img_url, rarity = row
+            temp_mint = get_next_mint(char_name)
+            cards.append({
+                "code": generate_card_code(),
+                "name": char_name,
+                "series": series,
+                "image": img_url,
+                "rarity": rarity,
+                "temp_mint": temp_mint,
+                "edition": 1
+            })
+
+    conn.close()
     return cards
 
 # ==========================================
@@ -871,7 +896,7 @@ class TradeSession:
                     p2_rec_items.append(f"• 💎 **{self.p1_gems:,} Gems**")
                 if self.p1_cards:
                     for c in self.p1_cards:
-                        p2_rec_items.append(f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})")
+                        p2_rec_text.append(f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})")
                 p2_rec_text = "\n".join(p2_rec_items) if p2_rec_items else "*None (Gift)*\n"
 
                 embed = discord.Embed(
@@ -1858,10 +1883,10 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="👑 Card Rarities & Burn Yields",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | Burns to **+200 🧪 Dust** *(Requires Confirmation!)*\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | Burns to **+100 🧪 Dust** *(Requires Confirmation!)*\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | Burns to **+50 🧪 Dust**\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | Burns to **+20 🧪 Dust**"
+            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | **2% Drop Rate** | Burns to **+200 🧪 Dust**\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | **10% Drop Rate** | Burns to **+100 🧪 Dust**\n"
+            "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | **23% Drop Rate** | Burns to **+50 🧪 Dust**\n"
+            "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | **65% Drop Rate** | Burns to **+20 🧪 Dust**"
         ),
         inline=False
     )
