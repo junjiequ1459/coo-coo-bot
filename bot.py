@@ -21,6 +21,14 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 DATA_DIR = os.getenv("DATA_DIR", "/data")
 if os.path.exists(DATA_DIR):
     DB_PATH = os.path.join(DATA_DIR, "inventory.db")
+    repo_db = os.path.join(os.path.dirname(__file__), "inventory.db")
+    if not os.path.exists(DB_PATH) and os.path.exists(repo_db):
+        try:
+            import shutil
+            shutil.copyfile(repo_db, DB_PATH)
+            print("📦 Successfully seeded Railway /data volume with 10,004 character master database!")
+        except Exception as e:
+            print(f"Volume seed warning: {e}")
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
