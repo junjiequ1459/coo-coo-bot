@@ -165,23 +165,28 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
+        # 1. Outer Dark Frame & Inner Inset Line
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
         draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
+        # 2. Paste Resized Image
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 68
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
+        # 3. Top-Left Badge
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
         draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
+        # 4. Bottom Info Box
         box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
+        # Left Text (Short Edition & ID)
         draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
         draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
 
@@ -598,6 +603,7 @@ class TradeSession:
             "id": cid,
             "code": card_code,
             "character_name": char_name,
+            "series_name": series,
             "rarity": rarity
         })
 
@@ -642,21 +648,42 @@ class TradeSession:
             self.p2_confirmed = True
 
         if self.p1_confirmed and self.p2_confirmed:
-            # Execute Trade Transfer!
             p1_codes = [c["code"] for c in self.p1_cards]
             p2_codes = [c["code"] for c in self.p2_cards]
 
             success = transfer_cards_between_users(self.p1.id, p1_codes, self.p2.id, p2_codes)
             if success:
+                # Build Detailed Card Receipts!
+                p1_rec_text = ""
+                if self.p2_cards:
+                    for c in self.p2_cards:
+                        p1_rec_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
+                else:
+                    p1_rec_text = "*None (Gift)*\n"
+
+                p2_rec_text = ""
+                if self.p1_cards:
+                    for c in self.p1_cards:
+                        p2_rec_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
+                else:
+                    p2_rec_text = "*None (Gift)*\n"
+
                 embed = discord.Embed(
                     title="🎉 Trade Completed Successfully!",
-                    description=(
-                        f"🤝 **{self.p1.mention}** and **{self.p2.mention}** have swapped cards!\n\n"
-                        f"📦 **{self.p1.display_name} received:** {len(p2_codes)} card(s)\n"
-                        f"📦 **{self.p2.display_name} received:** {len(p1_codes)} card(s)"
-                    ),
+                    description=f"🤝 **{self.p1.mention}** and **{self.p2.mention}** have completed their trade!",
                     color=discord.Color.green()
                 )
+                embed.add_field(
+                    name=f"📦 {self.p1.display_name} received:",
+                    value=p1_rec_text,
+                    inline=False
+                )
+                embed.add_field(
+                    name=f"📦 {self.p2.display_name} received:",
+                    value=p2_rec_text,
+                    inline=False
+                )
+
                 for child in self.view.children:
                     child.disabled = True
                 if isinstance(interaction_or_ctx, discord.Interaction):
