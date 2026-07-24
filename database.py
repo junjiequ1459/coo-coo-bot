@@ -202,13 +202,14 @@ def get_next_mint(character_name: str) -> int:
     conn.close()
     return next_mint
 
-def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = "Good ⭐⭐") -> int:
+def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = None) -> int:
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
+    q_final = quality if quality else "Mint ⭐⭐⭐⭐"
     cursor.execute("""
     INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality))
+    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, q_final))
     inserted_id = cursor.lastrowid
     conn.commit()
     conn.close()
