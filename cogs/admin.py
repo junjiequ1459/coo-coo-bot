@@ -263,5 +263,69 @@ class AdminCog(commands.Cog):
         elif choice == "card":
             await self.grant_card(interaction, dest, value)
 
+    @commands.command(name="addcard")
+    async def add_card_to_pool(self, ctx, *, details: str):
+        if not self.is_owner(ctx.author.id):
+            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
+            return
+        
+        parts = [p.strip() for p in details.split("|")]
+        if len(parts) < 4:
+            await ctx.send("Coo coo! ⚠️ Usage: `!addcard Character Name | Series Name | Image URL | Rarity`\nExample: `!addcard Yor Forger | SPY x FAMILY | https://... | ✨ Legendary`")
+            return
+
+        char_name, series, img_url, rarity = parts[0], parts[1], parts[2], parts[3]
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO cards_pool (character_name, series_name, image_url, rarity)
+        VALUES (?, ?, ?, ?)
+        """, (char_name, series, img_url, rarity))
+        conn.commit()
+        conn.close()
+
+        embed = discord.Embed(
+            title="👑 Master Card Added to Drop Pool!",
+            description=(
+                f"👤 **Character:** {char_name}\n"
+                f"📺 **Series:** {series}\n"
+                f"✨ **Rarity:** {rarity}\n"
+                f"🖼️ **Image URL:** [View Image]({img_url})\n\n"
+                f"This character is now live in the card drop pool!"
+            ),
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="resetmint")
+    async def reset_character_mint(self, ctx, *, args: str):
+        if not self.is_owner(ctx.author.id):
+            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
+            return
+        
+        parts = args.strip().split()
+        edition = 1
+        if len(parts) > 1 and parts[-1].isdigit():
+            edition = int(parts[-1])
+            char_name = " ".join(parts[:-1])
+        else:
+            char_name = " ".join(parts)
+
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM mints WHERE LOWER(character_name) = LOWER(?) AND edition = ?", (char_name, edition))
+        conn.commit()
+        conn.close()
+
+        embed = discord.Embed(
+            title="👑 Mint Counter Reset!",
+            description=(
+                f"Reset mint counter for **{char_name}** (Edition {edition})!\n\n"
+                f"✨ **The next time {char_name} drops, it will be Edition {edition} Print #1 (`#1`)!**"
+            ),
+            color=discord.Color.gold()
+        )
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))

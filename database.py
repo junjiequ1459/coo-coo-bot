@@ -44,10 +44,16 @@ def init_db():
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
-        character_name TEXT PRIMARY KEY,
-        current_mint INTEGER NOT NULL
+        character_name TEXT,
+        edition INTEGER DEFAULT 1,
+        current_mint INTEGER NOT NULL,
+        PRIMARY KEY (character_name, edition)
     )
     """)
+    cursor.execute("PRAGMA table_info(mints)")
+    mint_columns = [col[1] for col in cursor.fetchall()]
+    if "edition" not in mint_columns:
+        cursor.execute("ALTER TABLE mints ADD COLUMN edition INTEGER DEFAULT 1")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
@@ -185,17 +191,17 @@ def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
         conn.close()
         return False
 
-def get_next_mint(character_name: str) -> int:
+def get_next_mint(character_name: str, edition: int = 1) -> int:
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
-    cursor.execute("SELECT current_mint FROM mints WHERE character_name = ?", (character_name,))
+    cursor.execute("SELECT current_mint FROM mints WHERE character_name = ? AND edition = ?", (character_name, edition))
     row = cursor.fetchone()
     if row:
         next_mint = row[0] + 1
-        cursor.execute("UPDATE mints SET current_mint = ? WHERE character_name = ?", (next_mint, character_name))
+        cursor.execute("UPDATE mints SET current_mint = ? WHERE character_name = ? AND edition = ?", (next_mint, character_name, edition))
     else:
         next_mint = 1
-        cursor.execute("INSERT INTO mints (character_name, current_mint) VALUES (?, ?)", (character_name, next_mint))
+        cursor.execute("INSERT INTO mints (character_name, edition, current_mint) VALUES (?, ?, ?)", (character_name, edition, next_mint))
     conn.commit()
     conn.close()
     return next_mint

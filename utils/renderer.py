@@ -80,13 +80,13 @@ def apply_quality_effects_on_artwork(draw, x: int, y: int, w: int, h: int, quali
         draw.rectangle([x + 2, y + 2, x + w - 2, y + h - 2], outline=(180, 190, 200, 200), width=1)
 
         # Dark Slate Damaged badge on artwork top-right
-        badge_w, badge_h = 95, 22
+        badge_w, badge_h = 65, 20
         bx1 = x + w - badge_w - 6
         by1 = y + 6
         bx2 = x + w - 6
         by2 = y + 6 + badge_h
         draw.rectangle([bx1, by1, bx2, by2], fill=(25, 28, 35, 240), outline=(180, 190, 200), width=1)
-        draw.text((bx1 + 6, by1 + 3), "❌ Damaged", fill=(220, 225, 230))
+        draw.text((bx1 + 8, by1 + 3), "Damaged", fill=(220, 225, 230))
     
     elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
         # Draw worn scuffed scratch marks on Poor card portrait
@@ -97,47 +97,40 @@ def apply_quality_effects_on_artwork(draw, x: int, y: int, w: int, h: int, quali
         # Scuffed inner border mark inside portrait
         draw.rectangle([x + 3, y + 3, x + w - 3, y + h - 3], outline=(180, 140, 90, 180), width=1)
 
-        badge_w, badge_h = 75, 22
+        badge_w, badge_h = 42, 20
         bx1 = x + w - badge_w - 6
         by1 = y + 6
         bx2 = x + w - 6
         by2 = y + 6 + badge_h
         draw.rectangle([bx1, by1, bx2, by2], fill=(40, 25, 15, 240), outline=(255, 140, 0), width=1)
-        draw.text((bx1 + 6, by1 + 3), "🟠 Poor ⭐", fill=(255, 165, 0))
+        draw.text((bx1 + 8, by1 + 3), "Poor", fill=(255, 165, 0))
 
     elif "mint" in q_clean or "⭐⭐⭐⭐" in q_clean:
-        # Gold sparkles on Mint card
-        draw.text((x + 8, y + 8), "✨", fill=(255, 215, 0))
-        draw.text((x + w - 22, y + h - 26), "✨", fill=(255, 215, 0))
-
-        badge_w, badge_h = 100, 22
+        badge_w, badge_h = 42, 20
         bx1 = x + w - badge_w - 6
         by1 = y + 6
         bx2 = x + w - 6
         by2 = y + 6 + badge_h
         draw.rectangle([bx1, by1, bx2, by2], fill=(20, 25, 30, 240), outline=(255, 215, 0), width=1)
-        draw.text((bx1 + 6, by1 + 3), "✨ Mint ⭐⭐⭐⭐", fill=(255, 215, 0))
+        draw.text((bx1 + 8, by1 + 3), "Mint", fill=(255, 215, 0))
 
     elif "excellent" in q_clean or "⭐⭐⭐" in q_clean:
-        # Violet shimmer sparkles on Excellent card
-        draw.text((x + 8, y + 8), "🌟", fill=(200, 160, 255))
-
-        badge_w, badge_h = 105, 22
+        badge_w, badge_h = 65, 20
         bx1 = x + w - badge_w - 6
         by1 = y + 6
         bx2 = x + w - 6
         by2 = y + 6 + badge_h
         draw.rectangle([bx1, by1, bx2, by2], fill=(20, 25, 30, 240), outline=(147, 112, 219), width=1)
-        draw.text((bx1 + 6, by1 + 3), "🌟 Excellent ⭐⭐⭐", fill=(200, 160, 255))
+        draw.text((bx1 + 8, by1 + 3), "Excellent", fill=(200, 160, 255))
 
     elif "good" in q_clean or "⭐⭐" in q_clean:
-        badge_w, badge_h = 80, 22
+        badge_w, badge_h = 42, 20
         bx1 = x + w - badge_w - 6
         by1 = y + 6
         bx2 = x + w - 6
         by2 = y + 6 + badge_h
         draw.rectangle([bx1, by1, bx2, by2], fill=(20, 25, 30, 240), outline=(0, 229, 255), width=1)
-        draw.text((bx1 + 6, by1 + 3), "⚪ Good ⭐⭐", fill=(0, 229, 255))
+        draw.text((bx1 + 8, by1 + 3), "Good", fill=(0, 229, 255))
 
 async def render_three_cards_composite(cards: list) -> io.BytesIO:
     """Renders a single horizontal 3-card composite image (850x450 px) matching Karuta's exact frame style!"""
