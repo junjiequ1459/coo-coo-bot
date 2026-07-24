@@ -41,8 +41,6 @@ def init_db():
     if "quality" not in inv_columns:
         cursor.execute("ALTER TABLE inventory ADD COLUMN quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐'")
         cursor.execute("UPDATE inventory SET quality = 'Mint ⭐⭐⭐⭐'")
-    else:
-        cursor.execute("UPDATE inventory SET quality = 'Mint ⭐⭐⭐⭐' WHERE quality IS NULL OR quality = 'Good ⭐⭐'")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (

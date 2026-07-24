@@ -7,7 +7,7 @@ from database import (
     get_user_cooldowns, set_user_cooldown, get_effective_cooldowns,
     get_user_drop_tickets, add_user_drop_tickets,
     get_user_grab_tickets, add_user_grab_tickets,
-    save_card_to_inventory, get_cards_from_db_pool
+    save_card_to_inventory, get_cards_from_db_pool, roll_card_quality
 )
 from utils.renderer import render_three_cards_composite
 from utils.anilist import fetch_random_anilist_cards
@@ -71,7 +71,6 @@ class CardGrabButton(discord.ui.Button):
                 child.label = f"Claimed by {interaction.user.display_name}"
                 child.style = discord.ButtonStyle.success
 
-        from database import roll_card_quality
         q_val = self.card_info.get("quality") or roll_card_quality()
         self.card_info["quality"] = q_val
 

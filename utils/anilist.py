@@ -1,7 +1,7 @@
 import random
 import asyncio
 import aiohttp
-from database import generate_card_code, get_next_mint
+from database import generate_card_code, get_next_mint, roll_card_quality
 
 ANILIST_URL = "https://graphql.anilist.co"
 
@@ -84,6 +84,7 @@ async def fetch_random_anilist_cards(count: int = 3):
             "series": series,
             "image": img_url,
             "rarity": rarity,
+            "quality": roll_card_quality(),
             "temp_mint": temp_mint,
             "edition": 1
         })
