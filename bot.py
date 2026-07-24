@@ -639,14 +639,12 @@ class CardGrabButton(discord.ui.Button):
             )
             return
 
-        # Check 5 Minutes Exclusive Priority Window for the Dropper
+        # Check 30 Seconds Exclusive Priority Window for the Dropper
         elapsed_drop = time.time() - view.drop_time
-        if elapsed_drop < 300.0 and interaction.user.id != view.dropper_id:
-            rem_prio = int(300.0 - elapsed_drop) + 1
-            p_mins = rem_prio // 60
-            p_secs = rem_prio % 60
+        if elapsed_drop < 30.0 and interaction.user.id != view.dropper_id:
+            rem_prio = int(30.0 - elapsed_drop) + 1
             await interaction.response.send_message(
-                f"Coo coo! ⏳ <@{view.dropper_id}> has **5 minutes of drop priority**! ({p_mins}m {p_secs}s remaining)",
+                f"Coo coo! ⏳ <@{view.dropper_id}> has **30 seconds of exclusive drop priority**! ({rem_prio}s remaining)",
                 ephemeral=True
             )
             return
@@ -1731,7 +1729,7 @@ async def execute_card_drop(ctx_or_interaction, user):
             f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
             f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
             f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
-            f"⏳ **Priority:** {user.mention} has **5 minutes of exclusive drop priority**!\n"
+            f"⏳ **Priority:** {user.mention} has **30 seconds of exclusive drop priority**!\n"
             f"Click a button below to grab a card!"
         ),
         color=discord.Color.gold()
@@ -2038,7 +2036,7 @@ async def send_help_menu(ctx_or_interaction):
             "• **`!cd`** or **`/cd`** — Check your Drop (15m), Grab (5m), and Daily (24h) timers!\n"
             "• **`🎴 Drop Cooldown`** — 15 minutes per user.\n"
             "• **`🖐️ Grab Cooldown`** — 5 minutes per user.\n"
-            "• **`🔒 Priority Window`** — Dropper has 5 minutes of exclusive grab priority."
+            "• **`🔒 Priority Window`** — Dropper has 30 seconds of exclusive grab priority."
         ),
         inline=False
     )
