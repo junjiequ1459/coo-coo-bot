@@ -144,7 +144,7 @@ class AdminCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed)
 
-    # --- PREFIX COMMAND GROUP ---
+    # --- UNIFIED PREFIX COMMAND GROUP ---
     @commands.group(name="give", invoke_without_command=True)
     async def give_group(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
@@ -223,64 +223,7 @@ class AdminCog(commands.Cog):
             return
         await self.grant_card(ctx, target, char_query)
 
-    # --- DIRECT SHORTCUT COMMANDS ---
-    @commands.command(name="givegems")
-    async def givegems_prefix(self, ctx, *args):
-        if not self.is_owner(ctx.author.id):
-            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
-            return
-        target, val_str = await self.resolve_target_and_value(ctx, args)
-        amount = int(val_str) if val_str and val_str.isdigit() else 1000
-        await self.grant_gems(ctx, target, amount)
-
-    @commands.command(name="givedust")
-    async def givedust_prefix(self, ctx, *args):
-        if not self.is_owner(ctx.author.id):
-            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
-            return
-        target, val_str = await self.resolve_target_and_value(ctx, args)
-        amount = int(val_str) if val_str and val_str.isdigit() else 500
-        await self.grant_dust(ctx, target, amount)
-
-    @commands.command(name="givedrop")
-    async def givedrop_prefix(self, ctx, *args):
-        if not self.is_owner(ctx.author.id):
-            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
-            return
-        target, val_str = await self.resolve_target_and_value(ctx, args)
-        amount = int(val_str) if val_str and val_str.isdigit() else 1
-        await self.grant_drop_tickets(ctx, target, amount)
-
-    @commands.command(name="givegrab")
-    async def givegrab_prefix(self, ctx, *args):
-        if not self.is_owner(ctx.author.id):
-            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
-            return
-        target, val_str = await self.resolve_target_and_value(ctx, args)
-        amount = int(val_str) if val_str and val_str.isdigit() else 1
-        await self.grant_grab_tickets(ctx, target, amount)
-
-    @commands.command(name="givepremium")
-    async def givepremium_prefix(self, ctx, *args):
-        if not self.is_owner(ctx.author.id):
-            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
-            return
-        target, val_str = await self.resolve_target_and_value(ctx, args)
-        days = int(val_str) if val_str and val_str.isdigit() else 30
-        await self.grant_premium(ctx, target, days)
-
-    @commands.command(name="givecard")
-    async def givecard_prefix(self, ctx, *args):
-        if not self.is_owner(ctx.author.id):
-            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
-            return
-        target, char_query = await self.resolve_target_and_value(ctx, args)
-        if not char_query:
-            await ctx.send("Coo coo! ⚠️ Please specify a character name! e.g. `!givecard Gojo`")
-            return
-        await self.grant_card(ctx, target, char_query)
-
-    # --- SLASH COMMANDS ---
+    # --- UNIFIED SLASH COMMAND ---
     @app_commands.command(name="give", description="[Owner Only] Grant Gems, Dust, Tickets, Premium, or Cards to any user")
     @app_commands.choices(item=[
         app_commands.Choice(name="💎 Gems", value="gems"),
@@ -319,30 +262,6 @@ class AdminCog(commands.Cog):
             await self.grant_premium(interaction, dest, days)
         elif choice == "card":
             await self.grant_card(interaction, dest, value)
-
-    @app_commands.command(name="grant", description="[Owner Only] Grant Gems, Dust, Tickets, Premium, or Cards to any user")
-    @app_commands.choices(item=[
-        app_commands.Choice(name="💎 Gems", value="gems"),
-        app_commands.Choice(name="🧪 Dust", value="dust"),
-        app_commands.Choice(name="🎟️ Drop Ticket", value="drop"),
-        app_commands.Choice(name="🖐️ Grab Ticket", value="grab"),
-        app_commands.Choice(name="👑 Premium Pass (30 Days)", value="premium"),
-        app_commands.Choice(name="🎴 Card Spawner", value="card")
-    ])
-    async def grant_slash(self, interaction: discord.Interaction, item: app_commands.Choice[str], value: str, target: discord.User = None):
-        await self.give_slash(interaction, item, value, target)
-
-    @app_commands.command(name="givegems", description="[Owner Only] Grant Gems directly to any user or yourself")
-    async def givegems_slash(self, interaction: discord.Interaction, amount: int, target: discord.User = None):
-        if not self.is_owner(interaction.user.id):
-            await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
-            return
-        try:
-            await interaction.response.defer()
-        except Exception:
-            pass
-        dest = target or interaction.user
-        await self.grant_gems(interaction, dest, amount)
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))
