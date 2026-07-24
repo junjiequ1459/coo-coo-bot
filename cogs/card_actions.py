@@ -126,12 +126,21 @@ class CardActionsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def process_burn_card(self, ctx_or_interaction, card_code: str):
+    async def process_burn_card(self, ctx_or_interaction, card_code: str = None):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-        card_row = get_card_by_code_and_owner(card_code, user.id)
+
+        if card_code:
+            card_row = get_card_by_code_and_owner(card_code, user.id)
+        else:
+            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag, quality FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            row = cursor.fetchone()
+            conn.close()
+            card_row = row
 
         if not card_row:
-            msg = f"Coo coo! ⚠️ Card `{card_code}` not found in your inventory!"
+            msg = "Coo coo! ⚠️ No card found to burn!" if not card_code else f"Coo coo! ⚠️ Card `{card_code}` not found in your inventory!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
             else:
@@ -422,8 +431,8 @@ class CardActionsCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed, view=view)
 
-    @app_commands.command(name="burn", description="Burn an unwanted card to convert it into Dust")
-    async def burn_slash(self, interaction: discord.Interaction, code: str):
+    @app_commands.command(name="burn", description="Burn an unwanted card to convert it into Dust (Defaults to latest card)")
+    async def burn_slash(self, interaction: discord.Interaction, code: str = None):
         try:
             await interaction.response.defer()
         except Exception:
@@ -431,7 +440,7 @@ class CardActionsCog(commands.Cog):
         await self.process_burn_card(interaction, code)
 
     @commands.command(name="burn")
-    async def burn_prefix(self, ctx, code: str):
+    async def burn_prefix(self, ctx, code: str = None):
         await self.process_burn_card(ctx, code)
 
     @app_commands.command(name="tag", description="Assign a custom folder tag to a card (Defaults to latest card if code omitted)")
