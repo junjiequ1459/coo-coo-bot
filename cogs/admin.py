@@ -298,7 +298,7 @@ class AdminCog(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name="resetmint")
+    @commands.command(name="reset")
     async def reset_character_mint(self, ctx, *, args: str):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
