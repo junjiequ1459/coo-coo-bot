@@ -908,7 +908,7 @@ class CharacterSearchPaginatorView(discord.ui.View):
         embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 per page")
         return embed
 
-class SeriesSearchPaginatorView(discord.ui.View):
+class SeriesListPaginatorView(discord.ui.View):
     def __init__(self, bot, user: discord.User, series_query: str):
         super().__init__(timeout=180.0)
         self.bot = bot
@@ -916,32 +916,13 @@ class SeriesSearchPaginatorView(discord.ui.View):
         self.series_query = series_query
         self.current_page = 0
         self.per_page = 5
-        self.total_matches = self.count_matches()
+        self.matching_series = self.fetch_all_series()
+        self.total_matches = len(self.matching_series)
         self.max_pages = max(1, (self.total_matches + self.per_page - 1) // self.per_page)
-        self.current_matches = []
+        self.current_page_series = []
         self.update_view_items()
 
-    def count_matches(self) -> int:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
-        cursor = conn.cursor()
-        tokens = [t.strip().lower() for t in self.series_query.split() if t.strip()]
-        if not tokens:
-            conn.close()
-            return 0
-        
-        clauses = []
-        params = []
-        for t in tokens:
-            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(series_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
-            params.append(f"%{t}%")
-        
-        sql = f"SELECT COUNT(*) FROM cards_pool WHERE {' AND '.join(clauses)}"
-        cursor.execute(sql, tuple(params))
-        cnt = cursor.fetchone()[0]
-        conn.close()
-        return cnt
-
-    def fetch_page_matches(self) -> list:
+    def fetch_all_series(self) -> list:
         conn = sqlite3.connect(DB_PATH, timeout=20.0)
         cursor = conn.cursor()
         tokens = [t.strip().lower() for t in self.series_query.split() if t.strip()]
@@ -954,17 +935,125 @@ class SeriesSearchPaginatorView(discord.ui.View):
         for t in tokens:
             clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(series_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
             params.append(f"%{t}%")
-        
+
+        sql = f"SELECT DISTINCT series_name FROM cards_pool WHERE {' AND '.join(clauses)} ORDER BY series_name ASC"
+        cursor.execute(sql, tuple(params))
+        rows = [r[0] for r in cursor.fetchall()]
+        conn.close()
+        return rows
+
+    def update_view_items(self):
+        self.clear_items()
+        start = self.current_page * self.per_page
+        end = start + self.per_page
+        self.current_page_series = self.matching_series[start:end]
+
+        for idx, sname in enumerate(self.current_page_series):
+            btn = discord.ui.Button(
+                label=f"{idx + 1}. {sname[:22]}",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"series_sel_{idx}_{self.current_page}"
+            )
+            btn.callback = self.make_select_callback(sname)
+            self.add_item(btn)
+
+        if self.max_pages > 1:
+            prev_btn = discord.ui.Button(label="◀️ Prev", style=discord.ButtonStyle.secondary, disabled=(self.current_page == 0), custom_id=f"sl_prev_{self.current_page}")
+            prev_btn.callback = self.prev_page_callback
+            self.add_item(prev_btn)
+
+            ind_btn = discord.ui.Button(label=f"Page {self.current_page + 1}/{self.max_pages}", style=discord.ButtonStyle.secondary, disabled=True, custom_id=f"sl_ind_{self.current_page}")
+            self.add_item(ind_btn)
+
+            next_btn = discord.ui.Button(label="Next ▶️", style=discord.ButtonStyle.secondary, disabled=(self.current_page >= self.max_pages - 1), custom_id=f"sl_next_{self.current_page}")
+            next_btn.callback = self.next_page_callback
+            self.add_item(next_btn)
+
+    def make_select_callback(self, series_name: str):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.user.id:
+                await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+                return
+            await interaction.response.defer()
+            cog = self.bot.get_cog("InventoryCog")
+            if cog:
+                await cog.display_single_series_roster(interaction, series_name)
+        return callback
+
+    async def prev_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+            return
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view_items()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def next_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+            return
+        if self.current_page < self.max_pages - 1:
+            self.current_page += 1
+            self.update_view_items()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    def build_embed(self) -> discord.Embed:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+
+        embed = discord.Embed(
+            title=f"📺 Series Search Results: `{self.series_query}`",
+            description=f"Found **{self.total_matches}** matching anime series.\nClick a series button below to view its character roster!",
+            color=discord.Color.blue()
+        )
+
+        for idx, sname in enumerate(self.current_page_series):
+            cursor.execute("SELECT COUNT(*) FROM cards_pool WHERE series_name = ?", (sname,))
+            char_cnt = cursor.fetchone()[0]
+
+            embed.add_field(
+                name=f"{idx + 1}️⃣ **{sname}**",
+                value=f"🎴 **{char_cnt} Characters** in Master Pool",
+                inline=False
+            )
+
+        conn.close()
+        embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 series per page")
+        return embed
+
+class SeriesCharacterPaginatorView(discord.ui.View):
+    def __init__(self, bot, user: discord.User, series_name: str):
+        super().__init__(timeout=180.0)
+        self.bot = bot
+        self.user = user
+        self.series_name = series_name
+        self.current_page = 0
+        self.per_page = 5
+        self.total_matches = self.count_matches()
+        self.max_pages = max(1, (self.total_matches + self.per_page - 1) // self.per_page)
+        self.current_matches = []
+        self.update_view_items()
+
+    def count_matches(self) -> int:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM cards_pool WHERE LOWER(series_name) = LOWER(?)", (self.series_name,))
+        cnt = cursor.fetchone()[0]
+        conn.close()
+        return cnt
+
+    def fetch_page_matches(self) -> list:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
         offset = self.current_page * self.per_page
-        params.extend([self.per_page, offset])
-        sql = f"""
+        cursor.execute("""
         SELECT character_name, series_name, image_url, rarity 
         FROM cards_pool 
-        WHERE {' AND '.join(clauses)} 
+        WHERE LOWER(series_name) = LOWER(?) 
         ORDER BY character_name ASC 
         LIMIT ? OFFSET ?
-        """
-        cursor.execute(sql, tuple(params))
+        """, (self.series_name, self.per_page, offset))
         rows = cursor.fetchall()
         conn.close()
         return rows
@@ -978,20 +1067,20 @@ class SeriesSearchPaginatorView(discord.ui.View):
             btn = discord.ui.Button(
                 label=f"{idx + 1}. {cname[:22]}",
                 style=discord.ButtonStyle.primary,
-                custom_id=f"ser_sel_{idx}_{self.current_page}"
+                custom_id=f"schar_sel_{idx}_{self.current_page}"
             )
             btn.callback = self.make_select_callback(match)
             self.add_item(btn)
 
         if self.max_pages > 1:
-            prev_btn = discord.ui.Button(label="◀️ Prev", style=discord.ButtonStyle.secondary, disabled=(self.current_page == 0), custom_id=f"s_prev_{self.current_page}")
+            prev_btn = discord.ui.Button(label="◀️ Prev", style=discord.ButtonStyle.secondary, disabled=(self.current_page == 0), custom_id=f"sc_prev_{self.current_page}")
             prev_btn.callback = self.prev_page_callback
             self.add_item(prev_btn)
 
-            ind_btn = discord.ui.Button(label=f"Page {self.current_page + 1}/{self.max_pages}", style=discord.ButtonStyle.secondary, disabled=True, custom_id=f"s_ind_{self.current_page}")
+            ind_btn = discord.ui.Button(label=f"Page {self.current_page + 1}/{self.max_pages}", style=discord.ButtonStyle.secondary, disabled=True, custom_id=f"sc_ind_{self.current_page}")
             self.add_item(ind_btn)
 
-            next_btn = discord.ui.Button(label="Next ▶️", style=discord.ButtonStyle.secondary, disabled=(self.current_page >= self.max_pages - 1), custom_id=f"s_next_{self.current_page}")
+            next_btn = discord.ui.Button(label="Next ▶️", style=discord.ButtonStyle.secondary, disabled=(self.current_page >= self.max_pages - 1), custom_id=f"sc_next_{self.current_page}")
             next_btn.callback = self.next_page_callback
             self.add_item(next_btn)
 
@@ -1028,10 +1117,9 @@ class SeriesSearchPaginatorView(discord.ui.View):
     def build_embed(self) -> discord.Embed:
         conn = sqlite3.connect(DB_PATH, timeout=20.0)
         cursor = conn.cursor()
-        sample_series = self.current_matches[0][1] if self.current_matches else self.series_query
 
         embed = discord.Embed(
-            title=f"📺 Series Lookup: {sample_series}",
+            title=f"📺 Series Roster: {self.series_name}",
             description=f"Found **{self.total_matches}** characters in this anime series.\nClick a character button below to inspect circulation details!",
             color=discord.Color.blue()
         )
@@ -1243,8 +1331,8 @@ class InventoryCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        paginator = SeriesSearchPaginatorView(self.bot, user, series_query.strip())
-        if paginator.total_matches == 0:
+        list_paginator = SeriesListPaginatorView(self.bot, user, series_query.strip())
+        if list_paginator.total_matches == 0:
             msg = f"Coo coo! ⚠️ Series matching `{series_query}` not found in master database pool!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg)
@@ -1252,11 +1340,25 @@ class InventoryCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        embed = paginator.build_embed()
+        if list_paginator.total_matches == 1:
+            exact_series = list_paginator.matching_series[0]
+            await self.display_single_series_roster(ctx_or_interaction, exact_series)
+            return
+
+        embed = list_paginator.build_embed()
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed, view=paginator)
+            await ctx_or_interaction.followup.send(embed=embed, view=list_paginator)
         else:
-            await ctx_or_interaction.send(embed=embed, view=paginator)
+            await ctx_or_interaction.send(embed=embed, view=list_paginator)
+
+    async def display_single_series_roster(self, ctx_or_interaction, series_name: str):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        char_paginator = SeriesCharacterPaginatorView(self.bot, user, series_name)
+        embed = char_paginator.build_embed()
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=char_paginator)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=char_paginator)
 
     @app_commands.command(name="slu", description="Lookup all characters in a specific anime series")
     async def slu_slash(self, interaction: discord.Interaction, series: str):

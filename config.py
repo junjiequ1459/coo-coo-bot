@@ -39,6 +39,23 @@ if os.path.exists(DATA_DIR):
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
+try:
+    if os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH, timeout=10.0)
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(inventory)")
+        cols = [c[1] for c in cur.fetchall()]
+        if cols and "quality" not in cols:
+            cur.execute("ALTER TABLE inventory ADD COLUMN quality TEXT DEFAULT 'Good ⭐⭐'")
+            cur.execute("UPDATE inventory SET quality = 'Good ⭐⭐'")
+            conn.commit()
+        if cols and "quality" in cols:
+            cur.execute("UPDATE inventory SET quality = 'Good ⭐⭐' WHERE quality IS NULL OR quality = ''")
+            conn.commit()
+        conn.close()
+except Exception as e:
+    print(f"Inventory quality column migration warning: {e}")
+
 DROP_COOLDOWN_SEC = 900  # 15 Minutes (Standard)
 GRAB_COOLDOWN_SEC = 300  # 5 Minutes (Standard)
 DAILY_COOLDOWN_SEC = 86400  # 24 Hours
