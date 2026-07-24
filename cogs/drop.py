@@ -139,79 +139,92 @@ class DropCog(commands.Cog):
         self.bot = bot
 
     async def execute_card_drop(self, ctx_or_interaction, user):
-        now_ts = int(time.time())
-        l_drop, l_grab, l_daily = get_user_cooldowns(user.id)
-        d_cd, g_cd = get_effective_cooldowns(user.id)
-        elapsed_drop = now_ts - l_drop
+        try:
+            now_ts = int(time.time())
+            l_drop, l_grab, l_daily = get_user_cooldowns(user.id)
+            d_cd, g_cd = get_effective_cooldowns(user.id)
+            elapsed_drop = now_ts - l_drop
 
-        used_ticket = False
-        if elapsed_drop < d_cd:
-            tickets = get_user_drop_tickets(user.id)
-            if tickets > 0:
-                add_user_drop_tickets(user.id, -1)
-                used_ticket = True
-            else:
-                rem = d_cd - elapsed_drop
-                mins = rem // 60
-                secs = rem % 60
-                msg = f"Coo coo! ⏳ Your **Drop** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to check your cooldowns or `/shop` to buy Drop Tickets 🎟️!"
+            used_ticket = False
+            if elapsed_drop < d_cd:
+                tickets = get_user_drop_tickets(user.id)
+                if tickets > 0:
+                    add_user_drop_tickets(user.id, -1)
+                    used_ticket = True
+                else:
+                    rem = d_cd - elapsed_drop
+                    mins = rem // 60
+                    secs = rem % 60
+                    msg = f"Coo coo! ⏳ Your **Drop** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to check your cooldowns or `/shop` to buy Drop Tickets 🎟️!"
+                    if isinstance(ctx_or_interaction, discord.Interaction):
+                        await ctx_or_interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await ctx_or_interaction.send(msg)
+                    return
+
+            cards = get_cards_from_db_pool(3)
+            if not cards or len(cards) < 3:
+                cards = await fetch_random_anilist_cards(3)
+
+            if not cards or len(cards) < 3:
+                msg = "Coo coo! ⚠️ Couldn't fetch cards for drop. Please try again in a moment!"
                 if isinstance(ctx_or_interaction, discord.Interaction):
-                    await ctx_or_interaction.followup.send(msg, ephemeral=True)
+                    await ctx_or_interaction.followup.send(msg)
                 else:
                     await ctx_or_interaction.send(msg)
                 return
 
-        cards = get_cards_from_db_pool(3)
-        if not cards or len(cards) < 3:
-            cards = await fetch_random_anilist_cards(3)
+            if not used_ticket:
+                set_user_cooldown(user.id, "drop", now_ts)
 
-        if not cards:
-            msg = "Coo coo! ⚠️ Couldn't fetch cards for drop. Please try again in a moment!"
+            buf = await render_three_cards_composite(cards)
+            file = discord.File(fp=buf, filename="drop.png")
+
+            ticket_text = "🎟️ **Extra Drop Ticket Used!** (Drop Cooldown Bypassed!)\n" if used_ticket else ""
+
+            embed = discord.Embed(
+                title=f"🎴 {user.display_name}'s Card Drop!",
+                description=(
+                    f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
+                    f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
+                    f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
+                    f"{ticket_text}"
+                    f"⏳ **Priority:** {user.mention} has **30 seconds of exclusive drop priority**!\n"
+                    f"Click a button below to grab a card!"
+                ),
+                color=discord.Color.gold()
+            )
+            embed.set_image(url="attachment://drop.png")
+            embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
+
+            view = CardDropView(cards, dropper_id=user.id)
+
+            if used_ticket:
+                rem_t = get_user_drop_tickets(user.id)
+                notice_text = f"🎟️ {user.mention} used an **Extra Drop Ticket**! Drop cooldown bypassed! ({rem_t} tickets remaining)"
+                try:
+                    await ctx_or_interaction.channel.send(notice_text)
+                except Exception:
+                    pass
+
             if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
+                msg = await ctx_or_interaction.followup.send(embed=embed, file=file, view=view)
+                view.message = msg
             else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        if not used_ticket:
-            set_user_cooldown(user.id, "drop", now_ts)
-
-        buf = await render_three_cards_composite(cards)
-        file = discord.File(fp=buf, filename="drop.png")
-
-        ticket_text = "🎟️ **Extra Drop Ticket Used!** (Drop Cooldown Bypassed!)\n" if used_ticket else ""
-
-        embed = discord.Embed(
-            title=f"🎴 {user.display_name}'s Card Drop!",
-            description=(
-                f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
-                f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
-                f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
-                f"{ticket_text}"
-                f"⏳ **Priority:** {user.mention} has **30 seconds of exclusive drop priority**!\n"
-                f"Click a button below to grab a card!"
-            ),
-            color=discord.Color.gold()
-        )
-        embed.set_image(url="attachment://drop.png")
-        embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
-
-        view = CardDropView(cards, dropper_id=user.id)
-
-        if used_ticket:
-            rem_t = get_user_drop_tickets(user.id)
-            notice_text = f"🎟️ {user.mention} used an **Extra Drop Ticket**! Drop cooldown bypassed! ({rem_t} tickets remaining)"
+                msg = await ctx_or_interaction.send(embed=embed, file=file, view=view)
+                view.message = msg
+        except Exception as e:
+            print(f"Error in execute_card_drop: {e}")
+            import traceback
+            traceback.print_exc()
+            err_msg = f"Coo coo! ⚠️ An error occurred while generating card drop: {e}"
             try:
-                await ctx_or_interaction.channel.send(notice_text)
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(err_msg)
+                else:
+                    await ctx_or_interaction.send(err_msg)
             except Exception:
                 pass
-
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            msg = await ctx_or_interaction.followup.send(embed=embed, file=file, view=view)
-            view.message = msg
-        else:
-            msg = await ctx_or_interaction.send(embed=embed, file=file, view=view)
-            view.message = msg
 
     @app_commands.command(name="drop", description="Drops 3 random Anime Cards from your local character DB")
     async def drop_slash(self, interaction: discord.Interaction):

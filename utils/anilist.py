@@ -88,4 +88,27 @@ async def fetch_random_anilist_cards(count: int = 3):
             "temp_mint": temp_mint,
             "edition": 1
         })
+
+    DEFAULT_FALLBACKS = [
+        {"name": "Satoru Gojo", "series": "Jujutsu Kaisen", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b126448-aN2d0hG0240d.png", "rarity": "✨ Legendary"},
+        {"name": "Monkey D. Luffy", "series": "One Piece", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b40-X1W0z9Wn99g5.png", "rarity": "✨ Legendary"},
+        {"name": "Naruto Uzumaki", "series": "Naruto", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b17-0Vp9jR65iX1X.png", "rarity": "✨ Legendary"}
+    ]
+
+    idx = 0
+    while len(cards) < count:
+        fb = DEFAULT_FALLBACKS[idx % len(DEFAULT_FALLBACKS)]
+        temp_mint = get_next_mint(fb["name"])
+        cards.append({
+            "code": generate_card_code(),
+            "name": fb["name"],
+            "series": fb["series"],
+            "image": fb["image"],
+            "rarity": fb["rarity"],
+            "quality": roll_card_quality(),
+            "temp_mint": temp_mint,
+            "edition": 1
+        })
+        idx += 1
+
     return cards
