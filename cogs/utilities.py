@@ -226,5 +226,84 @@ class UtilitiesCog(commands.Cog):
         msg = random.choice(PIGEON_MESSAGES)
         await interaction.followup.send(f"🐦 **Coo Coo**: {msg}")
 
+    @app_commands.command(name="users", description="[Owner Only] View all registered users and their balances in the database")
+    async def users_slash(self, interaction: discord.Interaction):
+        from config import BOT_OWNER_IDS, DB_PATH
+        if interaction.user.id not in BOT_OWNER_IDS:
+            await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
+            return
+
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        import sqlite3, time
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT u.user_id, u.gems, u.dust, u.premium_until, (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id) FROM users u")
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            await interaction.followup.send("Coo coo! 📭 No users found in the database yet!", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="👥 Database Users Overview",
+            description=f"Total Registered Users: **{len(rows)}**",
+            color=discord.Color.blue()
+        )
+
+        for row in rows[:15]:
+            uid, gems, dust, prem_until, card_count = row
+            user_obj = self.bot.get_user(uid)
+            uname = user_obj.display_name if user_obj else f"User ID: {uid}"
+            is_prem = "👑 Premium" if int(time.time()) < (prem_until or 0) else "⚪ Standard"
+            embed.add_field(
+                name=f"👤 {uname}",
+                value=f"💎 **{gems:,} Gems** | 🧪 **{dust:,} Dust** | 🎴 **{card_count} Cards** | {is_prem}",
+                inline=False
+            )
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @commands.command(name="users")
+    async def users_prefix(self, ctx):
+        from config import BOT_OWNER_IDS, DB_PATH
+        if ctx.author.id not in BOT_OWNER_IDS:
+            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
+            return
+
+        import sqlite3, time
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT u.user_id, u.gems, u.dust, u.premium_until, (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id) FROM users u")
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            await ctx.send("Coo coo! 📭 No users found in the database yet!")
+            return
+
+        embed = discord.Embed(
+            title="👥 Database Users Overview",
+            description=f"Total Registered Users: **{len(rows)}**",
+            color=discord.Color.blue()
+        )
+
+        for row in rows[:15]:
+            uid, gems, dust, prem_until, card_count = row
+            user_obj = self.bot.get_user(uid)
+            uname = user_obj.display_name if user_obj else f"User ID: {uid}"
+            is_prem = "👑 Premium" if int(time.time()) < (prem_until or 0) else "⚪ Standard"
+            embed.add_field(
+                name=f"👤 {uname}",
+                value=f"💎 **{gems:,} Gems** | 🧪 **{dust:,} Dust** | 🎴 **{card_count} Cards** | {is_prem}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(UtilitiesCog(bot))

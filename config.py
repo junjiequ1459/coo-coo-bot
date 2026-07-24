@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+BOT_OWNER_IDS = [154017382560563200]
 
 DATA_DIR = os.getenv("DATA_DIR", "/data")
 if os.path.exists(DATA_DIR):

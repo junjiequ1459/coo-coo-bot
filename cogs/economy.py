@@ -135,7 +135,49 @@ class EconomyCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed)
 
+    async def process_admin_givegems(self, ctx_or_interaction, target: discord.User, amount: int):
+        sender = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        from config import BOT_OWNER_IDS
+        if sender.id not in BOT_OWNER_IDS:
+            msg = "Coo coo! ⚠️ This command is restricted to the Bot Owner!"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg, ephemeral=True)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        new_bal = add_user_gems(target.id, amount)
+        embed = discord.Embed(
+            title="👑 Admin Gem Grant",
+            description=(
+                f"🎉 **{sender.mention}** granted **{amount:,} 💎 Gems** to {target.mention}!\n\n"
+                f"💎 **New Balance:** **{new_bal:,} Gems 💎**"
+            ),
+            color=discord.Color.gold()
+        )
+
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+
     # --- COMMAND HANDLERS ---
+    @app_commands.command(name="givegems", description="[Owner Only] Grant Gems directly to any user")
+    async def givegems_slash(self, interaction: discord.Interaction, target: discord.User, amount: int):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.process_admin_givegems(interaction, target, amount)
+
+    @commands.command(name="givegems")
+    async def givegems_prefix(self, ctx, target: discord.User, amount: int):
+        await self.process_admin_givegems(ctx, target, amount)
+
+    @commands.command(name="addgems")
+    async def addgems_prefix(self, ctx, target: discord.User, amount: int):
+        await self.process_admin_givegems(ctx, target, amount)
+
     @app_commands.command(name="bal", description="Check your private personal Gems balance")
     async def bal_slash(self, interaction: discord.Interaction):
         try:
