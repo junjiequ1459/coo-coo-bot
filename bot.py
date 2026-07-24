@@ -24,6 +24,15 @@ if os.path.exists(DATA_DIR):
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
+# ==========================================
+# 🤖 BOT DISCORD CLIENT SETUP
+# ==========================================
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
+
 def generate_card_code() -> str:
     """Generates a random 6-character alphanumeric card code (e.g. 136hma)."""
     chars = string.ascii_lowercase + string.digits
@@ -677,15 +686,6 @@ class CardDropView(discord.ui.View):
                     pass
 
 # ==========================================
-# 🤖 BOT DISCORD CLIENT SETUP
-# ==========================================
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
-
-# ==========================================
 # ⏱️ COOLDOWNS COMMAND
 # ==========================================
 async def process_cooldowns(ctx_or_interaction):
@@ -1186,6 +1186,7 @@ class ColorButton(discord.ui.Button):
         roles_to_remove = [r for r in member.roles if r.name in color_role_names and r.name != target_role_name]
         if roles_to_remove:
             await member.remove_roles(*roles_to_remove)
+
         if target_role not in member.roles:
             await member.add_roles(target_role)
             await interaction.followup.send(
@@ -1204,12 +1205,6 @@ class ColorPickerView(discord.ui.View):
 # ==========================================
 # 🤖 BOT DISCORD CLIENT SETUP & HEALTHCHECK
 # ==========================================
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
-
 async def handle_healthcheck(request):
     return web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
 
@@ -1718,7 +1713,7 @@ async def execute_card_drop(ctx_or_interaction, user):
         color=discord.Color.gold()
     )
     embed.set_image(url="attachment://drop.png")
-    embed.set_footer(text="Coo Coo Card Engine • 15m Drop CD | 5m Grab CD")
+    embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
 
     view = CardDropView(cards, dropper_id=user.id)
 
