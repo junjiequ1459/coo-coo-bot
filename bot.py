@@ -917,16 +917,6 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 @bot.event
 async def on_ready():
     print(f"🐦 Coo Coo is ONLINE as {bot.user.name} ({bot.user.id})!")
-    
-    # 1. Clear global commands from Discord API to eliminate duplicate /commands in UI
-    try:
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync(guild=None)
-        print("Successfully cleared global commands to eliminate duplicates!")
-    except Exception as e:
-        print(f"Error clearing global commands: {e}")
-
-    # 2. Sync clean commands to each guild
     for guild in bot.guilds:
         try:
             bot.tree.copy_global_to(guild=guild)
