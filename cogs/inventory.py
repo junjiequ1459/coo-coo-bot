@@ -770,46 +770,296 @@ class InventoryCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed, view=view)
 
-    async def process_character_lookup(self, ctx_or_interaction, query: str):
-        if not query:
-            msg = "Coo coo! ⚠️ Please specify a character name or print number! e.g. `!klu Yor Forger` or `!klu Yor Forger 1`"
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
-            else:
-                await ctx_or_interaction.send(msg)
+class CharacterSearchPaginatorView(discord.ui.View):
+    def __init__(self, bot, user: discord.User, search_query: str, print_num_target: int = None):
+        super().__init__(timeout=180.0)
+        self.bot = bot
+        self.user = user
+        self.search_query = search_query
+        self.print_num_target = print_num_target
+        self.current_page = 0
+        self.per_page = 5
+        self.total_matches = self.count_matches()
+        self.max_pages = max(1, (self.total_matches + self.per_page - 1) // self.per_page)
+        self.current_matches = []
+        self.update_view_items()
+
+    def count_matches(self) -> int:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        tokens = [t.strip().lower() for t in self.search_query.split() if t.strip()]
+        if not tokens:
+            conn.close()
+            return 0
+        
+        clauses = []
+        params = []
+        for t in tokens:
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            params.append(f"%{t}%")
+        
+        sql = f"SELECT COUNT(*) FROM cards_pool WHERE {' AND '.join(clauses)}"
+        cursor.execute(sql, tuple(params))
+        cnt = cursor.fetchone()[0]
+        conn.close()
+        return cnt
+
+    def fetch_page_matches(self) -> list:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        tokens = [t.strip().lower() for t in self.search_query.split() if t.strip()]
+        if not tokens:
+            conn.close()
+            return []
+
+        clauses = []
+        params = []
+        for t in tokens:
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            params.append(f"%{t}%")
+        
+        offset = self.current_page * self.per_page
+        params.extend([self.per_page, offset])
+        sql = f"""
+        SELECT character_name, series_name, image_url, rarity 
+        FROM cards_pool 
+        WHERE {' AND '.join(clauses)} 
+        ORDER BY length(character_name) ASC, character_name ASC 
+        LIMIT ? OFFSET ?
+        """
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+    def update_view_items(self):
+        self.clear_items()
+        self.current_matches = self.fetch_page_matches()
+
+        # Add selection button for each match on current page (up to 5)
+        for idx, match in enumerate(self.current_matches):
+            cname, sname, iurl, rval = match
+            btn = discord.ui.Button(
+                label=f"{idx + 1}. {cname[:22]}",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"char_sel_{idx}_{self.current_page}"
+            )
+            btn.callback = self.make_select_callback(match)
+            self.add_item(btn)
+
+        # Pagination controls
+        if self.max_pages > 1:
+            prev_btn = discord.ui.Button(label="◀️ Prev", style=discord.ButtonStyle.secondary, disabled=(self.current_page == 0), custom_id=f"cs_prev_{self.current_page}")
+            prev_btn.callback = self.prev_page_callback
+            self.add_item(prev_btn)
+
+            ind_btn = discord.ui.Button(label=f"Page {self.current_page + 1}/{self.max_pages}", style=discord.ButtonStyle.secondary, disabled=True, custom_id=f"cs_ind_{self.current_page}")
+            self.add_item(ind_btn)
+
+            next_btn = discord.ui.Button(label="Next ▶️", style=discord.ButtonStyle.secondary, disabled=(self.current_page >= self.max_pages - 1), custom_id=f"cs_next_{self.current_page}")
+            next_btn.callback = self.next_page_callback
+            self.add_item(next_btn)
+
+    def make_select_callback(self, match_data):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.user.id:
+                await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+                return
+            await interaction.response.defer()
+            cname, sname, iurl, rval = match_data
+            cog = self.bot.get_cog("InventoryCog")
+            if cog:
+                await cog.display_single_character_lookup(interaction, cname, sname, iurl, rval, self.print_num_target)
+        return callback
+
+    async def prev_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
             return
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view_items()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
-        parts = query.strip().split()
-        print_num_target = None
-        if len(parts) > 1 and parts[-1].isdigit():
-            print_num_target = int(parts[-1])
-            char_search = " ".join(parts[:-1])
-        else:
-            char_search = " ".join(parts)
+    async def next_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+            return
+        if self.current_page < self.max_pages - 1:
+            self.current_page += 1
+            self.update_view_items()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title=f"🔍 Character Search Results: `{self.search_query}`",
+            description=f"Found **{self.total_matches}** matching characters in master pool.\nClick a button below to inspect a character!",
+            color=discord.Color.purple()
+        )
+
+        for idx, match in enumerate(self.current_matches):
+            cname, sname, iurl, rval = match
+            embed.add_field(
+                name=f"{idx + 1}️⃣ **{cname}**",
+                value=f"📺 *{sname}* | {rval}",
+                inline=False
+            )
+
+        embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 per page")
+        return embed
+
+class SeriesSearchPaginatorView(discord.ui.View):
+    def __init__(self, bot, user: discord.User, series_query: str):
+        super().__init__(timeout=180.0)
+        self.bot = bot
+        self.user = user
+        self.series_query = series_query
+        self.current_page = 0
+        self.per_page = 5
+        self.total_matches = self.count_matches()
+        self.max_pages = max(1, (self.total_matches + self.per_page - 1) // self.per_page)
+        self.current_matches = []
+        self.update_view_items()
+
+    def count_matches(self) -> int:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        tokens = [t.strip().lower() for t in self.series_query.split() if t.strip()]
+        if not tokens:
+            conn.close()
+            return 0
+        
+        clauses = []
+        params = []
+        for t in tokens:
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(series_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            params.append(f"%{t}%")
+        
+        sql = f"SELECT COUNT(*) FROM cards_pool WHERE {' AND '.join(clauses)}"
+        cursor.execute(sql, tuple(params))
+        cnt = cursor.fetchone()[0]
+        conn.close()
+        return cnt
+
+    def fetch_page_matches(self) -> list:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        tokens = [t.strip().lower() for t in self.series_query.split() if t.strip()]
+        if not tokens:
+            conn.close()
+            return []
+
+        clauses = []
+        params = []
+        for t in tokens:
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(series_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            params.append(f"%{t}%")
+        
+        offset = self.current_page * self.per_page
+        params.extend([self.per_page, offset])
+        sql = f"""
+        SELECT character_name, series_name, image_url, rarity 
+        FROM cards_pool 
+        WHERE {' AND '.join(clauses)} 
+        ORDER BY character_name ASC 
+        LIMIT ? OFFSET ?
+        """
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+    def update_view_items(self):
+        self.clear_items()
+        self.current_matches = self.fetch_page_matches()
+
+        for idx, match in enumerate(self.current_matches):
+            cname, sname, iurl, rval = match
+            btn = discord.ui.Button(
+                label=f"{idx + 1}. {cname[:22]}",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"ser_sel_{idx}_{self.current_page}"
+            )
+            btn.callback = self.make_select_callback(match)
+            self.add_item(btn)
+
+        if self.max_pages > 1:
+            prev_btn = discord.ui.Button(label="◀️ Prev", style=discord.ButtonStyle.secondary, disabled=(self.current_page == 0), custom_id=f"s_prev_{self.current_page}")
+            prev_btn.callback = self.prev_page_callback
+            self.add_item(prev_btn)
+
+            ind_btn = discord.ui.Button(label=f"Page {self.current_page + 1}/{self.max_pages}", style=discord.ButtonStyle.secondary, disabled=True, custom_id=f"s_ind_{self.current_page}")
+            self.add_item(ind_btn)
+
+            next_btn = discord.ui.Button(label="Next ▶️", style=discord.ButtonStyle.secondary, disabled=(self.current_page >= self.max_pages - 1), custom_id=f"s_next_{self.current_page}")
+            next_btn.callback = self.next_page_callback
+            self.add_item(next_btn)
+
+    def make_select_callback(self, match_data):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.user.id:
+                await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+                return
+            await interaction.response.defer()
+            cname, sname, iurl, rval = match_data
+            cog = self.bot.get_cog("InventoryCog")
+            if cog:
+                await cog.display_single_character_lookup(interaction, cname, sname, iurl, rval)
+        return callback
+
+    async def prev_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+            return
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view_items()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def next_page_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
+            return
+        if self.current_page < self.max_pages - 1:
+            self.current_page += 1
+            self.update_view_items()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    def build_embed(self) -> discord.Embed:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+        sample_series = self.current_matches[0][1] if self.current_matches else self.series_query
+
+        embed = discord.Embed(
+            title=f"📺 Series Lookup: {sample_series}",
+            description=f"Found **{self.total_matches}** characters in this anime series.\nClick a character button below to inspect circulation details!",
+            color=discord.Color.blue()
+        )
+
+        for idx, match in enumerate(self.current_matches):
+            cname, sname, iurl, rval = match
+            cursor.execute("SELECT COUNT(*) FROM inventory WHERE LOWER(character_name) = LOWER(?)", (cname,))
+            claimed_cnt = cursor.fetchone()[0]
+
+            embed.add_field(
+                name=f"{idx + 1}️⃣ **{cname}**",
+                value=f"✨ **Rarity:** {rval} | 📊 **Claimed in Circulation:** {claimed_cnt}",
+                inline=False
+            )
+
+        conn.close()
+        embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 characters per page")
+        return embed
+
+class InventoryCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    async def display_single_character_lookup(self, ctx_or_interaction, char_name: str, series: str, img_url: str, rarity: str, print_num_target: int = None):
         conn = sqlite3.connect(DB_PATH, timeout=20.0)
         cursor = conn.cursor()
 
-        # Find character in master database pool
-        cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) LIKE ? ORDER BY length(character_name) ASC LIMIT 1", (f"%{char_search.lower()}%",))
-        master_row = cursor.fetchone()
-
-        if not master_row:
-            cursor.execute("SELECT character_name, series_name, image_url, rarity FROM inventory WHERE LOWER(character_name) LIKE ? LIMIT 1", (f"%{char_search.lower()}%",))
-            master_row = cursor.fetchone()
-
-        if not master_row:
-            conn.close()
-            msg = f"Coo coo! ⚠️ Character matching `{char_search}` not found in master database pool!"
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
-            else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        char_name, series, img_url, rarity = master_row
-
-        # If a specific print number was requested (e.g. !klu Yor Forger 1)
+        # If a specific print number was requested (e.g. !lu Yor Forger 1)
         if print_num_target is not None:
             cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(?) AND mint_number = ?", (char_name, print_num_target))
             inv_row = cursor.fetchone()
@@ -906,6 +1156,46 @@ class InventoryCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed)
 
+    async def process_character_lookup(self, ctx_or_interaction, query: str):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        if not query:
+            msg = "Coo coo! ⚠️ Please specify a character name or print number! e.g. `!lu Yor Forger` or `!lu Gojo 1`"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        parts = query.strip().split()
+        print_num_target = None
+        if len(parts) > 1 and parts[-1].isdigit():
+            print_num_target = int(parts[-1])
+            char_search = " ".join(parts[:-1])
+        else:
+            char_search = " ".join(parts)
+
+        paginator = CharacterSearchPaginatorView(self.bot, user, char_search, print_num_target)
+        if paginator.total_matches == 0:
+            msg = f"Coo coo! ⚠️ Character matching `{char_search}` not found in master database pool!"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        if paginator.total_matches == 1:
+            # Single exact match: display character overview directly!
+            match = paginator.current_matches[0]
+            await self.display_single_character_lookup(ctx_or_interaction, match[0], match[1], match[2], match[3], print_num_target)
+            return
+
+        # Multiple matches: render interactive paginated selection list!
+        embed = paginator.build_embed()
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=paginator)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=paginator)
+
     @app_commands.command(name="repair", description="Repair and upgrade a card's condition using Dust (Defaults to latest card)")
     async def repair_slash(self, interaction: discord.Interaction, code: str = None):
         try:
@@ -937,7 +1227,48 @@ class InventoryCog(commands.Cog):
 
     @commands.command(name="lu", aliases=["lookup", "klu", "klookup"])
     async def lu_prefix(self, ctx, *, query: str = None):
-        await self.process_character_lookup(ctx, query)
+        if query and query.lower().startswith("s:"):
+            s_query = query[2:].strip()
+            await self.process_series_lookup(ctx, s_query)
+        else:
+            await self.process_character_lookup(ctx, query)
+
+    async def process_series_lookup(self, ctx_or_interaction, series_query: str):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        if not series_query:
+            msg = "Coo coo! ⚠️ Please specify a series name! e.g. `!slu SPY x FAMILY` or `!slu Bleach`"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        paginator = SeriesSearchPaginatorView(self.bot, user, series_query.strip())
+        if paginator.total_matches == 0:
+            msg = f"Coo coo! ⚠️ Series matching `{series_query}` not found in master database pool!"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        embed = paginator.build_embed()
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=paginator)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=paginator)
+
+    @app_commands.command(name="slu", description="Lookup all characters in a specific anime series")
+    async def slu_slash(self, interaction: discord.Interaction, series: str):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.process_series_lookup(interaction, series)
+
+    @commands.command(name="slu", aliases=["serieslookup", "slookup"])
+    async def slu_prefix(self, ctx, *, series: str = None):
+        await self.process_series_lookup(ctx, series)
 
 async def setup(bot):
     await bot.add_cog(InventoryCog(bot))
