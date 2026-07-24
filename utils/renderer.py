@@ -6,13 +6,17 @@ from config import RARITY_COLORS
 
 async def fetch_image(session, url):
     try:
-        async with session.get(url, timeout=8) as resp:
-            if resp.status == 200:
-                data = await resp.read()
-                return Image.open(io.BytesIO(data)).convert("RGBA")
+        if url and str(url).startswith("http"):
+            async with session.get(url, timeout=8) as resp:
+                if resp.status == 200:
+                    data = await resp.read()
+                    return Image.open(io.BytesIO(data)).convert("RGBA")
     except Exception as e:
-        print(f"Failed to fetch image {url}: {e}")
+        print(f"Failed to fetch image '{url}': {e}")
     img = Image.new("RGBA", (260, 400), (32, 34, 37, 255))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([10, 10, 250, 390], outline=(70, 75, 85), width=2)
+    draw.text((130, 200), "🖼️ Image Unavailable", fill=(160, 175, 190), anchor="mm")
     return img
 
 def apply_quality_filter_to_image(img: Image.Image, quality_str: str) -> Image.Image:

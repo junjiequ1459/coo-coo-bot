@@ -221,83 +221,96 @@ class InventoryCog(commands.Cog):
             await ctx_or_interaction.send(embed=embed, view=view if view.max_pages > 1 else None)
 
     async def process_view_card(self, ctx_or_interaction, card_code_query: str = None):
-        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
-        cursor = conn.cursor()
+        try:
+            user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            cursor = conn.cursor()
 
-        if not card_code_query:
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
-            row = cursor.fetchone()
-        else:
-            query_str = card_code_query.lower().strip()
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE (code = ? OR id = ?)", (query_str, query_str))
-            row = cursor.fetchone()
+            if not card_code_query:
+                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+                row = cursor.fetchone()
+            else:
+                query_str = card_code_query.lower().strip()
+                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE (code = ? OR id = ?)", (query_str, query_str))
+                row = cursor.fetchone()
+
+                if not row:
+                    cursor.execute("SELECT COUNT(*) FROM inventory WHERE user_id = ? AND LOWER(tag) = ?", (user.id, query_str))
+                    tag_count = cursor.fetchone()[0]
+                    if tag_count > 0:
+                        conn.close()
+                        await self.process_inventory(ctx_or_interaction, tag_filter=query_str)
+                        return
 
             if not row:
-                cursor.execute("SELECT COUNT(*) FROM inventory WHERE user_id = ? AND LOWER(tag) = ?", (user.id, query_str))
-                tag_count = cursor.fetchone()[0]
-                if tag_count > 0:
-                    conn.close()
-                    await self.process_inventory(ctx_or_interaction, tag_filter=query_str)
-                    return
+                conn.close()
+                if not card_code_query:
+                    msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet! Type `/drop` to grab your first card!"
+                else:
+                    msg = f"Coo coo! ⚠️ Card ID or Tag `{card_code_query}` not found!"
+                    
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(msg)
+                else:
+                    await ctx_or_interaction.send(msg)
+                return
 
-        if not row:
+            cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val, grabbed_at = row
             conn.close()
-            if not card_code_query:
-                msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet! Type `/drop` to grab your first card!"
-            else:
-                msg = f"Coo coo! ⚠️ Card ID or Tag `{card_code_query}` not found!"
-                
+
+            owner = self.bot.get_user(uid)
+            owner_name = owner.mention if owner else f"<@{uid}>"
+            ed_val = edition if edition else 1
+            code_str = code if code else f"c{cid:04d}"
+            q_disp = (q_val or "Good ⭐⭐").strip()
+
+            card_data = {
+                "id": cid,
+                "code": code_str,
+                "character_name": char_name,
+                "series_name": series,
+                "rarity": rarity,
+                "mint_number": mint_num,
+                "edition": ed_val,
+                "quality": q_disp,
+                "image_url": img_url
+            }
+
+            buf = await render_single_card(card_data)
+            file = discord.File(fp=buf, filename="card.png")
+
+            tag_disp = f"🏷️ **Tag:** `[{tag_val}]`\n" if tag_val else ""
+
+            embed = discord.Embed(
+                title=f"🆔 Card ID: {code_str} • {char_name}",
+                description=(
+                    f"📺 **Series:** {series}\n"
+                    f"🌟 **Quality:** {q_disp}\n"
+                    f"👤 **Owner:** {owner_name}\n"
+                    f"{tag_disp}"
+                    f"📅 **Grabbed:** {grabbed_at}"
+                ),
+                color=discord.Color.magenta()
+            )
+            embed.set_image(url="attachment://card.png")
+            embed.set_footer(text=f"Coo Coo Card Vault • Card ID: {code_str}")
+
             if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
+                await ctx_or_interaction.followup.send(embed=embed, file=file)
             else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val, grabbed_at = row
-        conn.close()
-
-        owner = self.bot.get_user(uid)
-        owner_name = owner.mention if owner else f"<@{uid}>"
-        ed_val = edition if edition else 1
-        code_str = code if code else f"c{cid:04d}"
-        q_disp = q_val if q_val else "Good ⭐⭐"
-
-        card_data = {
-            "id": cid,
-            "code": code_str,
-            "character_name": char_name,
-            "series_name": series,
-            "rarity": rarity,
-            "mint_number": mint_num,
-            "edition": ed_val,
-            "quality": q_disp,
-            "image_url": img_url
-        }
-
-        buf = await render_single_card(card_data)
-        file = discord.File(fp=buf, filename="card.png")
-
-        tag_disp = f"🏷️ **Tag:** `[{tag_val}]`\n" if tag_val else ""
-
-        embed = discord.Embed(
-            title=f"🆔 Card ID: {code_str} • {char_name}",
-            description=(
-                f"📺 **Series:** {series}\n"
-                f"🌟 **Quality:** {q_disp}\n"
-                f"👤 **Owner:** {owner_name}\n"
-                f"{tag_disp}"
-                f"📅 **Grabbed:** {grabbed_at}"
-            ),
-            color=discord.Color.magenta()
-        )
-        embed.set_image(url="attachment://card.png")
-        embed.set_footer(text=f"Coo Coo Card Vault • Card ID: {code_str}")
-
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed, file=file)
-        else:
-            await ctx_or_interaction.send(embed=embed, file=file)
+                await ctx_or_interaction.send(embed=embed, file=file)
+        except Exception as e:
+            print(f"Error in process_view_card: {e}")
+            import traceback
+            traceback.print_exc()
+            err_msg = f"Coo coo! ⚠️ An error occurred while loading card artwork: {e}"
+            try:
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(err_msg)
+                else:
+                    await ctx_or_interaction.send(err_msg)
+            except Exception:
+                pass
 
     async def process_burn_card(self, ctx_or_interaction, card_code: str):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author

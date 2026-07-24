@@ -53,6 +53,33 @@ async def on_ready():
 
     bot.add_view(ColorPickerView())
 
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"Coo coo! ⚠️ Missing required argument! Usage: `{ctx.prefix}{ctx.command.signature}`")
+        return
+    print(f"Error in prefix command '{ctx.command}': {error}")
+    import traceback
+    traceback.print_exc()
+    await ctx.send(f"Coo coo! ⚠️ An error occurred: `{error}`")
+
+async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    print(f"Error in slash command '{interaction.command}': {error}")
+    import traceback
+    traceback.print_exc()
+    msg = f"Coo coo! ⚠️ An error occurred: `{error}`"
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except Exception:
+        pass
+
+bot.tree.on_error = on_tree_error
+
 async def main():
     async with bot:
         cogs = [
