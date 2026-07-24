@@ -38,23 +38,25 @@ def apply_quality_filter_to_image(img: Image.Image, quality_str: str) -> Image.I
         return img
 
     elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
-        # Poor ⭐: Heavily worn (50% desaturation + sepia vintage fade)
+        # Poor ⭐: Heavily worn & grainy (65% desaturation + sepia vintage film texture)
         enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.50)
+        img = enhancer.enhance(0.35)
         enhancer_b = ImageEnhance.Brightness(img)
-        img = enhancer_b.enhance(0.88)
-        overlay = Image.new("RGBA", img.size, (110, 80, 50, 35))
+        img = enhancer_b.enhance(0.82)
+        enhancer_c = ImageEnhance.Contrast(img)
+        img = enhancer_c.enhance(1.20)
+        overlay = Image.new("RGBA", img.size, (130, 95, 60, 60))
         img = Image.alpha_composite(img.convert("RGBA"), overlay)
         return img
 
     elif "damaged" in q_clean or "❌" in q_clean:
-        # Damaged ❌: Heavy physical wear, 80% desaturated, dark faded contrast (no red tint!)
+        # Damaged ❌: Heavy physical wear, 80% desaturated, dark faded contrast
         enhancer = ImageEnhance.Color(img)
         img = enhancer.enhance(0.20)
         enhancer_c = ImageEnhance.Contrast(img)
         img = enhancer_c.enhance(0.70)
         enhancer_b = ImageEnhance.Brightness(img)
-        img = enhancer_b.enhance(0.80)
+        img = enhancer_b.enhance(0.75)
         return img
 
     return img
@@ -64,24 +66,19 @@ def apply_quality_effects_on_artwork(draw, x: int, y: int, w: int, h: int, quali
     q_clean = quality_str.lower()
     
     if "damaged" in q_clean or "❌" in q_clean:
-        cx, cy = x + w // 2, y + h // 2
+        # Draw realistic organic glass fracture cracks along artwork edges & corners (not crossing face)
+        draw.line([x + w - 5, y + 25, x + w - 85, y + 110], fill=(255, 255, 255, 240), width=2)
+        draw.line([x + w - 85, y + 110, x + w - 140, y + 160], fill=(230, 230, 230, 220), width=2)
+        draw.line([x + w - 85, y + 110, x + w - 10, y + 180], fill=(220, 220, 220, 200), width=2)
 
-        # Draw heavy white/grey spiderweb shattered glass cracks radiating across the artwork
-        draw.line([x + 10, y + 10, x + w - 10, y + h - 10], fill=(255, 255, 255, 250), width=4)
-        draw.line([x + w - 10, y + 10, x + 10, y + h - 10], fill=(255, 255, 255, 250), width=4)
+        # Bottom corner shatter fracture
+        draw.line([x + 10, y + h - 15, x + 95, y + h - 85], fill=(255, 255, 255, 240), width=2)
+        draw.line([x + 95, y + h - 85, x + 160, y + h - 45], fill=(230, 230, 230, 220), width=2)
+        draw.line([x + 95, y + h - 85, x + 35, y + h - 140], fill=(210, 210, 210, 200), width=2)
         
-        # Intersecting crack fractures radiating from central impact point
-        draw.line([cx, cy, x + w // 4, y + 15], fill=(230, 230, 230, 240), width=3)
-        draw.line([cx, cy, x + 3 * w // 4, y + h - 15], fill=(230, 230, 230, 240), width=3)
-        draw.line([cx, cy, x + 15, y + 3 * h // 4], fill=(230, 230, 230, 240), width=3)
-        draw.line([cx, cy, x + w - 15, y + h // 4], fill=(230, 230, 230, 240), width=3)
-        draw.line([cx, cy, x + w // 2, y + 10], fill=(200, 200, 200, 240), width=3)
-        draw.line([cx, cy, x + w // 2, y + h - 10], fill=(200, 200, 200, 240), width=3)
+        # Scuffed shattered inner border edge
+        draw.rectangle([x + 2, y + 2, x + w - 2, y + h - 2], outline=(180, 190, 200, 200), width=1)
 
-        # Impact shatter circle at center
-        draw.ellipse([cx - 30, cy - 30, cx + 30, cy + 30], outline=(240, 240, 240, 240), width=3)
-        draw.ellipse([cx - 15, cy - 15, cx + 15, cy + 15], outline=(255, 255, 255, 250), width=2)
-        
         # Dark Slate Damaged badge on artwork top-right
         badge_w, badge_h = 95, 22
         bx1 = x + w - badge_w - 6
@@ -92,13 +89,13 @@ def apply_quality_effects_on_artwork(draw, x: int, y: int, w: int, h: int, quali
         draw.text((bx1 + 6, by1 + 3), "❌ Damaged", fill=(220, 225, 230))
     
     elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
-        # Draw scuffed wear scratches & worn corner marks on Poor card
-        draw.line([x + 6, y + 8, x + 35, y + 22], fill=(180, 150, 110, 200), width=1)
-        draw.line([x + w - 30, y + h - 15, x + w - 8, y + h - 28], fill=(180, 150, 110, 200), width=1)
-        draw.line([x + 12, y + h - 35, x + 40, y + h - 12], fill=(160, 130, 90, 180), width=1)
+        # Draw worn scuffed scratch marks on Poor card portrait
+        draw.line([x + 12, y + 18, x + 80, y + 45], fill=(240, 220, 190, 210), width=2)
+        draw.line([x + 25, y + h - 45, x + 95, y + h - 20], fill=(230, 210, 180, 200), width=2)
+        draw.line([x + w - 85, y + h - 30, x + w - 15, y + h - 60], fill=(220, 200, 170, 200), width=2)
         
-        # Worn scuffed border outline inside portrait
-        draw.rectangle([x + 2, y + 2, x + w - 2, y + h - 2], outline=(140, 100, 60, 180), width=1)
+        # Scuffed inner border mark inside portrait
+        draw.rectangle([x + 3, y + 3, x + w - 3, y + h - 3], outline=(180, 140, 90, 180), width=1)
 
         badge_w, badge_h = 75, 22
         bx1 = x + w - badge_w - 6

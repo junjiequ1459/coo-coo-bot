@@ -123,6 +123,77 @@ class RepairConfirmView(discord.ui.View):
         )
         await interaction.response.edit_message(embed=embed, view=self)
 
+class CollectionPaginatorView(discord.ui.View):
+    def __init__(self, user: discord.User, rows: list, tag_filter: str = None):
+        super().__init__(timeout=180.0)
+        self.user = user
+        self.rows = rows
+        self.tag_filter = tag_filter
+        self.current_page = 0
+        self.per_page = 10
+        self.max_pages = max(1, (len(rows) + self.per_page - 1) // self.per_page)
+        self.update_buttons()
+
+    def update_buttons(self):
+        self.prev_button.disabled = (self.current_page == 0)
+        self.next_button.disabled = (self.current_page >= self.max_pages - 1)
+        self.page_indicator.label = f"Page {self.current_page + 1}/{self.max_pages}"
+
+    def build_embed(self) -> discord.Embed:
+        title_suffix = f" (Tag: [{self.tag_filter}])" if self.tag_filter else ""
+        embed = discord.Embed(
+            title=f"🎴 {self.user.display_name}'s Card Collection{title_suffix}",
+            description=f"Total Cards: **{len(self.rows)}**",
+            color=discord.Color.purple()
+        )
+
+        start_idx = self.current_page * self.per_page
+        end_idx = min(start_idx + self.per_page, len(self.rows))
+        page_rows = self.rows[start_idx:end_idx]
+
+        for row in page_rows:
+            if len(row) >= 10:
+                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val = row[:10]
+            else:
+                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val = row
+                q_val = "Good ⭐⭐"
+
+            code_str = code if code else f"c{card_id:04d}"
+            ed_val = edition if edition else 1
+            tag_disp = f" 🏷️ `[{tag_val}]`" if tag_val else ""
+            embed.add_field(
+                name=f"🆔 Card ID: `{code_str}` • {char_name}{tag_disp}",
+                value=f"Edition {ed_val} • Print #{mint_num} | {q_val}\n📺 *{series}* | {rarity}",
+                inline=False
+            )
+
+        embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Type /card code:<code> to see full card artwork!")
+        return embed
+
+    @discord.ui.button(label="◀️ Prev", style=discord.ButtonStyle.secondary, custom_id="coll_prev_btn")
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's menu!", ephemeral=True)
+            return
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="Page 1/1", style=discord.ButtonStyle.primary, disabled=True, custom_id="coll_page_ind")
+    async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pass
+
+    @discord.ui.button(label="Next ▶️", style=discord.ButtonStyle.secondary, custom_id="coll_next_btn")
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's menu!", ephemeral=True)
+            return
+        if self.current_page < self.max_pages - 1:
+            self.current_page += 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
 class InventoryCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -141,37 +212,13 @@ class InventoryCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        embed = discord.Embed(
-            title=f"🎴 {user.display_name}'s Card Collection{title_suffix}",
-            description=f"Total Cards: **{len(rows)}**",
-            color=discord.Color.purple()
-        )
-
-        for row in rows[:10]:
-            if len(row) >= 10:
-                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val = row[:10]
-            else:
-                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val = row
-                q_val = "Good ⭐⭐"
-
-            code_str = code if code else f"c{card_id:04d}"
-            ed_val = edition if edition else 1
-            tag_disp = f" 🏷️ `[{tag_val}]`" if tag_val else ""
-            embed.add_field(
-                name=f"🆔 Card ID: `{code_str}` • {char_name}{tag_disp}",
-                value=f"Edition {ed_val} • Print #{mint_num} | {q_val}\n📺 *{series}* | {rarity}",
-                inline=False
-            )
-
-        if len(rows) > 10:
-            embed.set_footer(text=f"Showing 10 of {len(rows)} cards. Type /card code:<code> to see full card artwork!")
-        else:
-            embed.set_footer(text="Type /card code:<code> to see full card artwork!")
+        view = CollectionPaginatorView(user, rows, tag_filter)
+        embed = view.build_embed()
 
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed)
+            await ctx_or_interaction.followup.send(embed=embed, view=view if view.max_pages > 1 else None)
         else:
-            await ctx_or_interaction.send(embed=embed)
+            await ctx_or_interaction.send(embed=embed, view=view if view.max_pages > 1 else None)
 
     async def process_view_card(self, ctx_or_interaction, card_code_query: str = None):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
