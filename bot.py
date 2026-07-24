@@ -28,8 +28,9 @@ def generate_card_code() -> str:
 # 🗄️ SQLITE DATABASE INITIALIZATION & ECONOMY
 # ==========================================
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL;")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS inventory (
@@ -278,10 +279,10 @@ def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int
 # 🎲 WEIGHTED RARITY DROP PROBABILITIES
 # ==========================================
 RARITY_WEIGHTS = [
-    ("⚪ Common", 0.65),     # 65% Drop Rate
-    ("🔷 Rare", 0.23),       # 23% Drop Rate
-    ("🟣 Epic", 0.10),       # 10% Drop Rate
-    ("✨ Legendary", 0.02)   #  2% Drop Rate
+    ("⚪ Common", 0.76),     # 76% Drop Rate
+    ("🔷 Rare", 0.15),       # 15% Drop Rate
+    ("🟣 Epic", 0.08),       #  8% Drop Rate
+    ("✨ Legendary", 0.01)   #  1% Drop Rate
 ]
 
 def sample_rarity() -> str:
@@ -289,8 +290,8 @@ def sample_rarity() -> str:
     return random.choices(rarities, weights=weights, k=1)[0]
 
 def get_cards_from_db_pool(count: int = 3):
-    """Fetches cards using weighted rarity probabilities (65% Common, 23% Rare, 10% Epic, 2% Legendary)."""
-    conn = sqlite3.connect(DB_PATH)
+    """Fetches cards using weighted rarity probabilities (76% Common, 15% Rare, 8% Epic, 1% Legendary)."""
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
 
     cards = []
