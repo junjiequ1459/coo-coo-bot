@@ -22,7 +22,23 @@ DATA_DIR = os.getenv("DATA_DIR", "/data")
 if os.path.exists(DATA_DIR):
     DB_PATH = os.path.join(DATA_DIR, "inventory.db")
     repo_db = os.path.join(os.path.dirname(__file__), "inventory.db")
-    if not os.path.exists(DB_PATH) and os.path.exists(repo_db):
+    
+    needs_seed = False
+    if not os.path.exists(DB_PATH):
+        needs_seed = True
+    else:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=5.0)
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM cards_pool")
+            cnt = cur.fetchone()[0]
+            conn.close()
+            if cnt == 0:
+                needs_seed = True
+        except Exception:
+            needs_seed = True
+
+    if needs_seed and os.path.exists(repo_db):
         try:
             import shutil
             shutil.copyfile(repo_db, DB_PATH)
