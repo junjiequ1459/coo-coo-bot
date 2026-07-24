@@ -1204,7 +1204,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
 
 async def handle_healthcheck(request):
     return web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
