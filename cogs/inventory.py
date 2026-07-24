@@ -770,6 +770,142 @@ class InventoryCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed, view=view)
 
+    async def process_character_lookup(self, ctx_or_interaction, query: str):
+        if not query:
+            msg = "Coo coo! ⚠️ Please specify a character name or print number! e.g. `!klu Yor Forger` or `!klu Yor Forger 1`"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        parts = query.strip().split()
+        print_num_target = None
+        if len(parts) > 1 and parts[-1].isdigit():
+            print_num_target = int(parts[-1])
+            char_search = " ".join(parts[:-1])
+        else:
+            char_search = " ".join(parts)
+
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+
+        # Find character in master database pool
+        cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) LIKE ? ORDER BY length(character_name) ASC LIMIT 1", (f"%{char_search.lower()}%",))
+        master_row = cursor.fetchone()
+
+        if not master_row:
+            cursor.execute("SELECT character_name, series_name, image_url, rarity FROM inventory WHERE LOWER(character_name) LIKE ? LIMIT 1", (f"%{char_search.lower()}%",))
+            master_row = cursor.fetchone()
+
+        if not master_row:
+            conn.close()
+            msg = f"Coo coo! ⚠️ Character matching `{char_search}` not found in master database pool!"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        char_name, series, img_url, rarity = master_row
+
+        # If a specific print number was requested (e.g. !klu Yor Forger 1)
+        if print_num_target is not None:
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(?) AND mint_number = ?", (char_name, print_num_target))
+            inv_row = cursor.fetchone()
+            conn.close()
+
+            if not inv_row:
+                msg = f"Coo coo! ⚠️ **{char_name}** Print #{print_num_target} has not been claimed yet or is not in inventory!"
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(msg)
+                else:
+                    await ctx_or_interaction.send(msg)
+                return
+
+            cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
+            card_data = {
+                "id": cid,
+                "code": code if code else f"c{cid:04d}",
+                "character_name": cname,
+                "series_name": sname,
+                "rarity": rval,
+                "mint_number": mnum,
+                "edition": edval if edval else 1,
+                "quality": qval if qval else "Good ⭐⭐",
+                "image_url": iurl
+            }
+
+            buf = await render_single_card(card_data)
+            file = discord.File(fp=buf, filename="card.png")
+            owner = self.bot.get_user(uid)
+            owner_mention = owner.mention if owner else f"<@{uid}>"
+
+            embed = discord.Embed(
+                title=f"🎴 {char_name} · Print #{mnum}",
+                description=(
+                    f"📺 **Series:** {sname}\n"
+                    f"✨ **Rarity:** {rval}\n"
+                    f"🌟 **Quality:** {card_data['quality']}\n"
+                    f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
+                    f"👤 **Owner:** {owner_mention}"
+                ),
+                color=discord.Color.purple()
+            )
+            embed.set_image(url="attachment://card.png")
+
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(embed=embed, file=file)
+            else:
+                await ctx_or_interaction.send(embed=embed, file=file)
+            return
+
+        # Overview Mode: list all claimed prints for this character across all players!
+        cursor.execute("SELECT code, user_id, mint_number, edition, quality FROM inventory WHERE LOWER(character_name) = LOWER(?) ORDER BY mint_number ASC", (char_name,))
+        inv_rows = cursor.fetchall()
+        conn.close()
+
+        embed = discord.Embed(
+            title=f"🔍 Character Lookup: {char_name}",
+            description=(
+                f"📺 **Series:** {series}\n"
+                f"✨ **Rarity:** {rarity}\n"
+                f"📊 **Claimed in Circulation:** **{len(inv_rows)} cards**"
+            ),
+            color=discord.Color.purple()
+        )
+        embed.set_thumbnail(url=img_url)
+
+        if not inv_rows:
+            embed.add_field(
+                name="🎴 Copies in Circulation",
+                value="*No copies of this card have been claimed yet!*",
+                inline=False
+            )
+        else:
+            lines = []
+            for r in inv_rows[:10]:
+                ccode, uid, mnum, edval, qval = r
+                owner = self.bot.get_user(uid)
+                owner_disp = owner.mention if owner else f"<@{uid}>"
+                q_disp = qval if qval else "Good ⭐⭐"
+                lines.append(f"• **Print #{mnum}** (ED {edval or 1}) — `{ccode}` | {q_disp} ➔ {owner_disp}")
+            
+            embed.add_field(
+                name="🎴 Claimed Prints List",
+                value="\n".join(lines),
+                inline=False
+            )
+            if len(inv_rows) > 10:
+                embed.set_footer(text=f"Showing 10 of {len(inv_rows)} prints • Type !lu {char_name} <print_num> to view a specific card!")
+            else:
+                embed.set_footer(text=f"Type !lu {char_name} <print_num> to view a specific card!")
+
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+
     @app_commands.command(name="repair", description="Repair and upgrade a card's condition using Dust (Defaults to latest card)")
     async def repair_slash(self, interaction: discord.Interaction, code: str = None):
         try:
@@ -789,6 +925,19 @@ class InventoryCog(commands.Cog):
     @commands.command(name="fix")
     async def repair_prefix_fix(self, ctx, code: str = None):
         await self.process_repair_card(ctx, code)
+
+    @app_commands.command(name="lu", description="Lookup character details, circulation stats, or a specific print number")
+    async def lu_slash(self, interaction: discord.Interaction, character: str, print_num: int = None):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        q = f"{character} {print_num}" if print_num else character
+        await self.process_character_lookup(interaction, q)
+
+    @commands.command(name="lu", aliases=["lookup", "klu", "klookup"])
+    async def lu_prefix(self, ctx, *, query: str = None):
+        await self.process_character_lookup(ctx, query)
 
 async def setup(bot):
     await bot.add_cog(InventoryCog(bot))
