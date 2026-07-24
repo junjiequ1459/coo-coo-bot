@@ -87,13 +87,18 @@ class InventoryCog(commands.Cog):
         )
 
         for row in rows[:10]:
-            card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val = row
+            if len(row) >= 10:
+                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val = row[:10]
+            else:
+                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val = row
+                q_val = "Good ⭐⭐"
+
             code_str = code if code else f"c{card_id:04d}"
             ed_val = edition if edition else 1
             tag_disp = f" 🏷️ `[{tag_val}]`" if tag_val else ""
             embed.add_field(
                 name=f"🆔 Card ID: `{code_str}` • {char_name}{tag_disp}",
-                value=f"Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
+                value=f"Edition {ed_val} • Print #{mint_num} | {q_val}\n📺 *{series}* | {rarity}",
                 inline=False
             )
 
@@ -113,11 +118,11 @@ class InventoryCog(commands.Cog):
         cursor = conn.cursor()
 
         if not card_code_query:
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
         else:
             query_str = card_code_query.lower().strip()
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user.id))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user.id))
             row = cursor.fetchone()
 
             if not row:
@@ -141,13 +146,14 @@ class InventoryCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, grabbed_at = row
+        cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val, grabbed_at = row
         conn.close()
 
         owner = self.bot.get_user(uid)
         owner_name = owner.display_name if owner else f"User {uid}"
         ed_val = edition if edition else 1
         code_str = code if code else f"c{cid:04d}"
+        q_disp = q_val if q_val else "Good ⭐⭐"
 
         card_data = {
             "id": cid,
@@ -157,6 +163,7 @@ class InventoryCog(commands.Cog):
             "rarity": rarity,
             "mint_number": mint_num,
             "edition": ed_val,
+            "quality": q_disp,
             "image_url": img_url
         }
 
@@ -169,6 +176,7 @@ class InventoryCog(commands.Cog):
             title=f"🆔 Card ID: {code_str} • {char_name}",
             description=(
                 f"📺 **Series:** {series}\n"
+                f"🌟 **Quality:** {q_disp}\n"
                 f"👤 **Owner:** {owner_name}\n"
                 f"{tag_disp}"
                 f"📅 **Grabbed:** {grabbed_at}"
@@ -195,17 +203,36 @@ class InventoryCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cid, code, uid, char_name, series, rarity, mint_num, edition, tag = card_row
+        if len(card_row) >= 10:
+            cid, code, uid, char_name, series, rarity, mint_num, edition, tag, q_val = card_row[:10]
+        else:
+            cid, code, uid, char_name, series, rarity, mint_num, edition, tag = card_row[:9]
+            q_val = "Good ⭐⭐"
+
         code_str = code if code else f"c{cid:04d}"
-        rewards = BURN_REWARDS.get(rarity, {"dust": 20})
+        base_dust = BURN_REWARDS.get(rarity, {"dust": 20})["dust"]
+
+        q_clean = (q_val or "").lower()
+        if "mint" in q_clean:
+            mult = 2.0
+        elif "excellent" in q_clean:
+            mult = 1.5
+        elif "poor" in q_clean:
+            mult = 0.75
+        elif "damaged" in q_clean:
+            mult = 0.5
+        else:
+            mult = 1.0
+
+        final_dust = max(1, int(base_dust * mult))
 
         if rarity in ["🟣 Epic", "✨ Legendary"]:
-            view = BurnConfirmView(user.id, code_str, char_name, rarity, rewards["dust"])
+            view = BurnConfirmView(user.id, code_str, char_name, rarity, final_dust)
             embed = discord.Embed(
                 title=f"⚠️ Are you sure you want to burn this {rarity} card?",
                 description=(
-                    f"🔥 You are about to burn **{char_name}** (`{code_str}`) — **{rarity}**!\n"
-                    f"🧪 **Yield:** **+{rewards['dust']} Dust**\n\n"
+                    f"🔥 You are about to burn **{char_name}** (`{code_str}`) — **{rarity}** ({q_val})!\n"
+                    f"🧪 **Yield:** **+{final_dust} Dust** *(Quality Multiplier: x{mult})*\n\n"
                     f"⚠️ *This action is permanent and cannot be undone! Click below to confirm.*"
                 ),
                 color=discord.Color.dark_orange()
@@ -225,12 +252,12 @@ class InventoryCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        new_dust = add_user_dust(user.id, rewards["dust"])
+        new_dust = add_user_dust(user.id, final_dust)
         embed = discord.Embed(
             title=f"🔥 Burned: {char_name}",
             description=(
-                f"🔥 **{user.mention}** burned `{code_str}` (**{char_name}** — {rarity}) into ashes!\n\n"
-                f"🧪 **Gained Dust:** **+{rewards['dust']} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
+                f"🔥 **{user.mention}** burned `{code_str}` (**{char_name}** — {rarity} • {q_val}) into ashes!\n\n"
+                f"🧪 **Gained Dust:** **+{final_dust} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
             ),
             color=discord.Color.red()
         )

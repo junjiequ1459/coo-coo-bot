@@ -38,6 +38,11 @@ def init_db():
         cursor.execute("ALTER TABLE inventory ADD COLUMN edition INTEGER DEFAULT 1")
     if "tag" not in inv_columns:
         cursor.execute("ALTER TABLE inventory ADD COLUMN tag TEXT DEFAULT NULL")
+    if "quality" not in inv_columns:
+        cursor.execute("ALTER TABLE inventory ADD COLUMN quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐'")
+        cursor.execute("UPDATE inventory SET quality = 'Mint ⭐⭐⭐⭐'")
+    else:
+        cursor.execute("UPDATE inventory SET quality = 'Mint ⭐⭐⭐⭐' WHERE quality IS NULL OR quality = 'Good ⭐⭐'")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
@@ -197,13 +202,13 @@ def get_next_mint(character_name: str) -> int:
     conn.close()
     return next_mint
 
-def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1) -> int:
+def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = "Good ⭐⭐") -> int:
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition))
+    INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality))
     inserted_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -213,9 +218,9 @@ def get_user_inventory(user_id: int, tag_filter: str = None):
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     if tag_filter:
-        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag FROM inventory WHERE user_id = ? AND LOWER(tag) = ? ORDER BY id DESC", (user_id, tag_filter.lower().strip()))
+        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = ? AND LOWER(tag) = ? ORDER BY id DESC", (user_id, tag_filter.lower().strip()))
     else:
-        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
+        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -223,7 +228,7 @@ def get_user_inventory(user_id: int, tag_filter: str = None):
 def get_card_by_code_and_owner(code: str, user_id: int):
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
+    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag, quality FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
     row = cursor.fetchone()
     conn.close()
     return row
@@ -383,6 +388,18 @@ def add_user_grab_tickets(user_id: int, amount: int) -> int:
     conn.close()
     return new_val
 
+QUALITY_WEIGHTS = [
+    ("Mint ⭐⭐⭐⭐", 0.10),
+    ("Excellent ⭐⭐⭐", 0.30),
+    ("Good ⭐⭐", 0.40),
+    ("Poor ⭐", 0.15),
+    ("Damaged ❌", 0.05)
+]
+
+def roll_card_quality() -> str:
+    qualities, weights = zip(*QUALITY_WEIGHTS)
+    return random.choices(qualities, weights=weights, k=1)[0]
+
 def sample_rarity() -> str:
     rarities, weights = zip(*RARITY_WEIGHTS)
     return random.choices(rarities, weights=weights, k=1)[0]
@@ -417,6 +434,7 @@ def get_cards_from_db_pool(count: int = 3):
                 "series": series,
                 "image": img_url,
                 "rarity": rarity,
+                "quality": roll_card_quality(),
                 "temp_mint": temp_mint,
                 "edition": 1
             })

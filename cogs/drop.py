@@ -71,6 +71,8 @@ class CardGrabButton(discord.ui.Button):
                 child.label = f"Claimed by {interaction.user.display_name}"
                 child.style = discord.ButtonStyle.success
 
+        q_val = self.card_info.get("quality", "Good ⭐⭐")
+
         save_card_to_inventory(
             user_id=interaction.user.id,
             code=self.card_info["code"],
@@ -79,7 +81,8 @@ class CardGrabButton(discord.ui.Button):
             image_url=self.card_info["image"],
             rarity=self.card_info["rarity"],
             mint_number=self.card_info["temp_mint"],
-            edition=1
+            edition=1,
+            quality=q_val
         )
 
         embed = discord.Embed(
@@ -87,6 +90,7 @@ class CardGrabButton(discord.ui.Button):
             description=(
                 f"👤 **Claimed by:** {interaction.user.mention}\n"
                 f"📺 **Series:** {self.card_info['series']}\n"
+                f"🌟 **Quality:** {q_val}\n"
                 f"🆔 **Card ID:** `{self.card_info['code']}`"
             ),
             color=discord.Color.gold()
@@ -103,7 +107,7 @@ class CardGrabButton(discord.ui.Button):
 
         await interaction.response.edit_message(embeds=[embed], view=view)
         await interaction.followup.send(
-            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']}**)! `Card ID: {self.card_info['code']}`"
+            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']} • {q_val}**)! `Card ID: {self.card_info['code']}`"
         )
 
 class CardDropView(discord.ui.View):
