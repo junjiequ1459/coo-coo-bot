@@ -4,24 +4,8 @@ from discord import app_commands
 from db import get_connection, release_connection
 from utils.renderer import render_single_card
 
-# --- Favorites Table Setup ---
-def _init_favorites_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS favorites (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            card_code TEXT NOT NULL,
-            UNIQUE(user_id, card_code)
-        )
-    ''')
-    conn.commit()
-    release_connection(conn)
-
-_init_favorites_table()
-
 MAX_FAVORITES = 5
+
 
 
 class FavoritesCog(commands.Cog):

@@ -4,22 +4,6 @@ from discord.ext import commands
 from discord import app_commands
 from db import get_connection, release_connection
 
-def _init_wishlist_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS wishlists (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            character_name TEXT NOT NULL,
-            UNIQUE(user_id, character_name)
-        )
-    ''')
-    conn.commit()
-    release_connection(conn)
-
-_init_wishlist_table()
-
 async def get_wishlist_pings(channel, card_names: list) -> str:
     """
     Given a list of character names from a drop, check if any users
