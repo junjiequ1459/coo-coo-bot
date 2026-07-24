@@ -442,19 +442,34 @@ except Exception as e:
     print(f"⚠️ Could not load cards cache: {e}")
 
 def get_cards_from_db_pool(count: int = 3):
-    """Fetches cards using weighted rarity probabilities from in-memory cache."""
+    """Fetches cards using weighted rarity probabilities from in-memory cache.
+    Batches all mint lookups into a single DB connection for speed."""
     if not _cards_all:
         load_cards_cache()
 
-    cards = []
+    # Pick cards from memory (instant, no DB)
+    picked = []
     for _ in range(count):
         target_rarity = sample_rarity()
         pool = _cards_cache.get(target_rarity, _cards_all)
         if not pool:
             pool = _cards_all
-        
-        char_name, series, img_url, rarity = random.choice(pool)
-        temp_mint = get_next_mint(char_name)
+        picked.append(random.choice(pool))
+
+    # Batch all mint lookups in ONE connection
+    conn = get_connection()
+    cursor = conn.cursor()
+    cards = []
+    for char_name, series, img_url, rarity in picked:
+        cursor.execute("SELECT current_mint FROM mints WHERE character_name = %s AND edition = 1", (char_name,))
+        row = cursor.fetchone()
+        if row:
+            next_mint = row[0] + 1
+            cursor.execute("UPDATE mints SET current_mint = %s WHERE character_name = %s AND edition = 1", (next_mint, char_name))
+        else:
+            next_mint = 1
+            cursor.execute("INSERT INTO mints (character_name, edition, current_mint) VALUES (%s, 1, 1)", (char_name,))
+
         cards.append({
             "code": generate_card_code(),
             "name": char_name,
@@ -462,9 +477,12 @@ def get_cards_from_db_pool(count: int = 3):
             "image": img_url,
             "rarity": rarity,
             "quality": roll_card_quality(),
-            "temp_mint": temp_mint,
+            "temp_mint": next_mint,
             "edition": 1
         })
+    conn.commit()
+    release_connection(conn)
 
     return cards
+
 
