@@ -138,7 +138,7 @@ class DropCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def execute_card_drop(self, ctx_or_interaction, user):
+    async def execute_card_drop(self, ctx_or_interaction, user, forced_character: str = None, bypass_cooldown: bool = False):
         try:
             now_ts = int(time.time())
             l_drop, l_grab, l_daily = get_user_cooldowns(user.id)
@@ -146,23 +146,45 @@ class DropCog(commands.Cog):
             elapsed_drop = now_ts - l_drop
 
             used_ticket = False
-            if elapsed_drop < d_cd:
-                tickets = get_user_drop_tickets(user.id)
-                if tickets > 0:
-                    add_user_drop_tickets(user.id, -1)
-                    used_ticket = True
-                else:
-                    rem = d_cd - elapsed_drop
-                    mins = rem // 60
-                    secs = rem % 60
-                    msg = f"Coo coo! ⏳ Your **Drop** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to check your cooldowns or `/shop` to buy Drop Tickets 🎟️!"
-                    if isinstance(ctx_or_interaction, discord.Interaction):
-                        await ctx_or_interaction.followup.send(msg, ephemeral=True)
+            if not bypass_cooldown:
+                if elapsed_drop < d_cd:
+                    tickets = get_user_drop_tickets(user.id)
+                    if tickets > 0:
+                        add_user_drop_tickets(user.id, -1)
+                        used_ticket = True
                     else:
-                        await ctx_or_interaction.send(msg)
-                    return
+                        rem = d_cd - elapsed_drop
+                        mins = rem // 60
+                        secs = rem % 60
+                        msg = f"Coo coo! ⏳ Your **Drop** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to check your cooldowns or `/shop` to buy Drop Tickets 🎟️!"
+                        if isinstance(ctx_or_interaction, discord.Interaction):
+                            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+                        else:
+                            await ctx_or_interaction.send(msg)
+                        return
 
             cards = get_cards_from_db_pool(3)
+
+            if forced_character:
+                conn = sqlite3.connect(DB_PATH, timeout=20.0)
+                cursor = conn.cursor()
+                cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) LIKE ? LIMIT 1", (f"%{forced_character.strip().lower()}%",))
+                row = cursor.fetchone()
+                conn.close()
+                if row:
+                    fc_name, fc_series, fc_img, fc_rarity = row
+                    fc_mint = get_next_mint(fc_name)
+                    cards[0] = {
+                        "code": generate_card_code(),
+                        "name": fc_name,
+                        "series": fc_series,
+                        "image": fc_img,
+                        "rarity": fc_rarity,
+                        "quality": roll_card_quality(),
+                        "temp_mint": fc_mint,
+                        "edition": 1
+                    }
+
             if not cards or len(cards) < 3:
                 cards = await fetch_random_anilist_cards(3)
 
@@ -241,6 +263,27 @@ class DropCog(commands.Cog):
     @commands.command(name="d")
     async def drop_prefix_d(self, ctx):
         await self.execute_card_drop(ctx, ctx.author)
+
+    @commands.command(name="forcedrop", aliases=["fd"])
+    async def force_drop_prefix(self, ctx, *, char_name: str = None):
+        from config import BOT_OWNER_IDS
+        if ctx.author.id not in BOT_OWNER_IDS:
+            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
+            return
+        await self.execute_card_drop(ctx, ctx.author, forced_character=char_name, bypass_cooldown=True)
+
+    @app_commands.command(name="forcedrop", description="[Owner Only] Force a 3-card drop featuring a specific character")
+    async def force_drop_slash(self, interaction: discord.Interaction, character: str = None, target: discord.User = None):
+        from config import BOT_OWNER_IDS
+        if interaction.user.id not in BOT_OWNER_IDS:
+            await interaction.response.send_message("Coo coo! ⚠️ Restricted to Bot Owner!", ephemeral=True)
+            return
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        dest = target or interaction.user
+        await self.execute_card_drop(interaction, dest, forced_character=character, bypass_cooldown=True)
 
 async def setup(bot):
     await bot.add_cog(DropCog(bot))
