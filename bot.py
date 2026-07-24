@@ -15,7 +15,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
+async def get_prefix(bot, message):
+    if message.channel and getattr(message.channel, 'name', '') == 'bot-commands':
+        return commands.when_mentioned_or("!", "")(bot, message)
+    return commands.when_mentioned_or("!")(bot, message)
+
+bot = commands.Bot(command_prefix=get_prefix, intents=intents, help_command=None, case_insensitive=True)
 
 async def handle_healthcheck(request):
     return web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
