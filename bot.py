@@ -76,6 +76,18 @@ def init_db():
     usr_columns = [column[1] for column in cursor.fetchall()]
     if "dust" not in usr_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN dust INTEGER DEFAULT 0")
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS cards_pool (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        anilist_id INTEGER UNIQUE,
+        character_name TEXT NOT NULL,
+        series_name TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        favourites INTEGER DEFAULT 0,
+        rarity TEXT NOT NULL
+    )
+    """)
     
     conn.commit()
     conn.close()
@@ -262,6 +274,33 @@ def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int
         conn.close()
         return False
 
+def get_cards_from_db_pool(count: int = 3):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT character_name, series_name, image_url, rarity
+    FROM cards_pool
+    ORDER BY RANDOM()
+    LIMIT ?
+    """, (count,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    cards = []
+    for row in rows:
+        char_name, series, img_url, rarity = row
+        temp_mint = get_next_mint(char_name)
+        cards.append({
+            "code": generate_card_code(),
+            "name": char_name,
+            "series": series,
+            "image": img_url,
+            "rarity": rarity,
+            "temp_mint": temp_mint,
+            "edition": 1
+        })
+    return cards
+
 # ==========================================
 # 🎨 PIL KARUTA REFERENCE-MATCHING RENDERER
 # ==========================================
@@ -376,7 +415,7 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     return buf
 
 # ==========================================
-# 🌐 ANILIST PUBLIC API INTEGRATION
+# 🌐 ANILIST PUBLIC API INTEGRATION (FALLBACK)
 # ==========================================
 ANILIST_URL = "https://graphql.anilist.co"
 
@@ -1448,10 +1487,13 @@ async def view_tag_prefix_viewtag(ctx, *, tag: str):
 # ==========================================
 
 async def execute_card_drop(ctx_or_interaction, user):
-    """Core logic to fetch cards and render a single horizontal 3-card side-by-side image!"""
-    cards = await fetch_random_anilist_cards(3)
+    """Core logic to fetch cards from local DB pool and render a single horizontal 3-card side-by-side image!"""
+    cards = get_cards_from_db_pool(3)
+    if not cards or len(cards) < 3:
+        cards = await fetch_random_anilist_cards(3)
+
     if not cards:
-        msg = "Coo coo! ⚠️ Couldn't reach AniList. Please try again in a moment!"
+        msg = "Coo coo! ⚠️ Couldn't fetch cards for drop. Please try again in a moment!"
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg)
         else:
@@ -1484,7 +1526,7 @@ async def execute_card_drop(ctx_or_interaction, user):
         msg = await ctx_or_interaction.send(embed=embed, file=file, view=view)
         view.message = msg
 
-@bot.tree.command(name="drop", description="Drops 3 random Anime Cards from AniList!")
+@bot.tree.command(name="drop", description="Drops 3 random Anime Cards from your local character DB!")
 async def drop_slash(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
