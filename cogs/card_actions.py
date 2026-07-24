@@ -465,6 +465,10 @@ class CardActionsCog(commands.Cog):
     async def untag_prefix(self, ctx, code: str = None):
         await self.process_untag_card(ctx, code)
 
+    @commands.command(name="ut")
+    async def untag_prefix_ut(self, ctx, code: str = None):
+        await self.process_untag_card(ctx, code)
+
     @app_commands.command(name="vt", description="View all cards in a specific tag folder")
     async def vt_slash(self, interaction: discord.Interaction, tag: str):
         try:

@@ -101,6 +101,18 @@ class UtilitiesCog(commands.Cog):
         )
 
         embed.add_field(
+            name="🎴 Card Drops & Collecting",
+            value=(
+                "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards (15m CD).\n"
+                "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (30s dropper priority!).\n"
+                "• **`!v`** or **`!v <id>`** or **`/view`** — View high-res card artwork.\n"
+                "• **`!c`** or **`!collection`** or **`/collection`** — Open your Anime Cards binder collection.\n"
+                "• **`!i`** or **`!inv`** or **`/inventory`** — Check your items, tickets, gems & bag."
+            ),
+            inline=False
+        )
+
+        embed.add_field(
             name="💎 Gems & 🛒 Shop Economy",
             value=(
                 "• **`!shop`** or **`/shop`** — Open Shop to buy **👑 30-Day Premium Pass**, **🎟️ Drop Tickets**, & items!\n"
@@ -115,23 +127,21 @@ class UtilitiesCog(commands.Cog):
         embed.add_field(
             name="🛠️ Repair, 🔥 Burning & 🏷️ Tagging",
             value=(
-                "• **`!repair <id>`** or **`/repair`** — Repair & upgrade card condition to Mint ⭐⭐⭐⭐ using Dust 🧪!\n"
+                "• **`!repair <id>`** or **`/repair`** — Repair & upgrade card condition using Dust 🧪!\n"
                 "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
-                "• **`!tag <name>`** or **`!tag <id> <name>`** — Assign a folder tag to a card (Defaults to latest!).\n"
-                "• **`!untag`** or **`!untag <id>`** — Remove a tag from a card (Defaults to latest!).\n"
-                "• **`!viewtag <tag>`** or **`!vt <tag>`** or **`!inv <tag>`** — View all cards in a tag folder!"
+                "• **`!t <name>`** or **`!tag <id> <name>`** — Assign a folder tag to a card (Defaults to latest!).\n"
+                "• **`!ut`** or **`!untag <id>`** — Remove a tag from a card (Defaults to latest!).\n"
+                "• **`!vt <tag>`** or **`!viewtag <tag>`** — View all cards in a tag folder!"
             ),
             inline=False
         )
 
         embed.add_field(
-            name="🎴 Card Drops & Collecting",
+            name="🔍 Character & Series Lookup",
             value=(
-                "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards (15m CD).\n"
-                "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (30s dropper priority!).\n"
-                "• **`!v`** or **`!v <id>`** or **`/card`** — View high-res card artwork.\n"
-                "• **`!c`** or **`!collection`** or **`/collection`** — Open your Anime Cards binder collection.\n"
-                "• **`!i`** or **`!inventory`** or **`/inventory`** — Check your items, tickets, gems & bag."
+                "• **`!lu <name>`** or **`/lu`** — Lookup character details & circulation stats.\n"
+                "• **`!lu <name> <#>`** — View a specific print of a character.\n"
+                "• **`!slu <series>`** or **`/slu`** — Lookup all characters in an anime series."
             ),
             inline=False
         )
@@ -139,7 +149,7 @@ class UtilitiesCog(commands.Cog):
         embed.add_field(
             name="🤝 Card & Gems Trading",
             value=(
-                "• **`!t @user`** or **`!trade @user`** or **`/trade`** — Start a trade.\n"
+                "• **`!trade @user`** or **`/trade`** — Start a trade.\n"
                 "• **`!ta <id>`** or **`!ta 250g`** — Add a card or Gems to trade offer.\n"
                 "• **`!tr <id>`** or **`!tr gems`** — Remove a card or reset Gems.\n"
                 "• **Buttons (`➕` `➖` `✅` `❌`)** — Manage trade & confirm."
