@@ -106,7 +106,7 @@ class ShopView(discord.ui.View):
         )
         await interaction.response.send_message(embed=embed)
 
-    @discord.ui.button(label="Buy Dust Pouch (+250 🧪)", style=discord.ButtonStyle.primary, emoji="🧪")
+    @discord.ui.button(label="Buy Dust Pouch (+2,000 🧪)", style=discord.ButtonStyle.primary, emoji="🧪")
     async def buy_dust_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Coo coo! ⚠️ Open your own shop with `/shop` or `!shop`!", ephemeral=True)
@@ -122,13 +122,13 @@ class ShopView(discord.ui.View):
             return
 
         add_user_gems(self.user_id, -price)
-        new_dust = add_user_dust(self.user_id, 250)
+        new_dust = add_user_dust(self.user_id, 2000)
 
         embed = discord.Embed(
             title="🧪 Dust Pouch Purchased!",
             description=(
                 f"🎉 {interaction.user.mention} bought a Dust Pouch for **1,000 💎 Gems**!\n\n"
-                f"🧪 **Gained:** **+250 🧪 Dust**\n"
+                f"🧪 **Gained:** **+2,000 🧪 Dust**\n"
                 f"🧪 **New Dust Balance:** **{new_dust:,} Dust 🧪**\n"
                 f"💎 **Remaining Gems:** **{curr_gems - price:,} Gems 💎**"
             ),
@@ -190,7 +190,7 @@ class BuyConfirmView(discord.ui.View):
             )
             color = discord.Color.blue()
         elif self.item_key == "dust":
-            gained = 250 * self.quantity
+            gained = 2000 * self.quantity
             new_d = add_user_dust(self.user_id, gained)
             desc = (
                 f"🎉 **{interaction.user.mention}** confirmed and purchased **{self.quantity}x Dust Pouch(es)** for **{self.total_price:,} 💎 Gems**!\n\n"
@@ -281,8 +281,8 @@ class ShopCog(commands.Cog):
         )
 
         embed.add_field(
-            name="🧪 Dust Pouch +250 (1,000 Gems 💎)",
-            value="• Convert **1,000 Gems** directly into **+250 🧪 Dust** for your flask!",
+            name="🧪 Dust Pouch +2,000 (1,000 Gems 💎)",
+            value="• Convert **1,000 Gems** directly into **+2,000 🧪 Dust** for your flask!",
             inline=False
         )
 
@@ -317,7 +317,7 @@ class ShopCog(commands.Cog):
             unit_price = 100
         elif item_clean in ["dust", "dustpouch", "dp", "pouches"]:
             item_key = "dust"
-            item_disp = "🧪 Dust Pouch (+250 Dust)"
+            item_disp = "🧪 Dust Pouch (+2,000 Dust)"
             unit_price = 1000
         else:
             msg = (

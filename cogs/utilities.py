@@ -113,8 +113,9 @@ class UtilitiesCog(commands.Cog):
         )
 
         embed.add_field(
-            name="🔥 Burning & 🏷️ Tagging",
+            name="🛠️ Repair, 🔥 Burning & 🏷️ Tagging",
             value=(
+                "• **`!repair <id>`** or **`/repair`** — Repair & upgrade card condition to Mint ⭐⭐⭐⭐ using Dust 🧪!\n"
                 "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
                 "• **`!tag <name>`** or **`!tag <id> <name>`** — Assign a folder tag to a card (Defaults to latest!).\n"
                 "• **`!untag`** or **`!untag <id>`** — Remove a tag from a card (Defaults to latest!).\n"

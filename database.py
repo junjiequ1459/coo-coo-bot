@@ -243,6 +243,16 @@ def update_card_tag(code_str: str, user_id: int, tag_name: str = None) -> bool:
     conn.close()
     return affected > 0
 
+def update_card_quality(code_str: str, user_id: int, new_quality: str) -> bool:
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    cursor = conn.cursor()
+    query_str = code_str.lower().strip()
+    cursor.execute("UPDATE inventory SET quality = ? WHERE (code = ? OR id = ?) AND user_id = ?", (new_quality, query_str, query_str, user_id))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
 def delete_card_from_inventory(code_str: str, user_id: int):
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
