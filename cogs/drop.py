@@ -71,7 +71,9 @@ class CardGrabButton(discord.ui.Button):
                 child.label = f"Claimed by {interaction.user.display_name}"
                 child.style = discord.ButtonStyle.success
 
-        q_val = self.card_info.get("quality", "Good ⭐⭐")
+        from database import roll_card_quality
+        q_val = self.card_info.get("quality") or roll_card_quality()
+        self.card_info["quality"] = q_val
 
         save_card_to_inventory(
             user_id=interaction.user.id,

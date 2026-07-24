@@ -89,27 +89,17 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         x = padding_x + idx * (card_w + 20)
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
-        q_val = card.get("quality", "Good ⭐⭐")
-        
-        # Draw frame border (red if damaged)
-        if "damaged" in q_val.lower() or "❌" in q_val:
-            border_col = (255, 50, 50)
-        else:
-            border_col = rc
 
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
-        draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=border_col, width=2)
+        draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 68
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
 
-        # Apply Quality overlay effects & cracked glass on artwork
-        apply_quality_effects_on_artwork(draw, x + 7, y + 7, img_w, img_h, q_val)
-        
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
-        draw.polygon(badge_poly, fill=(15, 16, 18), outline=border_col)
+        draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
         box_y1 = y + card_h - 60
