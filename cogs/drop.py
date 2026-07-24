@@ -11,6 +11,7 @@ from database import (
 )
 from utils.renderer import render_three_cards_composite
 from utils.anilist import fetch_random_anilist_cards
+from cogs.wishlist import get_wishlist_pings
 
 class CardGrabButton(discord.ui.Button):
     def __init__(self, index: int, card_info: dict):
@@ -235,6 +236,16 @@ class DropCog(commands.Cog):
             else:
                 msg = await ctx_or_interaction.send(embed=embed, file=file, view=view)
                 view.message = msg
+
+            # --- Wishlist Ping ---
+            try:
+                card_names = [c["name"] for c in cards]
+                channel = ctx_or_interaction.channel
+                ping_text = await get_wishlist_pings(channel, card_names)
+                if ping_text:
+                    await channel.send(ping_text)
+            except Exception:
+                pass
         except Exception as e:
             print(f"Error in execute_card_drop: {e}")
             import traceback

@@ -113,6 +113,17 @@ class UtilitiesCog(commands.Cog):
         )
 
         embed.add_field(
+            name="💖 Wishlist",
+            value=(
+                "• **`!wish <name>`** or **`/wish`** — Add a character to your wishlist (10 max).\n"
+                "• **`!unwish <name>`** or **`/unwish`** — Remove a character from your wishlist.\n"
+                "• **`!wl`** or **`!wishlist`** or **`/wishlist`** — View your wishlist.\n"
+                "• 🔔 You'll be **pinged** when a wishlisted character drops!"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
             name="💎 Gems & 🛒 Shop Economy",
             value=(
                 "• **`!shop`** or **`/shop`** — Open Shop to buy **👑 30-Day Premium Pass**, **🎟️ Drop Tickets**, & items!\n"
