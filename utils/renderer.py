@@ -226,3 +226,5 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     canvas.save(buf, format="PNG")
     buf.seek(0)
     return buf
+
+render_three_cards_composite = render_cards_image
