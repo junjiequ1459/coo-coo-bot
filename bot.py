@@ -18,7 +18,11 @@ from PIL import Image, ImageDraw, ImageFont
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
+DATA_DIR = os.getenv("DATA_DIR", "/data")
+if os.path.exists(DATA_DIR):
+    DB_PATH = os.path.join(DATA_DIR, "inventory.db")
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
 def generate_card_code() -> str:
     """Generates a random 6-character alphanumeric card code (e.g. 136hma)."""
