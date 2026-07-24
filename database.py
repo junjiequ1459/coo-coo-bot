@@ -410,40 +410,61 @@ def sample_rarity() -> str:
     rarities, weights = zip(*RARITY_WEIGHTS)
     return random.choices(rarities, weights=weights, k=1)[0]
 
-def get_cards_from_db_pool(count: int = 3):
-    """Fetches cards using weighted rarity probabilities (76% Common, 15% Rare, 8% Epic, 1% Legendary)."""
+# --- In-memory card pool cache (loaded once, avoids network queries per drop) ---
+_cards_cache = {}  # rarity -> list of (character_name, series_name, image_url, rarity)
+_cards_all = []
+
+def load_cards_cache():
+    """Load the entire cards_pool table into memory, grouped by rarity."""
+    global _cards_cache, _cards_all
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool")
+    rows = cursor.fetchall()
+    release_connection(conn)
+
+    _cards_cache = {}
+    _cards_all = []
+    for row in rows:
+        char_name, series, img_url, rarity = row
+        entry = (char_name, series, img_url, rarity)
+        _cards_all.append(entry)
+        if rarity not in _cards_cache:
+            _cards_cache[rarity] = []
+        _cards_cache[rarity].append(entry)
+    
+    print(f"📦 Loaded {len(_cards_all)} cards into memory cache ({len(_cards_cache)} rarities)")
+
+# Load cache at startup
+try:
+    load_cards_cache()
+except Exception as e:
+    print(f"⚠️ Could not load cards cache: {e}")
+
+def get_cards_from_db_pool(count: int = 3):
+    """Fetches cards using weighted rarity probabilities from in-memory cache."""
+    if not _cards_all:
+        load_cards_cache()
 
     cards = []
     for _ in range(count):
         target_rarity = sample_rarity()
-        cursor.execute("""
-        SELECT character_name, series_name, image_url, rarity
-        FROM cards_pool
-        WHERE rarity = %s
-        ORDER BY RANDOM()
-        LIMIT 1
-        """, (target_rarity,))
-        row = cursor.fetchone()
+        pool = _cards_cache.get(target_rarity, _cards_all)
+        if not pool:
+            pool = _cards_all
         
-        if not row:
-            cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool ORDER BY RANDOM() LIMIT 1")
-            row = cursor.fetchone()
+        char_name, series, img_url, rarity = random.choice(pool)
+        temp_mint = get_next_mint(char_name)
+        cards.append({
+            "code": generate_card_code(),
+            "name": char_name,
+            "series": series,
+            "image": img_url,
+            "rarity": rarity,
+            "quality": roll_card_quality(),
+            "temp_mint": temp_mint,
+            "edition": 1
+        })
 
-        if row:
-            char_name, series, img_url, rarity = row
-            temp_mint = get_next_mint(char_name)
-            cards.append({
-                "code": generate_card_code(),
-                "name": char_name,
-                "series": series,
-                "image": img_url,
-                "rarity": rarity,
-                "quality": roll_card_quality(),
-                "temp_mint": temp_mint,
-                "edition": 1
-            })
-
-    release_connection(conn)
     return cards
+
