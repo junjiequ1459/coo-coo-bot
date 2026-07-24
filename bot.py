@@ -959,27 +959,31 @@ async def process_balance(ctx_or_interaction):
     embed = discord.Embed(
         title=f"💎 {target.display_name}'s Gem Pouch",
         description=f"Current Balance: **{gems:,} Gems 💎**",
-        color=discord.Color.cyan()
+        color=discord.Color.from_rgb(0, 229, 255)
     )
     embed.set_footer(text="Type !daily or /daily to claim 500 free Gems every 24 hours!")
 
     if isinstance(ctx_or_interaction, discord.Interaction):
-        await ctx_or_interaction.followup.send(embed=embed)
+        await ctx_or_interaction.followup.send(embed=embed, ephemeral=True)
     else:
-        await ctx_or_interaction.send(embed=embed)
+        try:
+            await ctx_or_interaction.author.send(embed=embed)
+            await ctx_or_interaction.message.reply("Coo coo! 📩 Sent your Gem balance to your DMs so it stays private!", delete_after=5)
+        except Exception:
+            await ctx_or_interaction.send(embed=embed)
 
-@bot.tree.command(name="bal", description="Check your personal Gems balance")
+@bot.tree.command(name="bal", description="Check your private personal Gems balance")
 async def bal_slash(interaction: discord.Interaction):
     try:
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
     except Exception:
         pass
     await process_balance(interaction)
 
-@bot.tree.command(name="balance", description="Check your personal Gems balance")
+@bot.tree.command(name="balance", description="Check your private personal Gems balance")
 async def balance_slash(interaction: discord.Interaction):
     try:
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
     except Exception:
         pass
     await process_balance(interaction)
@@ -1020,7 +1024,7 @@ async def process_daily(ctx_or_interaction):
 
         msg = f"Coo coo! ⏳ You have already claimed your daily Gems! Return in **{hours}h {minutes}m {seconds}s**!"
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(msg)
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
         else:
             await ctx_or_interaction.send(msg)
         return
@@ -1069,7 +1073,7 @@ async def process_pay(ctx_or_interaction, target: discord.User, amount: int):
     if target.bot:
         msg = "Coo coo! ⚠️ You cannot send Gems to bots!"
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(msg)
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
         else:
             await ctx_or_interaction.send(msg)
         return
@@ -1077,7 +1081,7 @@ async def process_pay(ctx_or_interaction, target: discord.User, amount: int):
     if target.id == sender.id:
         msg = "Coo coo! ⚠️ You cannot pay Gems to yourself!"
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(msg)
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
         else:
             await ctx_or_interaction.send(msg)
         return
@@ -1085,7 +1089,7 @@ async def process_pay(ctx_or_interaction, target: discord.User, amount: int):
     if amount <= 0:
         msg = "Coo coo! ⚠️ Amount must be greater than 0 Gems!"
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(msg)
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
         else:
             await ctx_or_interaction.send(msg)
         return
@@ -1105,7 +1109,7 @@ async def process_pay(ctx_or_interaction, target: discord.User, amount: int):
         sender_gems = get_user_gems(sender.id)
         msg = f"Coo coo! ⚠️ You don't have enough Gems! You only have **{sender_gems:,} 💎**!"
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(msg)
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
         else:
             await ctx_or_interaction.send(msg)
 
@@ -1448,7 +1452,7 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="💎 Gems Economy",
         value=(
-            "• **`!bal`** or **`/bal`** or **`/balance`** — Check your personal Gem balance.\n"
+            "• **`!bal`** or **`/bal`** or **`/balance`** — Check your personal Gem balance (Private!).\n"
             "• **`!daily`** or **`/daily`** — Claim 500 free Gems every 24 hours!\n"
             "• **`!pay @user <amt>`** or **`/pay`** — Transfer Gems to a friend."
         ),
