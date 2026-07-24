@@ -48,13 +48,13 @@ def apply_quality_filter_to_image(img: Image.Image, quality_str: str) -> Image.I
         return img
 
     elif "damaged" in q_clean or "❌" in q_clean:
-        # Damaged ❌: Severely damaged (70% desaturation + crimson tint)
+        # Damaged ❌: Heavy physical wear, 80% desaturated, dark faded contrast (no red tint!)
         enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.30)
+        img = enhancer.enhance(0.20)
         enhancer_c = ImageEnhance.Contrast(img)
-        img = enhancer_c.enhance(0.80)
-        overlay = Image.new("RGBA", img.size, (150, 0, 0, 45))
-        img = Image.alpha_composite(img.convert("RGBA"), overlay)
+        img = enhancer_c.enhance(0.70)
+        enhancer_b = ImageEnhance.Brightness(img)
+        img = enhancer_b.enhance(0.80)
         return img
 
     return img
@@ -64,20 +64,32 @@ def apply_quality_effects_on_artwork(draw, x: int, y: int, w: int, h: int, quali
     q_clean = quality_str.lower()
     
     if "damaged" in q_clean or "❌" in q_clean:
-        # Draw cracked glass scratch lines across the artwork
-        draw.line([x + 10, y + 15, x + w // 2, y + h // 2], fill=(255, 255, 255, 220), width=2)
-        draw.line([x + w // 2, y + h // 2, x + w - 15, y + h // 3], fill=(240, 240, 240, 220), width=2)
-        draw.line([x + w // 2, y + h // 2, x + w // 3, y + h - 20], fill=(230, 230, 230, 220), width=2)
-        draw.line([x + w // 3, y + h - 20, x + 25, y + h - 40], fill=(200, 200, 200, 180), width=1)
+        cx, cy = x + w // 2, y + h // 2
+
+        # Draw heavy white/grey spiderweb shattered glass cracks radiating across the artwork
+        draw.line([x + 10, y + 10, x + w - 10, y + h - 10], fill=(255, 255, 255, 250), width=4)
+        draw.line([x + w - 10, y + 10, x + 10, y + h - 10], fill=(255, 255, 255, 250), width=4)
         
-        # Red Damaged badge on artwork top-right
+        # Intersecting crack fractures radiating from central impact point
+        draw.line([cx, cy, x + w // 4, y + 15], fill=(230, 230, 230, 240), width=3)
+        draw.line([cx, cy, x + 3 * w // 4, y + h - 15], fill=(230, 230, 230, 240), width=3)
+        draw.line([cx, cy, x + 15, y + 3 * h // 4], fill=(230, 230, 230, 240), width=3)
+        draw.line([cx, cy, x + w - 15, y + h // 4], fill=(230, 230, 230, 240), width=3)
+        draw.line([cx, cy, x + w // 2, y + 10], fill=(200, 200, 200, 240), width=3)
+        draw.line([cx, cy, x + w // 2, y + h - 10], fill=(200, 200, 200, 240), width=3)
+
+        # Impact shatter circle at center
+        draw.ellipse([cx - 30, cy - 30, cx + 30, cy + 30], outline=(240, 240, 240, 240), width=3)
+        draw.ellipse([cx - 15, cy - 15, cx + 15, cy + 15], outline=(255, 255, 255, 250), width=2)
+        
+        # Dark Slate Damaged badge on artwork top-right
         badge_w, badge_h = 95, 22
         bx1 = x + w - badge_w - 6
         by1 = y + 6
         bx2 = x + w - 6
         by2 = y + 6 + badge_h
-        draw.rectangle([bx1, by1, bx2, by2], fill=(180, 20, 20, 240), outline=(255, 60, 60), width=1)
-        draw.text((bx1 + 6, by1 + 3), "🔴 DAMAGED ❌", fill=(255, 255, 255))
+        draw.rectangle([bx1, by1, bx2, by2], fill=(25, 28, 35, 240), outline=(180, 190, 200), width=1)
+        draw.text((bx1 + 6, by1 + 3), "❌ Damaged", fill=(220, 225, 230))
     
     elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
         # Draw scuffed wear scratches & worn corner marks on Poor card
@@ -193,7 +205,7 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
 
     q_clean = q_val.lower()
     if "damaged" in q_clean or "❌" in q_clean:
-        border_col = (255, 50, 50)
+        border_col = (100, 110, 120)
     elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
         border_col = (220, 130, 40)
     elif "excellent" in q_clean:
