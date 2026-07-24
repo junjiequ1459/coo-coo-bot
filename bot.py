@@ -1181,7 +1181,6 @@ class ColorButton(discord.ui.Button):
         roles_to_remove = [r for r in member.roles if r.name in color_role_names and r.name != target_role_name]
         if roles_to_remove:
             await member.remove_roles(*roles_to_remove)
-
         if target_role not in member.roles:
             await member.add_roles(target_role)
             await interaction.followup.send(
@@ -1197,9 +1196,33 @@ class ColorPickerView(discord.ui.View):
         for color in COLOR_ROLES:
             self.add_item(ColorButton(color))
 
+# ==========================================
+# 🤖 BOT DISCORD CLIENT SETUP & HEALTHCHECK
+# ==========================================
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
+
+async def handle_healthcheck(request):
+    return aiohttp.web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
+
+async def start_healthcheck_server():
+    port = int(os.getenv("PORT", 8080))
+    app = aiohttp.web.Application()
+    app.router.add_get("/", handle_healthcheck)
+    app.router.add_get("/health", handle_healthcheck)
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"🌐 Railway HTTP Healthcheck Server active on port {port}!")
+
 @bot.event
 async def on_ready():
     print(f"🐦 Coo Coo is ONLINE as {bot.user.name} ({bot.user.id})!")
+    bot.loop.create_task(start_healthcheck_server())
     for guild in bot.guilds:
         try:
             bot.tree.copy_global_to(guild=guild)
