@@ -105,7 +105,7 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
-        draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=border_col, width=3)
+        draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
         draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
         draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
