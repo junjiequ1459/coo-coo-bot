@@ -6,9 +6,7 @@ from discord import app_commands
 from config import BOT_OWNER_IDS, DB_PATH
 from database import (
     add_user_gems, add_user_dust, add_user_drop_tickets, add_user_grab_tickets,
-    add_user_premium, save_card_to_inventory, generate_card_code, get_next_mint,
-    get_user_gems, get_user_dust, get_user_drop_tickets, get_user_grab_tickets,
-    get_user_premium_until
+    add_user_premium, save_card_to_inventory, generate_card_code, get_next_mint
 )
 
 class AdminCog(commands.Cog):
@@ -17,6 +15,26 @@ class AdminCog(commands.Cog):
 
     def is_owner(self, user_id: int) -> bool:
         return user_id in BOT_OWNER_IDS
+
+    async def resolve_target_and_value(self, ctx, args: tuple):
+        """Intelligently resolves target user and value from flexible command input arguments."""
+        target = ctx.author
+        val_parts = []
+
+        for arg in args:
+            clean_arg = str(arg).strip("<@!>")
+            if clean_arg.isdigit() and len(clean_arg) >= 17:
+                try:
+                    fetched = self.bot.get_user(int(clean_arg)) or await self.bot.fetch_user(int(clean_arg))
+                    if fetched:
+                        target = fetched
+                        continue
+                except Exception:
+                    pass
+            val_parts.append(str(arg))
+
+        val_str = " ".join(val_parts).strip()
+        return target, val_str
 
     # --- ADMIN GRANT HELPERS ---
     async def grant_gems(self, ctx_or_interaction, target: discord.User, amount: int):
@@ -126,124 +144,143 @@ class AdminCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed)
 
-    # --- PREFIX COMMANDS ---
+    # --- PREFIX COMMAND GROUP ---
     @commands.group(name="give", invoke_without_command=True)
-    async def give_group(self, ctx):
+    async def give_group(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
-        embed = discord.Embed(
-            title="👑 Admin Grant Controls",
-            description=(
-                "**Usage:**\n"
-                "• `!give gems @user <amount>` — Grant Gems 💎\n"
-                "• `!give dust @user <amount>` — Grant Dust 🧪\n"
-                "• `!give drop @user <amount>` — Grant Extra Drop Tickets 🎟️\n"
-                "• `!give grab @user <amount>` — Grant Extra Grab Tickets 🖐️\n"
-                "• `!give premium @user <days>` — Grant Premium Pass 👑\n"
-                "• `!give card @user <character_name>` — Spawn specific Card 🎴"
-            ),
-            color=discord.Color.gold()
-        )
-        await ctx.send(embed=embed)
+
+        if not args:
+            embed = discord.Embed(
+                title="👑 Admin Grant Controls",
+                description=(
+                    "**Usage Examples (Targeting @user or yourself):**\n"
+                    "• `!give gems 5000` or `!give gems @user 5000` — Grant Gems 💎\n"
+                    "• `!give dust 1000` or `!give dust @user 1000` — Grant Dust 🧪\n"
+                    "• `!give drop 5` or `!give drop @user 5` — Grant Drop Tickets 🎟️\n"
+                    "• `!give grab 5` or `!give grab @user 5` — Grant Grab Tickets 🖐️\n"
+                    "• `!give premium 30` or `!give premium @user 30` — Grant Premium Pass 👑\n"
+                    "• `!give card Gojo` or `!give card @user Gojo` — Spawn Card 🎴"
+                ),
+                color=discord.Color.gold()
+            )
+            await ctx.send(embed=embed)
 
     @give_group.command(name="gems")
-    async def give_gems_sub(self, ctx, target: discord.User, amount: int):
+    async def give_gems_sub(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 1000
         await self.grant_gems(ctx, target, amount)
 
     @give_group.command(name="dust")
-    async def give_dust_sub(self, ctx, target: discord.User, amount: int):
+    async def give_dust_sub(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 500
         await self.grant_dust(ctx, target, amount)
 
     @give_group.command(name="drop")
-    async def give_drop_sub(self, ctx, target: discord.User, amount: int):
+    async def give_drop_sub(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 1
         await self.grant_drop_tickets(ctx, target, amount)
 
     @give_group.command(name="grab")
-    async def give_grab_sub(self, ctx, target: discord.User, amount: int):
+    async def give_grab_sub(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 1
         await self.grant_grab_tickets(ctx, target, amount)
 
     @give_group.command(name="premium")
-    async def give_premium_sub(self, ctx, target: discord.User, days: int = 30):
+    async def give_premium_sub(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        days = int(val_str) if val_str and val_str.isdigit() else 30
         await self.grant_premium(ctx, target, days)
 
     @give_group.command(name="card")
-    async def give_card_sub(self, ctx, target: discord.User, *, character_name: str):
+    async def give_card_sub(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
-        await self.grant_card(ctx, target, character_name)
+        target, char_query = await self.resolve_target_and_value(ctx, args)
+        if not char_query:
+            await ctx.send("Coo coo! ⚠️ Please specify a character name! e.g. `!give card Gojo`")
+            return
+        await self.grant_card(ctx, target, char_query)
 
     # --- DIRECT SHORTCUT COMMANDS ---
     @commands.command(name="givegems")
-    async def givegems_prefix(self, ctx, target: discord.User, amount: int):
+    async def givegems_prefix(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 1000
         await self.grant_gems(ctx, target, amount)
 
-    @app_commands.command(name="givegems", description="[Owner Only] Grant Gems directly to any user")
-    async def givegems_slash(self, interaction: discord.Interaction, target: discord.User, amount: int):
-        if not self.is_owner(interaction.user.id):
-            await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
-            return
-        try:
-            await interaction.response.defer()
-        except Exception:
-            pass
-        await self.grant_gems(interaction, target, amount)
-
     @commands.command(name="givedust")
-    async def givedust_prefix(self, ctx, target: discord.User, amount: int):
+    async def givedust_prefix(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 500
         await self.grant_dust(ctx, target, amount)
 
     @commands.command(name="givedrop")
-    async def givedrop_prefix(self, ctx, target: discord.User, amount: int):
+    async def givedrop_prefix(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 1
         await self.grant_drop_tickets(ctx, target, amount)
 
     @commands.command(name="givegrab")
-    async def givegrab_prefix(self, ctx, target: discord.User, amount: int):
+    async def givegrab_prefix(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        amount = int(val_str) if val_str and val_str.isdigit() else 1
         await self.grant_grab_tickets(ctx, target, amount)
 
     @commands.command(name="givepremium")
-    async def givepremium_prefix(self, ctx, target: discord.User, days: int = 30):
+    async def givepremium_prefix(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
+        target, val_str = await self.resolve_target_and_value(ctx, args)
+        days = int(val_str) if val_str and val_str.isdigit() else 30
         await self.grant_premium(ctx, target, days)
 
     @commands.command(name="givecard")
-    async def givecard_prefix(self, ctx, target: discord.User, *, character_name: str):
+    async def givecard_prefix(self, ctx, *args):
         if not self.is_owner(ctx.author.id):
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
-        await self.grant_card(ctx, target, character_name)
+        target, char_query = await self.resolve_target_and_value(ctx, args)
+        if not char_query:
+            await ctx.send("Coo coo! ⚠️ Please specify a character name! e.g. `!givecard Gojo`")
+            return
+        await self.grant_card(ctx, target, char_query)
 
-    # --- SLASH COMMAND ---
+    # --- SLASH COMMANDS ---
     @app_commands.command(name="give", description="[Owner Only] Grant Gems, Dust, Tickets, Premium, or Cards to any user")
     @app_commands.choices(item=[
         app_commands.Choice(name="💎 Gems", value="gems"),
@@ -253,7 +290,7 @@ class AdminCog(commands.Cog):
         app_commands.Choice(name="👑 Premium Pass (30 Days)", value="premium"),
         app_commands.Choice(name="🎴 Card Spawner", value="card")
     ])
-    async def give_slash(self, interaction: discord.Interaction, item: app_commands.Choice[str], target: discord.User, value: str):
+    async def give_slash(self, interaction: discord.Interaction, item: app_commands.Choice[str], value: str, target: discord.User = None):
         if not self.is_owner(interaction.user.id):
             await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
             return
@@ -263,24 +300,49 @@ class AdminCog(commands.Cog):
         except Exception:
             pass
 
+        dest = target or interaction.user
         choice = item.value
         if choice == "gems":
-            amount = int(value) if value.isdigit() else 100
-            await self.grant_gems(interaction, target, amount)
+            amount = int(value) if value.isdigit() else 1000
+            await self.grant_gems(interaction, dest, amount)
         elif choice == "dust":
-            amount = int(value) if value.isdigit() else 100
-            await self.grant_dust(interaction, target, amount)
+            amount = int(value) if value.isdigit() else 500
+            await self.grant_dust(interaction, dest, amount)
         elif choice == "drop":
             amount = int(value) if value.isdigit() else 1
-            await self.grant_drop_tickets(interaction, target, amount)
+            await self.grant_drop_tickets(interaction, dest, amount)
         elif choice == "grab":
             amount = int(value) if value.isdigit() else 1
-            await self.grant_grab_tickets(interaction, target, amount)
+            await self.grant_grab_tickets(interaction, dest, amount)
         elif choice == "premium":
             days = int(value) if value.isdigit() else 30
-            await self.grant_premium(interaction, target, days)
+            await self.grant_premium(interaction, dest, days)
         elif choice == "card":
-            await self.grant_card(interaction, target, value)
+            await self.grant_card(interaction, dest, value)
+
+    @app_commands.command(name="grant", description="[Owner Only] Grant Gems, Dust, Tickets, Premium, or Cards to any user")
+    @app_commands.choices(item=[
+        app_commands.Choice(name="💎 Gems", value="gems"),
+        app_commands.Choice(name="🧪 Dust", value="dust"),
+        app_commands.Choice(name="🎟️ Drop Ticket", value="drop"),
+        app_commands.Choice(name="🖐️ Grab Ticket", value="grab"),
+        app_commands.Choice(name="👑 Premium Pass (30 Days)", value="premium"),
+        app_commands.Choice(name="🎴 Card Spawner", value="card")
+    ])
+    async def grant_slash(self, interaction: discord.Interaction, item: app_commands.Choice[str], value: str, target: discord.User = None):
+        await self.give_slash(interaction, item, value, target)
+
+    @app_commands.command(name="givegems", description="[Owner Only] Grant Gems directly to any user or yourself")
+    async def givegems_slash(self, interaction: discord.Interaction, amount: int, target: discord.User = None):
+        if not self.is_owner(interaction.user.id):
+            await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
+            return
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        dest = target or interaction.user
+        await self.grant_gems(interaction, dest, amount)
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))
