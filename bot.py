@@ -1203,6 +1203,56 @@ async def pay_prefix_give(ctx, target: discord.User, amount: int):
 # ==========================================
 # 🧪 BURN, DUST & TAGGING SYSTEM
 # ==========================================
+class BurnConfirmView(discord.ui.View):
+    def __init__(self, owner_id: int, card_code: str, char_name: str, rarity: str, dust_reward: int):
+        super().__init__(timeout=60)
+        self.owner_id = owner_id
+        self.card_code = card_code
+        self.char_name = char_name
+        self.rarity = rarity
+        self.dust_reward = dust_reward
+
+    @discord.ui.button(label="Confirm Burn", style=discord.ButtonStyle.danger, emoji="🔥")
+    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot confirm this burn!", ephemeral=True)
+            return
+
+        deleted = delete_card_from_inventory(self.card_code, self.owner_id)
+        if not deleted:
+            await interaction.response.send_message(f"Coo coo! ⚠️ Card `{self.card_code}` is no longer in your inventory!", ephemeral=True)
+            return
+
+        new_dust = add_user_dust(self.owner_id, self.dust_reward)
+        for child in self.children:
+            child.disabled = True
+
+        embed = discord.Embed(
+            title=f"🔥 Burned: {self.char_name}",
+            description=(
+                f"🔥 **{interaction.user.mention}** confirmed and burned `{self.card_code}` (**{self.char_name}** — {self.rarity}) into ashes!\n\n"
+                f"🧪 **Gained Dust:** **+{self.dust_reward} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
+            ),
+            color=discord.Color.red()
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("Coo coo! ⚠️ You cannot cancel this burn!", ephemeral=True)
+            return
+
+        for child in self.children:
+            child.disabled = True
+
+        embed = discord.Embed(
+            title="❌ Burn Cancelled",
+            description=f"Safe! **{self.char_name}** (`{self.card_code}`) was saved from the flames.",
+            color=discord.Color.blue()
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+
 async def process_dust_balance(ctx_or_interaction):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
     dust = get_user_dust(user.id)
@@ -1233,9 +1283,9 @@ async def dust_prefix(ctx):
 
 async def process_burn_card(ctx_or_interaction, card_code: str):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-    deleted = delete_card_from_inventory(card_code, user.id)
+    card_row = get_card_by_code_and_owner(card_code, user.id)
 
-    if not deleted:
+    if not card_row:
         msg = f"Coo coo! ⚠️ Card `{card_code}` not found in your inventory!"
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -1243,15 +1293,43 @@ async def process_burn_card(ctx_or_interaction, card_code: str):
             await ctx_or_interaction.send(msg)
         return
 
-    cid, code, char_name, rarity = deleted
+    cid, code, uid, char_name, series, rarity, mint_num, edition, tag = card_row
+    code_str = code if code else f"c{cid:04d}"
     rewards = BURN_REWARDS.get(rarity, {"dust": 20})
-    
-    new_dust = add_user_dust(user.id, rewards["dust"])
 
+    # Check if card is Epic or Legendary (Epic and above)
+    if rarity in ["🟣 Epic", "✨ Legendary"]:
+        view = BurnConfirmView(user.id, code_str, char_name, rarity, rewards["dust"])
+        embed = discord.Embed(
+            title=f"⚠️ Are you sure you want to burn this {rarity} card?",
+            description=(
+                f"🔥 You are about to burn **{char_name}** (`{code_str}`) — **{rarity}**!\n"
+                f"🧪 **Yield:** **+{rewards['dust']} Dust**\n\n"
+                f"⚠️ *This action is permanent and cannot be undone! Click below to confirm.*"
+            ),
+            color=discord.Color.dark_orange()
+        )
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=view)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=view)
+        return
+
+    # For Common / Rare, burn immediately
+    deleted = delete_card_from_inventory(code_str, user.id)
+    if not deleted:
+        msg = f"Coo coo! ⚠️ Error burning card `{code_str}`!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    new_dust = add_user_dust(user.id, rewards["dust"])
     embed = discord.Embed(
         title=f"🔥 Burned: {char_name}",
         description=(
-            f"🔥 **{user.mention}** burned `{code}` (**{char_name}** — {rarity}) into ashes!\n\n"
+            f"🔥 **{user.mention}** burned `{code_str}` (**{char_name}** — {rarity}) into ashes!\n\n"
             f"🧪 **Gained Dust:** **+{rewards['dust']} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
         ),
         color=discord.Color.red()
@@ -1672,7 +1750,7 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="🔥 Burning & 🏷️ Tagging",
         value=(
-            "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust!\n"
+            "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
             "• **`!tag <id> <name>`** or **`/tag`** — Assign a folder tag to a card.\n"
             "• **`!untag <id>`** or **`/untag`** — Remove a tag from a card.\n"
             "• **`!inv <tag>`** — View cards in a specific tag folder!"
@@ -1705,8 +1783,8 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="👑 Card Rarities & Burn Yields",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | Burns to **+200 🧪 Dust**\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | Burns to **+100 🧪 Dust**\n"
+            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | Burns to **+200 🧪 Dust** *(Requires Confirmation!)*\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | Burns to **+100 🧪 Dust** *(Requires Confirmation!)*\n"
             "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | Burns to **+50 🧪 Dust**\n"
             "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | Burns to **+20 🧪 Dust**"
         ),
