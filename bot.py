@@ -88,13 +88,6 @@ bot.tree.on_error = on_tree_error
 
 async def main():
     async with bot:
-        # Run one-time SQLite → Supabase migration if needed
-        try:
-            from migrate_to_supabase import migrate
-            migrate()
-        except Exception as e:
-            print(f"Migration check: {e}")
-
         cogs = [
             "cogs.drop",
             "cogs.inventory",
