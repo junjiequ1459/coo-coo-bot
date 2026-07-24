@@ -53,7 +53,8 @@ async def main():
             "cogs.shop",
             "cogs.trade",
             "cogs.cooldowns",
-            "cogs.utilities"
+            "cogs.utilities",
+            "cogs.admin"
         ]
         for cog in cogs:
             try:
