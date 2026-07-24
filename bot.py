@@ -94,6 +94,7 @@ async def main():
             "cogs.card_actions",
             "cogs.lookup",
             "cogs.wishlist",
+            "cogs.favorites",
             "cogs.economy",
             "cogs.shop",
             "cogs.trade",

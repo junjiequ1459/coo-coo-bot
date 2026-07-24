@@ -124,6 +124,17 @@ class UtilitiesCog(commands.Cog):
         )
 
         embed.add_field(
+            name="⭐ Favorites & Profile",
+            value=(
+                "• **`!fav <code>`** or **`/fav`** — Add a card to your favorites (5 max, defaults to latest).\n"
+                "• **`!unfav <code>`** or **`/unfav`** — Remove a card from favorites.\n"
+                "• **`!favs`** or **`/favorites`** — View your favorites showcase.\n"
+                "• **`!profile @user`** or **`/profile`** — View someone's favorites!"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
             name="💎 Gems & 🛒 Shop Economy",
             value=(
                 "• **`!shop`** or **`/shop`** — Open Shop to buy **👑 30-Day Premium Pass**, **🎟️ Drop Tickets**, & items!\n"
