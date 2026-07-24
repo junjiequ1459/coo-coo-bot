@@ -206,13 +206,6 @@ RARITY_COLORS = {
     "⚪ Common": (140, 155, 170)    # Slate Silver
 }
 
-RARITY_GEM_REWARDS = {
-    "✨ Legendary": 100,
-    "🟣 Epic": 50,
-    "🔷 Rare": 25,
-    "⚪ Common": 10
-}
-
 async def fetch_image(session, url):
     try:
         async with session.get(url, timeout=8) as resp:
@@ -446,23 +439,19 @@ class CardGrabButton(discord.ui.Button):
             edition=1
         )
 
-        gem_reward = RARITY_GEM_REWARDS.get(self.card_info["rarity"], 10)
-        new_total = add_user_gems(interaction.user.id, gem_reward)
-
         embed = discord.Embed(
             title=f"🎉 Claimed: {self.card_info['name']}",
             description=(
                 f"👤 **Claimed by:** {interaction.user.mention}\n"
                 f"📺 **Series:** {self.card_info['series']}\n"
-                f"🆔 **Card ID:** `{self.card_info['code']}`\n"
-                f"💎 **Bonus Earned:** +{gem_reward} Gems! *(Total: {new_total:,} 💎)*"
+                f"🆔 **Card ID:** `{self.card_info['code']}`"
             ),
             color=discord.Color.gold()
         )
 
         await interaction.response.edit_message(embeds=[embed], view=view)
         await interaction.followup.send(
-            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']}**) and earned **+{gem_reward} 💎 Gems**! `Card ID: {self.card_info['code']}`"
+            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']}**)! `Card ID: {self.card_info['code']}`"
         )
 
 class CardDropView(discord.ui.View):
@@ -963,8 +952,8 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 # ==========================================
 # 💎 GEMS ECONOMY COMMANDS
 # ==========================================
-async def process_balance(ctx_or_interaction, user: discord.User = None):
-    target = user or (ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author)
+async def process_balance(ctx_or_interaction):
+    target = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
     gems = get_user_gems(target.id)
 
     embed = discord.Embed(
@@ -972,32 +961,40 @@ async def process_balance(ctx_or_interaction, user: discord.User = None):
         description=f"Current Balance: **{gems:,} Gems 💎**",
         color=discord.Color.cyan()
     )
-    embed.set_footer(text="Type !daily to claim 500 free Gems every 24 hours!")
+    embed.set_footer(text="Type !daily or /daily to claim 500 free Gems every 24 hours!")
 
     if isinstance(ctx_or_interaction, discord.Interaction):
         await ctx_or_interaction.followup.send(embed=embed)
     else:
         await ctx_or_interaction.send(embed=embed)
 
-@bot.tree.command(name="balance", description="Check your or another player's Gems balance")
-async def balance_slash(interaction: discord.Interaction, user: discord.User = None):
+@bot.tree.command(name="bal", description="Check your personal Gems balance")
+async def bal_slash(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
     except Exception:
         pass
-    await process_balance(interaction, user)
+    await process_balance(interaction)
+
+@bot.tree.command(name="balance", description="Check your personal Gems balance")
+async def balance_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_balance(interaction)
 
 @bot.command(name="balance")
-async def balance_prefix(ctx, user: discord.User = None):
-    await process_balance(ctx, user)
+async def balance_prefix(ctx):
+    await process_balance(ctx)
 
 @bot.command(name="bal")
-async def balance_prefix_bal(ctx, user: discord.User = None):
-    await process_balance(ctx, user)
+async def balance_prefix_bal(ctx):
+    await process_balance(ctx)
 
 @bot.command(name="gems")
-async def balance_prefix_gems(ctx, user: discord.User = None):
-    await process_balance(ctx, user)
+async def balance_prefix_gems(ctx):
+    await process_balance(ctx)
 
 async def process_daily(ctx_or_interaction):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
@@ -1451,10 +1448,9 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="💎 Gems Economy",
         value=(
-            "• **`!bal`** or **`!gems`** or **`/balance`** — Check your Gem balance.\n"
+            "• **`!bal`** or **`/bal`** or **`/balance`** — Check your personal Gem balance.\n"
             "• **`!daily`** or **`/daily`** — Claim 500 free Gems every 24 hours!\n"
-            "• **`!pay @user <amt>`** or **`/pay`** — Transfer Gems to a friend.\n"
-            "• **Bonus:** Grabbing cards earns bonus Gems based on rarity!"
+            "• **`!pay @user <amt>`** or **`/pay`** — Transfer Gems to a friend."
         ),
         inline=False
     )
@@ -1482,12 +1478,12 @@ async def send_help_menu(ctx_or_interaction):
     )
 
     embed.add_field(
-        name="👑 Card Rarities & Gem Rewards",
+        name="👑 Card Rarities",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12,000+ Favs | **+100 💎**\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4,000-12,000 Favs | **+50 💎**\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1,000-4,000 Favs | **+25 💎**\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1,000 Favs | **+10 💎**"
+            "• **`✨ Legendary` (Gold Frame)** — 12,000+ Favs\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4,000-12,000 Favs\n"
+            "• **`🔷 Rare` (Cyan Frame)** — 1,000-4,000 Favs\n"
+            "• **`⚪ Common` (Silver Frame)** — Under 1,000 Favs"
         ),
         inline=False
     )
