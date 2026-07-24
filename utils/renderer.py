@@ -196,18 +196,7 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
 
     rc = RARITY_COLORS.get(card_data["rarity"], (140, 155, 170))
     q_val = card_data.get("quality", "Good ⭐⭐")
-
-    q_clean = q_val.lower()
-    if "damaged" in q_clean or "❌" in q_clean:
-        border_col = (100, 110, 120)
-    elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
-        border_col = (220, 130, 40)
-    elif "excellent" in q_clean:
-        border_col = (180, 120, 255)
-    elif "mint" in q_clean:
-        border_col = (255, 215, 0)
-    else:
-        border_col = rc
+    border_col = rc
 
     draw.rectangle([0, 0, card_w, card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=3)
     draw.rectangle([5, 5, card_w - 5, card_h - 5], outline=border_col, width=3)
