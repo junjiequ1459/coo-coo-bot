@@ -34,9 +34,20 @@ async def start_healthcheck_server():
 async def on_ready():
     print(f"🐦 Coo Coo is ONLINE as {bot.user.name} ({bot.user.id})!")
     bot.loop.create_task(start_healthcheck_server())
+    
+    # 1. Clear duplicate guild-level overrides from all servers
+    for guild in bot.guilds:
+        try:
+            bot.tree.clear_commands(guild=guild)
+            await bot.tree.sync(guild=guild)
+            print(f"🧹 Purged duplicate guild commands for '{guild.name}'!")
+        except Exception as e:
+            print(f"Guild purge error for {guild.name}: {e}")
+
+    # 2. Sync single clean global tree (prevents duplicate command listings)
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} Global Slash Commands to Discord!")
+        print(f"Synced {len(synced)} Global Slash Commands to Discord (Zero Duplicates)!")
     except Exception as e:
         print(f"Global tree sync error: {e}")
 
