@@ -128,7 +128,7 @@ def apply_quality_effects_on_artwork(draw: ImageDraw.ImageDraw, x: int, y: int, 
     draw.rectangle([badge_x1, badge_y1, badge_x1 + badge_w, badge_y1 + badge_h], fill=badge_fill)
     draw.text((badge_x1 + 6, badge_y1 + 2), badge_label, fill=text_color)
 
-async def render_cards_image(cards: list) -> io.BytesIO:
+async def render_cards_image(cards: list, show_quality: bool = False) -> io.BytesIO:
     """Renders 3 cards side-by-side on a single image canvas for /drop."""
     card_w, card_h = 260, 400
     gap = 20
@@ -155,10 +155,19 @@ async def render_cards_image(cards: list) -> io.BytesIO:
         img_w, img_h = card_w - 14, card_h - 70
         resized_img = raw_images[i].resize((img_w, img_h), Image.Resampling.LANCZOS)
         
-        # Apply Visual Quality Filter & artwork overlay effects
-        filtered_img = apply_quality_filter_to_image(resized_img, q_val)
-        canvas.paste(filtered_img, (x + 7, y + 7))
-        apply_quality_effects_on_artwork(draw, x + 7, y + 7, img_w, img_h, q_val)
+        if show_quality:
+            # Apply Visual Quality Filter & artwork overlay effects
+            filtered_img = apply_quality_filter_to_image(resized_img, q_val)
+            canvas.paste(filtered_img, (x + 7, y + 7))
+            apply_quality_effects_on_artwork(draw, x + 7, y + 7, img_w, img_h, q_val)
+        else:
+            # Hide quality before grab — show clean card with ? badge
+            canvas.paste(resized_img, (x + 7, y + 7))
+            badge_x1, badge_y1 = x + 7 + 8, y + 7 + 8
+            badge_w = 12 + (1 * 7)
+            badge_h = 18
+            draw.rectangle([badge_x1, badge_y1, badge_x1 + badge_w, badge_y1 + badge_h], fill=(100, 105, 115, 230))
+            draw.text((badge_x1 + 6, badge_y1 + 2), "?", fill=(255, 255, 255))
 
         box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
