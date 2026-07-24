@@ -69,7 +69,9 @@ def init_db():
         user_id INTEGER PRIMARY KEY,
         gems INTEGER DEFAULT 100,
         dust INTEGER DEFAULT 0,
-        last_daily INTEGER DEFAULT 0
+        last_daily INTEGER DEFAULT 0,
+        last_drop INTEGER DEFAULT 0,
+        last_grab INTEGER DEFAULT 0
     )
     """)
 
@@ -77,6 +79,10 @@ def init_db():
     usr_columns = [column[1] for column in cursor.fetchall()]
     if "dust" not in usr_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN dust INTEGER DEFAULT 0")
+    if "last_drop" not in usr_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_drop INTEGER DEFAULT 0")
+    if "last_grab" not in usr_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_grab INTEGER DEFAULT 0")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS cards_pool (
@@ -96,7 +102,7 @@ def init_db():
 init_db()
 
 def get_user_gems(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -110,7 +116,7 @@ def get_user_gems(user_id: int) -> int:
     return gems
 
 def get_user_dust(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("SELECT dust FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -124,7 +130,7 @@ def get_user_dust(user_id: int) -> int:
     return dust
 
 def add_user_gems(user_id: int, amount: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -139,7 +145,7 @@ def add_user_gems(user_id: int, amount: int) -> int:
     return new_gems
 
 def add_user_dust(user_id: int, amount: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("SELECT dust FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -157,7 +163,7 @@ def add_user_dust(user_id: int, amount: int) -> int:
 def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
     if amount <= 0:
         return False
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT gems FROM users WHERE user_id = ?", (from_user_id,))
@@ -189,7 +195,7 @@ def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
         return False
 
 def get_next_mint(character_name: str) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("SELECT current_mint FROM mints WHERE character_name = ?", (character_name,))
     row = cursor.fetchone()
@@ -204,7 +210,7 @@ def get_next_mint(character_name: str) -> int:
     return next_mint
 
 def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("""
     INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition)
@@ -216,7 +222,7 @@ def save_card_to_inventory(user_id: int, code: str, character_name: str, series_
     return inserted_id
 
 def get_user_inventory(user_id: int, tag_filter: str = None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     if tag_filter:
         cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag FROM inventory WHERE user_id = ? AND LOWER(tag) = ? ORDER BY id DESC", (user_id, tag_filter.lower().strip()))
@@ -227,7 +233,7 @@ def get_user_inventory(user_id: int, tag_filter: str = None):
     return rows
 
 def get_card_by_code_and_owner(code: str, user_id: int):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
     row = cursor.fetchone()
@@ -235,7 +241,7 @@ def get_card_by_code_and_owner(code: str, user_id: int):
     return row
 
 def update_card_tag(code_str: str, user_id: int, tag_name: str = None) -> bool:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     query_str = code_str.lower().strip()
     cursor.execute("UPDATE inventory SET tag = ? WHERE (code = ? OR id = ?) AND user_id = ?", (tag_name, query_str, query_str, user_id))
@@ -245,7 +251,7 @@ def update_card_tag(code_str: str, user_id: int, tag_name: str = None) -> bool:
     return affected > 0
 
 def delete_card_from_inventory(code_str: str, user_id: int):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     query_str = code_str.lower().strip()
     cursor.execute("SELECT id, code, character_name, rarity FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user_id))
@@ -259,7 +265,7 @@ def delete_card_from_inventory(code_str: str, user_id: int):
     return row
 
 def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int, user2_codes: list):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     try:
         for code in user1_codes:
@@ -274,6 +280,33 @@ def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int
         conn.rollback()
         conn.close()
         return False
+
+def get_user_cooldowns(user_id: int):
+    """Returns timestamps for last_drop, last_grab, last_daily."""
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    cursor = conn.cursor()
+    cursor.execute("SELECT last_drop, last_grab, last_daily FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return 0, 0, 0
+    return (row[0] or 0), (row[1] or 0), (row[2] or 0)
+
+def set_user_cooldown(user_id: int, cd_type: str, ts: int):
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 100, 0)", (user_id,))
+    
+    if cd_type == "drop":
+        cursor.execute("UPDATE users SET last_drop = ? WHERE user_id = ?", (ts, user_id))
+    elif cd_type == "grab":
+        cursor.execute("UPDATE users SET last_grab = ? WHERE user_id = ?", (ts, user_id))
+    elif cd_type == "daily":
+        cursor.execute("UPDATE users SET last_daily = ? WHERE user_id = ?", (ts, user_id))
+    conn.commit()
+    conn.close()
 
 # ==========================================
 # 🎲 WEIGHTED RARITY DROP PROBABILITIES
@@ -530,8 +563,12 @@ async def fetch_random_anilist_cards(count: int = 3):
     return cards
 
 # ==========================================
-# 🎴 CARD DROP BUTTON UI
+# 🎴 CARD DROP BUTTON UI & COOLDOWNS
 # ==========================================
+DROP_COOLDOWN_SEC = 900  # 15 Minutes
+GRAB_COOLDOWN_SEC = 300  # 5 Minutes
+DAILY_COOLDOWN_SEC = 86400  # 24 Hours
+
 class CardGrabButton(discord.ui.Button):
     def __init__(self, index: int, card_info: dict):
         super().__init__(
@@ -549,16 +586,35 @@ class CardGrabButton(discord.ui.Button):
             await interaction.response.send_message("Coo coo! ⚠️ This drop has already been claimed!", ephemeral=True)
             return
 
-        elapsed = time.time() - view.drop_time
-        if elapsed < 10.0 and interaction.user.id != view.dropper_id:
-            remaining = int(10.0 - elapsed) + 1
+        now_ts = int(time.time())
+
+        # Check Grab Cooldown (5 Minutes)
+        l_drop, l_grab, l_daily = get_user_cooldowns(interaction.user.id)
+        elapsed_grab = now_ts - l_grab
+        if elapsed_grab < GRAB_COOLDOWN_SEC:
+            rem = GRAB_COOLDOWN_SEC - elapsed_grab
+            mins = rem // 60
+            secs = rem % 60
             await interaction.response.send_message(
-                f"Coo coo! ⏳ <@{view.dropper_id}> has **10 seconds of drop priority**! ({remaining}s remaining)",
+                f"Coo coo! ⏳ Your **Grab** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to view all your cooldowns.",
+                ephemeral=True
+            )
+            return
+
+        # Check 5 Minutes Exclusive Priority Window for the Dropper
+        elapsed_drop = time.time() - view.drop_time
+        if elapsed_drop < 300.0 and interaction.user.id != view.dropper_id:
+            rem_prio = int(300.0 - elapsed_drop) + 1
+            p_mins = rem_prio // 60
+            p_secs = rem_prio % 60
+            await interaction.response.send_message(
+                f"Coo coo! ⏳ <@{view.dropper_id}> has **5 minutes of drop priority**! ({p_mins}m {p_secs}s remaining)",
                 ephemeral=True
             )
             return
 
         view.claimed = True
+        set_user_cooldown(interaction.user.id, "grab", now_ts)
         
         for child in view.children:
             child.disabled = True
@@ -594,7 +650,7 @@ class CardGrabButton(discord.ui.Button):
 
 class CardDropView(discord.ui.View):
     def __init__(self, cards: list, dropper_id: int):
-        super().__init__(timeout=180)
+        super().__init__(timeout=300)  # 5 Minute drop view active timeout
         self.cards = cards
         self.dropper_id = dropper_id
         self.drop_time = time.time()
@@ -614,6 +670,98 @@ class CardDropView(discord.ui.View):
                     await self.message.edit(view=self)
                 except Exception:
                     pass
+
+# ==========================================
+# ⏱️ COOLDOWNS COMMAND
+# ==========================================
+async def process_cooldowns(ctx_or_interaction):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    now_ts = int(time.time())
+    l_drop, l_grab, l_daily = get_user_cooldowns(user.id)
+
+    # Calculate Drop CD (15 min)
+    drop_elapsed = now_ts - l_drop
+    if drop_elapsed >= DROP_COOLDOWN_SEC:
+        drop_status = "✅ **Ready to Drop!** (`/drop` or `!d`)"
+    else:
+        rem_d = DROP_COOLDOWN_SEC - drop_elapsed
+        d_m = rem_d // 60
+        d_s = rem_d % 60
+        drop_status = f"⏳ Ready in **{d_m}m {d_s}s**"
+
+    # Calculate Grab CD (5 min)
+    grab_elapsed = now_ts - l_grab
+    if grab_elapsed >= GRAB_COOLDOWN_SEC:
+        grab_status = "✅ **Ready to Grab!**"
+    else:
+        rem_g = GRAB_COOLDOWN_SEC - grab_elapsed
+        g_m = rem_g // 60
+        g_s = rem_g % 60
+        grab_status = f"⏳ Ready in **{g_m}m {g_s}s**"
+
+    # Calculate Daily CD (24 hrs)
+    daily_elapsed = now_ts - l_daily
+    if daily_elapsed >= DAILY_COOLDOWN_SEC:
+        daily_status = "✅ **Ready to Claim!** (`/daily` or `!daily`)"
+    else:
+        rem_day = DAILY_COOLDOWN_SEC - daily_elapsed
+        day_h = rem_day // 3600
+        day_m = (rem_day % 3600) // 60
+        day_s = rem_day % 60
+        daily_status = f"⏳ Ready in **{day_h}h {day_m}m {day_s}s**"
+
+    embed = discord.Embed(
+        title=f"⏱️ {user.display_name}'s Command Cooldowns",
+        description=f"Below are your current command timers:",
+        color=discord.Color.blue()
+    )
+
+    embed.add_field(
+        name="🎴 Card Drop Cooldown (15m)",
+        value=drop_status,
+        inline=False
+    )
+    embed.add_field(
+        name="🖐️ Card Grab Cooldown (5m)",
+        value=grab_status,
+        inline=False
+    )
+    embed.add_field(
+        name="🎁 Daily Gems Cooldown (24h)",
+        value=daily_status,
+        inline=False
+    )
+
+    embed.set_footer(text="Coo Coo Timers • Type /drop to collect new cards!")
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="cd", description="Check your current Drop, Grab, and Daily command cooldowns")
+async def cd_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_cooldowns(interaction)
+
+@bot.tree.command(name="cooldowns", description="Check your current Drop, Grab, and Daily command cooldowns")
+async def cooldowns_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_cooldowns(interaction)
+
+@bot.command(name="cd")
+async def cd_prefix(ctx):
+    await process_cooldowns(ctx)
+
+@bot.command(name="cooldowns")
+async def cooldowns_prefix(ctx):
+    await process_cooldowns(ctx)
 
 # ==========================================
 # 🔄 KARUTA-STYLE TRADING ENGINE WITH GEMS
@@ -638,8 +786,7 @@ class AddCardModal(discord.ui.Modal, title="Offer Card or Gems"):
         if val.endswith("g") or val.endswith("gems") or val.isdigit():
             clean_num = val.rstrip("gems").rstrip("g").strip()
             if clean_num.isdigit():
-                amt = int(clean_num)
-                await self.trade_session.set_gems(interaction, amt)
+                await self.trade_session.set_gems(interaction, int(clean_num))
                 return
         await self.trade_session.add_card(interaction, self.input_val.value.strip())
 
@@ -1140,25 +1287,16 @@ async def process_daily(ctx_or_interaction):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
     now_ts = int(time.time())
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT gems, last_daily FROM users WHERE user_id = ?", (user.id,))
-    row = cursor.fetchone()
-
-    current_gems = row[0] if row else 100
-    last_daily = row[1] if row else 0
-
-    cooldown = 86400  # 24 hours
+    l_drop, l_grab, last_daily = get_user_cooldowns(user.id)
     elapsed = now_ts - last_daily
 
-    if elapsed < cooldown:
-        remaining = cooldown - elapsed
+    if elapsed < DAILY_COOLDOWN_SEC:
+        remaining = DAILY_COOLDOWN_SEC - elapsed
         hours = remaining // 3600
         minutes = (remaining % 3600) // 60
         seconds = remaining % 60
-        conn.close()
 
-        msg = f"Coo coo! ⏳ You have already claimed your daily Gems! Return in **{hours}h {minutes}m {seconds}s**!"
+        msg = f"Coo coo! ⏳ You have already claimed your daily Gems! Return in **{hours}h {minutes}m {seconds}s**! Type `!cd` to view your cooldowns."
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg, ephemeral=True)
         else:
@@ -1166,15 +1304,11 @@ async def process_daily(ctx_or_interaction):
         return
 
     reward = 500
+    current_gems = get_user_gems(user.id)
     new_gems = current_gems + reward
-
-    if not row:
-        cursor.execute("INSERT INTO users (user_id, gems, last_daily) VALUES (?, ?, ?)", (user.id, new_gems, now_ts))
-    else:
-        cursor.execute("UPDATE users SET gems = ?, last_daily = ? WHERE user_id = ?", (new_gems, now_ts, user.id))
-
-    conn.commit()
-    conn.close()
+    
+    add_user_gems(user.id, reward)
+    set_user_cooldown(user.id, "daily", now_ts)
 
     embed = discord.Embed(
         title="🎁 Daily Reward Claimed!",
@@ -1362,7 +1496,6 @@ async def process_burn_card(ctx_or_interaction, card_code: str):
     code_str = code if code else f"c{cid:04d}"
     rewards = BURN_REWARDS.get(rarity, {"dust": 20})
 
-    # Check if card is Epic or Legendary (Epic and above)
     if rarity in ["🟣 Epic", "✨ Legendary"]:
         view = BurnConfirmView(user.id, code_str, char_name, rarity, rewards["dust"])
         embed = discord.Embed(
@@ -1380,7 +1513,6 @@ async def process_burn_card(ctx_or_interaction, card_code: str):
             await ctx_or_interaction.send(embed=embed, view=view)
         return
 
-    # For Common / Rare, burn immediately
     deleted = delete_card_from_inventory(code_str, user.id)
     if not deleted:
         msg = f"Coo coo! ⚠️ Error burning card `{code_str}`!"
@@ -1514,6 +1646,21 @@ async def view_tag_prefix_viewtag(ctx, *, tag: str):
 
 async def execute_card_drop(ctx_or_interaction, user):
     """Core logic to fetch cards from local DB pool and render a single horizontal 3-card side-by-side image!"""
+    now_ts = int(time.time())
+    l_drop, l_grab, l_daily = get_user_cooldowns(user.id)
+    elapsed_drop = now_ts - l_drop
+
+    if elapsed_drop < DROP_COOLDOWN_SEC:
+        rem = DROP_COOLDOWN_SEC - elapsed_drop
+        mins = rem // 60
+        secs = rem % 60
+        msg = f"Coo coo! ⏳ Your **Drop** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to check your cooldowns."
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
     cards = get_cards_from_db_pool(3)
     if not cards or len(cards) < 3:
         cards = await fetch_random_anilist_cards(3)
@@ -1526,6 +1673,8 @@ async def execute_card_drop(ctx_or_interaction, user):
             await ctx_or_interaction.send(msg)
         return
 
+    set_user_cooldown(user.id, "drop", now_ts)
+
     buf = await render_three_cards_composite(cards)
     file = discord.File(fp=buf, filename="drop.png")
 
@@ -1535,13 +1684,13 @@ async def execute_card_drop(ctx_or_interaction, user):
             f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
             f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
             f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
-            f"⏳ **Priority:** {user.mention} has 10 seconds of exclusive drop priority!\n"
+            f"⏳ **Priority:** {user.mention} has **5 minutes of exclusive drop priority**!\n"
             f"Click a button below to grab a card!"
         ),
         color=discord.Color.gold()
     )
     embed.set_image(url="attachment://drop.png")
-    embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
+    embed.set_footer(text="Coo Coo Card Engine • 15m Drop CD | 5m Grab CD")
 
     view = CardDropView(cards, dropper_id=user.id)
 
@@ -1552,7 +1701,7 @@ async def execute_card_drop(ctx_or_interaction, user):
         msg = await ctx_or_interaction.send(embed=embed, file=file, view=view)
         view.message = msg
 
-@bot.tree.command(name="drop", description="Drops 3 random Anime Cards from your local character DB!")
+@bot.tree.command(name="drop", description="Drops 3 random Anime Cards from your local character DB (15m Cooldown)")
 async def drop_slash(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
@@ -1631,7 +1780,7 @@ async def inventory_prefix_inv(ctx, *, tag: str = None):
 
 async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
 
     if not card_code_query:
@@ -1642,7 +1791,6 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
         cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user.id))
         row = cursor.fetchone()
 
-        # If not found by Card ID, check if query_str is a Tag name in user's inventory!
         if not row:
             cursor.execute("SELECT COUNT(*) FROM inventory WHERE user_id = ? AND LOWER(tag) = ?", (user.id, query_str))
             tag_count = cursor.fetchone()[0]
@@ -1838,6 +1986,17 @@ async def send_help_menu(ctx_or_interaction):
     )
 
     embed.add_field(
+        name="⏱️ Command Cooldowns",
+        value=(
+            "• **`!cd`** or **`/cd`** — Check your Drop (15m), Grab (5m), and Daily (24h) timers!\n"
+            "• **`🎴 Drop Cooldown`** — 15 minutes per user.\n"
+            "• **`🖐️ Grab Cooldown`** — 5 minutes per user.\n"
+            "• **`🔒 Priority Window`** — Dropper has 5 minutes of exclusive grab priority."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
         name="💎 Gems & 🧪 Dust Economy",
         value=(
             "• **`!bal`** or **`/bal`** — Check your personal Gem balance (Private!).\n"
@@ -1862,8 +2021,8 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="🎴 Card Drops & Collecting",
         value=(
-            "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards.\n"
-            "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (10s dropper priority!).\n"
+            "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards (15m CD).\n"
+            "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (5m dropper priority!).\n"
             "• **`!v`** or **`!v <id>`** or **`/card`** — View high-res card artwork.\n"
             "• **`!i`** or **`!inv`** or **`/inventory`** — Open your card binder collection."
         ),
@@ -1884,10 +2043,10 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="👑 Card Rarities & Burn Yields",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | **2% Drop Rate** | Burns to **+200 🧪 Dust**\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | **10% Drop Rate** | Burns to **+100 🧪 Dust**\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | **23% Drop Rate** | Burns to **+50 🧪 Dust**\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | **65% Drop Rate** | Burns to **+20 🧪 Dust**"
+            "• **`✨ Legendary` (Gold Frame)** — **1% Drop Rate** | Burns to **+200 🧪 Dust**\n"
+            "• **`🟣 Epic` (Purple Frame)** — **8% Drop Rate** | Burns to **+100 🧪 Dust**\n"
+            "• **`🔷 Rare` (Cyan Frame)** — **15% Drop Rate** | Burns to **+50 🧪 Dust**\n"
+            "• **`⚪ Common` (Silver Frame)** — **76% Drop Rate** | Burns to **+20 🧪 Dust**"
         ),
         inline=False
     )
@@ -1963,7 +2122,6 @@ async def coo_slash(interaction: discord.Interaction):
         await interaction.response.defer()
     except Exception:
         pass
-    msg = random.choice(PIGEON_MESSAGES)
     await interaction.followup.send(f"🐦 **Coo Coo**: {msg}")
 
 if __name__ == "__main__":
