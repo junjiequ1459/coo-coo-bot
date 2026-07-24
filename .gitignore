@@ -11,6 +11,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# SQLite temp WAL files
+*.db-wal
+*.db-shm
+
 # OS junk
 .DS_Store
 Thumbs.db
