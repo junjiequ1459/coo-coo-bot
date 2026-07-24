@@ -672,6 +672,15 @@ class CardDropView(discord.ui.View):
                     pass
 
 # ==========================================
+# 🤖 BOT DISCORD CLIENT SETUP
+# ==========================================
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
+
+# ==========================================
 # ⏱️ COOLDOWNS COMMAND
 # ==========================================
 async def process_cooldowns(ctx_or_interaction):
@@ -1187,15 +1196,6 @@ class ColorPickerView(discord.ui.View):
         super().__init__(timeout=None)
         for color in COLOR_ROLES:
             self.add_item(ColorButton(color))
-
-# ==========================================
-# 🤖 BOT DISCORD CLIENT SETUP
-# ==========================================
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 @bot.event
 async def on_ready():
