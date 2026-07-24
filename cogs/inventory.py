@@ -783,6 +783,235 @@ class InventoryCog(commands.Cog):
         else:
             await ctx_or_interaction.send(embed=embed, view=view)
 
+    async def display_single_character_lookup(self, ctx_or_interaction, char_name: str, series: str, img_url: str, rarity: str, print_num_target: int = None):
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        cursor = conn.cursor()
+
+        # If a specific print number was requested (e.g. !lu Yor Forger 1)
+        if print_num_target is not None:
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(?) AND mint_number = ?", (char_name, print_num_target))
+            inv_row = cursor.fetchone()
+            conn.close()
+
+            if not inv_row:
+                msg = f"Coo coo! ⚠️ **{char_name}** Print #{print_num_target} has not been claimed yet or is not in inventory!"
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(msg)
+                else:
+                    await ctx_or_interaction.send(msg)
+                return
+
+            cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
+            card_data = {
+                "id": cid,
+                "code": code if code else f"c{cid:04d}",
+                "character_name": cname,
+                "series_name": sname,
+                "rarity": rval,
+                "mint_number": mnum,
+                "edition": edval if edval else 1,
+                "quality": qval if qval else "Good ⭐⭐",
+                "image_url": iurl
+            }
+
+            buf = await render_single_card(card_data)
+            file = discord.File(fp=buf, filename="card.png")
+            owner = self.bot.get_user(uid)
+            owner_mention = owner.mention if owner else f"<@{uid}>"
+
+            embed = discord.Embed(
+                title=f"🎴 {char_name} · Print #{mnum}",
+                description=(
+                    f"📺 **Series:** {sname}\n"
+                    f"✨ **Rarity:** {rval}\n"
+                    f"🌟 **Quality:** {card_data['quality']}\n"
+                    f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
+                    f"👤 **Owner:** {owner_mention}"
+                ),
+                color=discord.Color.purple()
+            )
+            embed.set_image(url="attachment://card.png")
+
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(embed=embed, file=file)
+            else:
+                await ctx_or_interaction.send(embed=embed, file=file)
+            return
+
+        # Overview Mode: list all claimed prints for this character across all players!
+        cursor.execute("SELECT code, user_id, mint_number, edition, quality FROM inventory WHERE LOWER(character_name) = LOWER(?) ORDER BY mint_number ASC", (char_name,))
+        inv_rows = cursor.fetchall()
+        conn.close()
+
+        embed = discord.Embed(
+            title=f"🔍 Character Lookup: {char_name}",
+            description=(
+                f"📺 **Series:** {series}\n"
+                f"✨ **Rarity:** {rarity}\n"
+                f"📊 **Claimed in Circulation:** **{len(inv_rows)} cards**"
+            ),
+            color=discord.Color.purple()
+        )
+        embed.set_thumbnail(url=img_url)
+
+        if not inv_rows:
+            embed.add_field(
+                name="🎴 Copies in Circulation",
+                value="*No copies of this card have been claimed yet!*",
+                inline=False
+            )
+        else:
+            lines = []
+            for r in inv_rows[:10]:
+                ccode, uid, mnum, edval, qval = r
+                owner = self.bot.get_user(uid)
+                owner_disp = owner.mention if owner else f"<@{uid}>"
+                q_disp = qval if qval else "Good ⭐⭐"
+                lines.append(f"• **Print #{mnum}** (ED {edval or 1}) — `{ccode}` | {q_disp} ➔ {owner_disp}")
+            
+            embed.add_field(
+                name="🎴 Claimed Prints List",
+                value="\n".join(lines),
+                inline=False
+            )
+            if len(inv_rows) > 10:
+                embed.set_footer(text=f"Showing 10 of {len(inv_rows)} prints • Type !lu {char_name} <print_num> to view a specific card!")
+            else:
+                embed.set_footer(text=f"Type !lu {char_name} <print_num> to view a specific card!")
+
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+
+    async def process_character_lookup(self, ctx_or_interaction, query: str):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        if not query:
+            msg = "Coo coo! ⚠️ Please specify a character name or print number! e.g. `!lu Yor Forger` or `!lu Gojo 1`"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        parts = query.strip().split()
+        print_num_target = None
+        if len(parts) > 1 and parts[-1].isdigit():
+            print_num_target = int(parts[-1])
+            char_search = " ".join(parts[:-1])
+        else:
+            char_search = " ".join(parts)
+
+        paginator = CharacterSearchPaginatorView(self.bot, user, char_search, print_num_target)
+        if paginator.total_matches == 0:
+            msg = f"Coo coo! ⚠️ Character matching `{char_search}` not found in master database pool!"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        if paginator.total_matches == 1:
+            # Single exact match: display character overview directly!
+            match = paginator.current_matches[0]
+            await self.display_single_character_lookup(ctx_or_interaction, match[0], match[1], match[2], match[3], print_num_target)
+            return
+
+        # Multiple matches: render interactive paginated selection list!
+        embed = paginator.build_embed()
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=paginator)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=paginator)
+
+    @app_commands.command(name="repair", description="Repair and upgrade a card's condition using Dust (Defaults to latest card)")
+    async def repair_slash(self, interaction: discord.Interaction, code: str = None):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.process_repair_card(interaction, code)
+
+    @commands.command(name="repair")
+    async def repair_prefix(self, ctx, code: str = None):
+        await self.process_repair_card(ctx, code)
+
+    @commands.command(name="rep")
+    async def repair_prefix_rep(self, ctx, code: str = None):
+        await self.process_repair_card(ctx, code)
+
+    @commands.command(name="fix")
+    async def repair_prefix_fix(self, ctx, code: str = None):
+        await self.process_repair_card(ctx, code)
+
+    @app_commands.command(name="lu", description="Lookup character details, circulation stats, or a specific print number")
+    async def lu_slash(self, interaction: discord.Interaction, character: str, print_num: int = None):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        q = f"{character} {print_num}" if print_num else character
+        await self.process_character_lookup(interaction, q)
+
+    @commands.command(name="lu", aliases=["lookup", "klu", "klookup"])
+    async def lu_prefix(self, ctx, *, query: str = None):
+        if query and query.lower().startswith("s:"):
+            s_query = query[2:].strip()
+            await self.process_series_lookup(ctx, s_query)
+        else:
+            await self.process_character_lookup(ctx, query)
+
+    async def process_series_lookup(self, ctx_or_interaction, series_query: str):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        if not series_query:
+            msg = "Coo coo! ⚠️ Please specify a series name! e.g. `!slu SPY x FAMILY` or `!slu Bleach`"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        list_paginator = SeriesListPaginatorView(self.bot, user, series_query.strip())
+        if list_paginator.total_matches == 0:
+            msg = f"Coo coo! ⚠️ Series matching `{series_query}` not found in master database pool!"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg)
+            else:
+                await ctx_or_interaction.send(msg)
+            return
+
+        if list_paginator.total_matches == 1:
+            exact_series = list_paginator.matching_series[0]
+            await self.display_single_series_roster(ctx_or_interaction, exact_series)
+            return
+
+        embed = list_paginator.build_embed()
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=list_paginator)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=list_paginator)
+
+    async def display_single_series_roster(self, ctx_or_interaction, series_name: str):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        char_paginator = SeriesCharacterPaginatorView(self.bot, user, series_name)
+        embed = char_paginator.build_embed()
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed, view=char_paginator)
+        else:
+            await ctx_or_interaction.send(embed=embed, view=char_paginator)
+
+    @app_commands.command(name="slu", description="Lookup all characters in a specific anime series")
+    async def slu_slash(self, interaction: discord.Interaction, series: str):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.process_series_lookup(interaction, series)
+
+    @commands.command(name="slu", aliases=["serieslookup", "slookup"])
+    async def slu_prefix(self, ctx, *, series: str = None):
+        await self.process_series_lookup(ctx, series)
+
 class CharacterSearchPaginatorView(discord.ui.View):
     def __init__(self, bot, user: discord.User, search_query: str, print_num_target: int = None):
         super().__init__(timeout=180.0)
@@ -1151,239 +1380,6 @@ class SeriesCharacterPaginatorView(discord.ui.View):
         conn.close()
         embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 characters per page")
         return embed
-
-class InventoryCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-    async def display_single_character_lookup(self, ctx_or_interaction, char_name: str, series: str, img_url: str, rarity: str, print_num_target: int = None):
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
-        cursor = conn.cursor()
-
-        # If a specific print number was requested (e.g. !lu Yor Forger 1)
-        if print_num_target is not None:
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(?) AND mint_number = ?", (char_name, print_num_target))
-            inv_row = cursor.fetchone()
-            conn.close()
-
-            if not inv_row:
-                msg = f"Coo coo! ⚠️ **{char_name}** Print #{print_num_target} has not been claimed yet or is not in inventory!"
-                if isinstance(ctx_or_interaction, discord.Interaction):
-                    await ctx_or_interaction.followup.send(msg)
-                else:
-                    await ctx_or_interaction.send(msg)
-                return
-
-            cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
-            card_data = {
-                "id": cid,
-                "code": code if code else f"c{cid:04d}",
-                "character_name": cname,
-                "series_name": sname,
-                "rarity": rval,
-                "mint_number": mnum,
-                "edition": edval if edval else 1,
-                "quality": qval if qval else "Good ⭐⭐",
-                "image_url": iurl
-            }
-
-            buf = await render_single_card(card_data)
-            file = discord.File(fp=buf, filename="card.png")
-            owner = self.bot.get_user(uid)
-            owner_mention = owner.mention if owner else f"<@{uid}>"
-
-            embed = discord.Embed(
-                title=f"🎴 {char_name} · Print #{mnum}",
-                description=(
-                    f"📺 **Series:** {sname}\n"
-                    f"✨ **Rarity:** {rval}\n"
-                    f"🌟 **Quality:** {card_data['quality']}\n"
-                    f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
-                    f"👤 **Owner:** {owner_mention}"
-                ),
-                color=discord.Color.purple()
-            )
-            embed.set_image(url="attachment://card.png")
-
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(embed=embed, file=file)
-            else:
-                await ctx_or_interaction.send(embed=embed, file=file)
-            return
-
-        # Overview Mode: list all claimed prints for this character across all players!
-        cursor.execute("SELECT code, user_id, mint_number, edition, quality FROM inventory WHERE LOWER(character_name) = LOWER(?) ORDER BY mint_number ASC", (char_name,))
-        inv_rows = cursor.fetchall()
-        conn.close()
-
-        embed = discord.Embed(
-            title=f"🔍 Character Lookup: {char_name}",
-            description=(
-                f"📺 **Series:** {series}\n"
-                f"✨ **Rarity:** {rarity}\n"
-                f"📊 **Claimed in Circulation:** **{len(inv_rows)} cards**"
-            ),
-            color=discord.Color.purple()
-        )
-        embed.set_thumbnail(url=img_url)
-
-        if not inv_rows:
-            embed.add_field(
-                name="🎴 Copies in Circulation",
-                value="*No copies of this card have been claimed yet!*",
-                inline=False
-            )
-        else:
-            lines = []
-            for r in inv_rows[:10]:
-                ccode, uid, mnum, edval, qval = r
-                owner = self.bot.get_user(uid)
-                owner_disp = owner.mention if owner else f"<@{uid}>"
-                q_disp = qval if qval else "Good ⭐⭐"
-                lines.append(f"• **Print #{mnum}** (ED {edval or 1}) — `{ccode}` | {q_disp} ➔ {owner_disp}")
-            
-            embed.add_field(
-                name="🎴 Claimed Prints List",
-                value="\n".join(lines),
-                inline=False
-            )
-            if len(inv_rows) > 10:
-                embed.set_footer(text=f"Showing 10 of {len(inv_rows)} prints • Type !lu {char_name} <print_num> to view a specific card!")
-            else:
-                embed.set_footer(text=f"Type !lu {char_name} <print_num> to view a specific card!")
-
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed)
-        else:
-            await ctx_or_interaction.send(embed=embed)
-
-    async def process_character_lookup(self, ctx_or_interaction, query: str):
-        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-        if not query:
-            msg = "Coo coo! ⚠️ Please specify a character name or print number! e.g. `!lu Yor Forger` or `!lu Gojo 1`"
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
-            else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        parts = query.strip().split()
-        print_num_target = None
-        if len(parts) > 1 and parts[-1].isdigit():
-            print_num_target = int(parts[-1])
-            char_search = " ".join(parts[:-1])
-        else:
-            char_search = " ".join(parts)
-
-        paginator = CharacterSearchPaginatorView(self.bot, user, char_search, print_num_target)
-        if paginator.total_matches == 0:
-            msg = f"Coo coo! ⚠️ Character matching `{char_search}` not found in master database pool!"
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
-            else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        if paginator.total_matches == 1:
-            # Single exact match: display character overview directly!
-            match = paginator.current_matches[0]
-            await self.display_single_character_lookup(ctx_or_interaction, match[0], match[1], match[2], match[3], print_num_target)
-            return
-
-        # Multiple matches: render interactive paginated selection list!
-        embed = paginator.build_embed()
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed, view=paginator)
-        else:
-            await ctx_or_interaction.send(embed=embed, view=paginator)
-
-    @app_commands.command(name="repair", description="Repair and upgrade a card's condition using Dust (Defaults to latest card)")
-    async def repair_slash(self, interaction: discord.Interaction, code: str = None):
-        try:
-            await interaction.response.defer()
-        except Exception:
-            pass
-        await self.process_repair_card(interaction, code)
-
-    @commands.command(name="repair")
-    async def repair_prefix(self, ctx, code: str = None):
-        await self.process_repair_card(ctx, code)
-
-    @commands.command(name="rep")
-    async def repair_prefix_rep(self, ctx, code: str = None):
-        await self.process_repair_card(ctx, code)
-
-    @commands.command(name="fix")
-    async def repair_prefix_fix(self, ctx, code: str = None):
-        await self.process_repair_card(ctx, code)
-
-    @app_commands.command(name="lu", description="Lookup character details, circulation stats, or a specific print number")
-    async def lu_slash(self, interaction: discord.Interaction, character: str, print_num: int = None):
-        try:
-            await interaction.response.defer()
-        except Exception:
-            pass
-        q = f"{character} {print_num}" if print_num else character
-        await self.process_character_lookup(interaction, q)
-
-    @commands.command(name="lu", aliases=["lookup", "klu", "klookup"])
-    async def lu_prefix(self, ctx, *, query: str = None):
-        if query and query.lower().startswith("s:"):
-            s_query = query[2:].strip()
-            await self.process_series_lookup(ctx, s_query)
-        else:
-            await self.process_character_lookup(ctx, query)
-
-    async def process_series_lookup(self, ctx_or_interaction, series_query: str):
-        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-        if not series_query:
-            msg = "Coo coo! ⚠️ Please specify a series name! e.g. `!slu SPY x FAMILY` or `!slu Bleach`"
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
-            else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        list_paginator = SeriesListPaginatorView(self.bot, user, series_query.strip())
-        if list_paginator.total_matches == 0:
-            msg = f"Coo coo! ⚠️ Series matching `{series_query}` not found in master database pool!"
-            if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.followup.send(msg)
-            else:
-                await ctx_or_interaction.send(msg)
-            return
-
-        if list_paginator.total_matches == 1:
-            exact_series = list_paginator.matching_series[0]
-            await self.display_single_series_roster(ctx_or_interaction, exact_series)
-            return
-
-        embed = list_paginator.build_embed()
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed, view=list_paginator)
-        else:
-            await ctx_or_interaction.send(embed=embed, view=list_paginator)
-
-    async def display_single_series_roster(self, ctx_or_interaction, series_name: str):
-        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-        char_paginator = SeriesCharacterPaginatorView(self.bot, user, series_name)
-        embed = char_paginator.build_embed()
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed, view=char_paginator)
-        else:
-            await ctx_or_interaction.send(embed=embed, view=char_paginator)
-
-    @app_commands.command(name="slu", description="Lookup all characters in a specific anime series")
-    async def slu_slash(self, interaction: discord.Interaction, series: str):
-        try:
-            await interaction.response.defer()
-        except Exception:
-            pass
-        await self.process_series_lookup(interaction, series)
-
-    @commands.command(name="slu", aliases=["serieslookup", "slookup"])
-    async def slu_prefix(self, ctx, *, series: str = None):
-        await self.process_series_lookup(ctx, series)
 
 async def setup(bot):
     await bot.add_cog(InventoryCog(bot))
