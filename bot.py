@@ -165,23 +165,28 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
+        # 1. Outer Dark Frame & Inner Inset Line
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
         draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
+        # 2. Paste Resized Image
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 68
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
+        # 3. Top-Left Badge
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
         draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
+        # 4. Bottom Info Box
         box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
+        # Left Text (Short Edition & ID)
         draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
         draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
 
@@ -714,112 +719,6 @@ class TradeSession:
         if self.channel.id in ACTIVE_TRADES:
             del ACTIVE_TRADES[self.channel.id]
 
-# ==========================================
-# 📖 COMPREHENSIVE HELP EMBED SYSTEM
-# ==========================================
-async def send_help_menu(ctx_or_interaction):
-    embed = discord.Embed(
-        title="🐦 Coo Coo Bot — Official Command & Rule Guide",
-        description="Welcome to Coo Coo! Below is a complete list of commands, shortcuts, and card mechanics.",
-        color=discord.Color.gold()
-    )
-
-    embed.add_field(
-        name="🎴 Card Drops & Collecting",
-        value=(
-            "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards.\n"
-            "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (10s dropper priority!).\n"
-            "• **`!v`** or **`!v <id>`** or **`/card`** — View high-res card artwork.\n"
-            "• **`!i`** or **`!inv`** or **`/inventory`** — Open your card binder collection."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="🤝 Card Trading",
-        value=(
-            "• **`!t @user`** or **`!trade @user`** or **`/trade`** — Start a trade.\n"
-            "• **`!ta <id>`** — Add a card from your inventory to trade.\n"
-            "• **`!tr <id>`** — Remove a card from your active trade offer.\n"
-            "• **Buttons (`➕` `➖` `✅` `❌`)** — Manage trade & confirm."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="👑 Card Rarities (Based on AniList Popularity)",
-        value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12,000+ AniList favorites\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4,000 to 12,000 AniList favorites\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1,000 to 4,000 AniList favorites\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1,000 AniList favorites"
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="🎨 Server Utilities & Pigeon Wisdom",
-        value=(
-            "• **`!setup-colors`** or **`/setup-colors`** — Custom name color menu.\n"
-            "• **`!coo`** or **`/coo`** — Pigeon wisdom from NYC sidewalk!"
-        ),
-        inline=False
-    )
-
-    embed.set_footer(text="Coo Coo Bot • Anime Card Engine")
-
-    if isinstance(ctx_or_interaction, discord.Interaction):
-        await ctx_or_interaction.followup.send(embed=embed)
-    else:
-        await ctx_or_interaction.send(embed=embed)
-
-@bot.tree.command(name="help", description="Displays Coo Coo's official command and rules guide")
-async def help_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    await send_help_menu(interaction)
-
-@bot.command(name="help")
-async def help_prefix(ctx):
-    await send_help_menu(ctx)
-
-@bot.command(name="h")
-async def help_prefix_h(ctx):
-    await send_help_menu(ctx)
-
-# ==========================================
-# 🎨 COLOR ROLES CONFIGURATION
-# ==========================================
-COLOR_ROLES = [
-    {"name": "Cherry Pink", "emoji": "🩷", "hex": 0xFFB6C1},
-    {"name": "Lavender", "emoji": "💜", "hex": 0x9370DB},
-    {"name": "Sunset Red", "emoji": "🔴", "hex": 0xE60023},
-    {"name": "Mint Green", "emoji": "💚", "hex": 0x98FF98},
-    {"name": "Sky Blue", "emoji": "🩵", "hex": 0x87CEEB},
-    {"name": "Lemon Yellow", "emoji": "💛", "hex": 0xFFFACD},
-    {"name": "Peach Coral", "emoji": "🧡", "hex": 0xFF7F50},
-    {"name": "Royal Blue", "emoji": "💙", "hex": 0x007AFF},
-    {"name": "Pure White", "emoji": "🤍", "hex": 0xFFFFFF},
-    {"name": "Midnight", "emoji": "🖤", "hex": 0x36393F},
-]
-
-PIGEON_MESSAGES = [
-    "Coo coo! 🍞 Don't let a bad sketch ruin your day. Even a dropped bagel on 5th Ave gets a second chance!",
-    "Coo coo! 🎨 You don't need perfection, you just need to start. Look at me — I can't read the room, but I still show up!",
-    "Coo coo! 🍟 If someone tells you your goals are too big, tell them you're just aerodynamically blessed like me!",
-    "Coo coo! 🗽 Life is tough, but so is NYC sidewalk pizza. Keep chewing and keep creating!",
-    "Coo coo! 🌾 Take a break, stretch your wrist, and drink water. You can't draw masterpieces on an empty stomach!",
-    "Coo coo! 👔 Wear your bowtie with confidence, even when you're just hunting for breadcrumbs!",
-    "Coo coo! ✨ Art block is temporary, but your talent is forever. Go make something cool!",
-    "Coo coo! 🥯 They said I couldn't fly over the park bench because I was too fat. I waddled instead. Adapt and conquer!",
-    "Coo coo! 💅 Never be afraid to third-wheel your own success!",
-    "Coo coo! 🎨 Yuki told me every artist starts with a rough draft. Mine was a pretzel stain on the sidewalk!",
-    "Coo coo! 🌟 Ratan told me to reach for the stars. I reached for a French fry instead, but the energy is the same!",
-    "Coo coo! 🍕 Keep pushing forward! Every line you draw brings you closer to your dream!"
-]
-
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
         super().__init__(
@@ -883,7 +782,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 @bot.event
 async def on_ready():
@@ -1215,6 +1114,81 @@ async def trade_remove_prefix(ctx, code: str):
         await ctx.send("Coo coo! ⚠️ You are not part of the active trade in this channel!")
         return
     await session.remove_card(ctx, code)
+
+# ==========================================
+# 📖 COMPREHENSIVE HELP EMBED SYSTEM
+# ==========================================
+async def send_help_menu(ctx_or_interaction):
+    embed = discord.Embed(
+        title="🐦 Coo Coo Bot — Official Command & Rule Guide",
+        description="Welcome to Coo Coo! Below is a complete list of commands, shortcuts, and card mechanics.",
+        color=discord.Color.gold()
+    )
+
+    embed.add_field(
+        name="🎴 Card Drops & Collecting",
+        value=(
+            "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards.\n"
+            "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (10s dropper priority!).\n"
+            "• **`!v`** or **`!v <id>`** or **`/card`** — View high-res card artwork.\n"
+            "• **`!i`** or **`!inv`** or **`/inventory`** — Open your card binder collection."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🤝 Card Trading",
+        value=(
+            "• **`!t @user`** or **`!trade @user`** or **`/trade`** — Start a trade.\n"
+            "• **`!ta <id>`** — Add a card from your inventory to trade.\n"
+            "• **`!tr <id>`** — Remove a card from your active trade offer.\n"
+            "• **Buttons (`➕` `➖` `✅` `❌`)** — Manage trade & confirm."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="👑 Card Rarities (Based on AniList Popularity)",
+        value=(
+            "• **`✨ Legendary` (Gold Frame)** — 12,000+ AniList favorites\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4,000 to 12,000 AniList favorites\n"
+            "• **`🔷 Rare` (Cyan Frame)** — 1,000 to 4,000 AniList favorites\n"
+            "• **`⚪ Common` (Silver Frame)** — Under 1,000 AniList favorites"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🎨 Server Utilities & Pigeon Wisdom",
+        value=(
+            "• **`!setup-colors`** or **`/setup-colors`** — Custom name color menu.\n"
+            "• **`!coo`** or **`/coo`** — Pigeon wisdom from NYC sidewalk!"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Coo Coo Bot • Anime Card Engine")
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="help", description="Displays Coo Coo's official command and rules guide")
+async def help_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await send_help_menu(interaction)
+
+@bot.command(name="help")
+async def help_prefix(ctx):
+    await send_help_menu(ctx)
+
+@bot.command(name="h")
+async def help_prefix_h(ctx):
+    await send_help_menu(ctx)
 
 # ==========================================
 # 🎨 OTHER COMMANDS
