@@ -84,7 +84,8 @@ class CardGrabButton(discord.ui.Button):
             rarity=self.card_info["rarity"],
             mint_number=self.card_info["temp_mint"],
             edition=1,
-            quality=q_val
+            quality=q_val,
+            dropped_by=view.dropper_id
         )
 
         embed = discord.Embed(

@@ -41,6 +41,10 @@ def init_db():
     if "quality" not in inv_columns:
         cursor.execute("ALTER TABLE inventory ADD COLUMN quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐'")
         cursor.execute("UPDATE inventory SET quality = 'Mint ⭐⭐⭐⭐'")
+    if "dropped_by" not in inv_columns:
+        cursor.execute("ALTER TABLE inventory ADD COLUMN dropped_by INTEGER DEFAULT NULL")
+        # For existing cards, assume the current owner is who dropped it
+        cursor.execute("UPDATE inventory SET dropped_by = user_id WHERE dropped_by IS NULL")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
@@ -206,14 +210,15 @@ def get_next_mint(character_name: str, edition: int = 1) -> int:
     conn.close()
     return next_mint
 
-def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = None) -> int:
+def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = None, dropped_by: int = None) -> int:
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     q_final = quality if quality else "Mint ⭐⭐⭐⭐"
+    dropper = dropped_by if dropped_by else user_id
     cursor.execute("""
-    INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, q_final))
+    INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality, dropped_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, q_final, dropper))
     inserted_id = cursor.lastrowid
     conn.commit()
     conn.close()

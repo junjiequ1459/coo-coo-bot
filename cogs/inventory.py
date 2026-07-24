@@ -115,11 +115,11 @@ class InventoryCog(commands.Cog):
             cursor = conn.cursor()
 
             if not card_code_query:
-                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at, dropped_by FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
                 row = cursor.fetchone()
             else:
                 query_str = card_code_query.lower().strip()
-                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE (code = ? OR id = ?)", (query_str, query_str))
+                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at, dropped_by FROM inventory WHERE (code = ? OR id = ?)", (query_str, query_str))
                 row = cursor.fetchone()
 
                 if not row:
@@ -143,11 +143,13 @@ class InventoryCog(commands.Cog):
                     await ctx_or_interaction.send(msg)
                 return
 
-            cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val, grabbed_at = row
+            cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val, grabbed_at, dropped_by_id = row
             conn.close()
 
             owner = self.bot.get_user(uid)
             owner_name = owner.mention if owner else f"<@{uid}>"
+            dropper = self.bot.get_user(dropped_by_id) if dropped_by_id else None
+            dropper_name = dropper.mention if dropper else (f"<@{dropped_by_id}>" if dropped_by_id else owner_name)
             ed_val = edition if edition else 1
             code_str = code if code else f"c{cid:04d}"
             q_disp = (q_val or "Good ⭐⭐").strip()
@@ -174,6 +176,7 @@ class InventoryCog(commands.Cog):
                 description=(
                     f"📺 **Series:** {series}\n"
                     f"🌟 **Quality:** {q_disp}\n"
+                    f"🎴 **Dropped by:** {dropper_name}\n"
                     f"👤 **Owner:** {owner_name}\n"
                     f"{tag_disp}"
                     f"📅 **Grabbed:** {grabbed_at}"
