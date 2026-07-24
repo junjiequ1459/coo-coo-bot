@@ -183,7 +183,7 @@ class InventoryCog(commands.Cog):
             row = cursor.fetchone()
         else:
             query_str = card_code_query.lower().strip()
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user.id))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE (code = ? OR id = ?)", (query_str, query_str))
             row = cursor.fetchone()
 
             if not row:
@@ -199,7 +199,7 @@ class InventoryCog(commands.Cog):
             if not card_code_query:
                 msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet! Type `/drop` to grab your first card!"
             else:
-                msg = f"Coo coo! ⚠️ Card ID or Tag `{card_code_query}` not found in your inventory!"
+                msg = f"Coo coo! ⚠️ Card ID or Tag `{card_code_query}` not found!"
                 
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg)
@@ -211,7 +211,7 @@ class InventoryCog(commands.Cog):
         conn.close()
 
         owner = self.bot.get_user(uid)
-        owner_name = owner.display_name if owner else f"User {uid}"
+        owner_name = owner.mention if owner else f"<@{uid}>"
         ed_val = edition if edition else 1
         code_str = code if code else f"c{cid:04d}"
         q_disp = q_val if q_val else "Good ⭐⭐"
