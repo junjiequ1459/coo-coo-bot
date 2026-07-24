@@ -129,7 +129,8 @@ class UtilitiesCog(commands.Cog):
                 "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards (15m CD).\n"
                 "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (30s dropper priority!).\n"
                 "• **`!v`** or **`!v <id>`** or **`/card`** — View high-res card artwork.\n"
-                "• **`!i`** or **`!inv`** or **`/inventory`** — Open your card binder collection."
+                "• **`!c`** or **`!collection`** or **`/collection`** — Open your Anime Cards binder collection.\n"
+                "• **`!i`** or **`!inventory`** or **`/inventory`** — Check your items, tickets, gems & bag."
             ),
             inline=False
         )

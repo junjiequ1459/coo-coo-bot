@@ -1,3 +1,4 @@
+import time
 import sqlite3
 import discord
 from discord.ext import commands
@@ -5,7 +6,9 @@ from discord import app_commands
 from config import DB_PATH, BURN_REWARDS
 from database import (
     get_user_inventory, get_card_by_code_and_owner, update_card_tag,
-    delete_card_from_inventory, get_user_dust, add_user_dust
+    delete_card_from_inventory, get_user_dust, add_user_dust,
+    get_user_gems, get_user_drop_tickets, get_user_grab_tickets,
+    is_user_premium, get_user_premium_until
 )
 from utils.renderer import render_single_card
 
@@ -358,26 +361,89 @@ class InventoryCog(commands.Cog):
             else:
                 await ctx_or_interaction.send(msg)
 
-    # --- COMMAND HANDLERS ---
-    @app_commands.command(name="inventory", description="View your collected Anime Cards (Optional tag filter)")
-    async def inventory_slash(self, interaction: discord.Interaction, tag: str = None):
+    async def process_items_inventory(self, ctx_or_interaction):
+        user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+        gems = get_user_gems(user.id)
+        dust = get_user_dust(user.id)
+        drop_t = get_user_drop_tickets(user.id)
+        grab_t = get_user_grab_tickets(user.id)
+        now_ts = int(time.time())
+
+        if is_user_premium(user.id):
+            prem_until = get_user_premium_until(user.id)
+            rem_days = max(1, (prem_until - now_ts) // 86400)
+            prem_text = f"👑 **PREMIUM ACTIVE** ({rem_days} days left — 7.5m Drop / 2.5m Grab CD!)"
+        else:
+            prem_text = "⚪ Standard Member (15m Drop / 5m Grab CD)"
+
+        embed = discord.Embed(
+            title=f"🎒 {user.display_name}'s Inventory & Bag",
+            description=f"Below are all the items and currencies currently in your bag:",
+            color=discord.Color.gold()
+        )
+
+        embed.add_field(name="💎 Gems Balance", value=f"**{gems:,} Gems 💎**", inline=True)
+        embed.add_field(name="🧪 Dust Flask", value=f"**{dust:,} Dust 🧪**", inline=True)
+        embed.add_field(name="🎟️ Drop Tickets", value=f"**{drop_t} Ticket(s) 🎟️**", inline=True)
+        embed.add_field(name="🖐️ Grab Tickets", value=f"**{grab_t} Ticket(s) 🖐️**", inline=True)
+        embed.add_field(name="👤 Membership Status", value=prem_text, inline=False)
+
+        embed.set_footer(text="Type /collection or !c to view your Anime Cards binder!")
+
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+
+    # --- CARDS COLLECTION COMMANDS ---
+    @app_commands.command(name="collection", description="View your collected Anime Cards binder (Optional tag filter)")
+    async def collection_slash(self, interaction: discord.Interaction, tag: str = None):
         try:
             await interaction.response.defer()
         except Exception:
             pass
         await self.process_inventory(interaction, tag)
 
-    @commands.command(name="inventory")
-    async def inventory_prefix(self, ctx, *, tag: str = None):
+    @commands.command(name="collection")
+    async def collection_prefix(self, ctx, *, tag: str = None):
         await self.process_inventory(ctx, tag)
 
-    @commands.command(name="i")
-    async def inventory_prefix_i(self, ctx, *, tag: str = None):
+    @commands.command(name="c")
+    async def collection_prefix_c(self, ctx, *, tag: str = None):
         await self.process_inventory(ctx, tag)
+
+    @commands.command(name="binder")
+    async def collection_prefix_binder(self, ctx, *, tag: str = None):
+        await self.process_inventory(ctx, tag)
+
+    @commands.command(name="col")
+    async def collection_prefix_col(self, ctx, *, tag: str = None):
+        await self.process_inventory(ctx, tag)
+
+    # --- ITEMS INVENTORY COMMANDS ---
+    @app_commands.command(name="inventory", description="View your items, gems, drop/grab tickets, and membership status")
+    async def inventory_slash(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.process_items_inventory(interaction)
+
+    @commands.command(name="inventory")
+    async def inventory_prefix(self, ctx):
+        await self.process_items_inventory(ctx)
 
     @commands.command(name="inv")
-    async def inventory_prefix_inv(self, ctx, *, tag: str = None):
-        await self.process_inventory(ctx, tag)
+    async def inventory_prefix_inv(self, ctx):
+        await self.process_items_inventory(ctx)
+
+    @commands.command(name="i")
+    async def inventory_prefix_i(self, ctx):
+        await self.process_items_inventory(ctx)
+
+    @commands.command(name="items")
+    async def inventory_prefix_items(self, ctx):
+        await self.process_items_inventory(ctx)
 
     @app_commands.command(name="card", description="View full details and artwork of a card (Defaults to your latest card)")
     async def card_slash(self, interaction: discord.Interaction, code: str = None):
