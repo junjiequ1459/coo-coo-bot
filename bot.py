@@ -1419,6 +1419,18 @@ async def untag_slash(interaction: discord.Interaction, code: str):
 async def untag_prefix(ctx, code: str):
     await process_untag_card(ctx, code)
 
+@bot.tree.command(name="vt", description="View all cards in a specific tag folder")
+async def vt_slash(interaction: discord.Interaction, tag: str):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_inventory(interaction, tag)
+
+@bot.command(name="vt")
+async def view_tag_prefix_vt(ctx, *, tag: str):
+    await process_inventory(ctx, tag)
+
 # ==========================================
 # 🎴 ANILIST CARD DROP & INVENTORY COMMANDS
 # ==========================================
@@ -1764,7 +1776,7 @@ async def send_help_menu(ctx_or_interaction):
             "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
             "• **`!tag <id> <name>`** or **`/tag`** — Assign a folder tag to a card.\n"
             "• **`!untag <id>`** or **`/untag`** — Remove a tag from a card.\n"
-            "• **`!inv <tag>`** or **`!v <tag>`** — View cards in a specific tag folder!"
+            "• **`!vt <tag>`** or **`!inv <tag>`** — View all cards in a specific tag folder!"
         ),
         inline=False
     )
