@@ -396,10 +396,6 @@ class TradeCog(commands.Cog):
     async def trade_prefix(self, ctx, partner: discord.User):
         await self.start_trade_session(ctx, partner)
 
-    @commands.command(name="t")
-    async def trade_prefix_shortcut(self, ctx, partner: discord.User):
-        await self.start_trade_session(ctx, partner)
-
     @commands.command(name="ta")
     async def trade_add_prefix(self, ctx, code_or_gems: str):
         if ctx.channel.id not in ACTIVE_TRADES:

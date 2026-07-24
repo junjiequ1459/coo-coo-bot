@@ -449,6 +449,10 @@ class CardActionsCog(commands.Cog):
     async def tag_prefix(self, ctx, arg1: str = None, *, arg2: str = None):
         await self.process_tag_card(ctx, arg1, arg2)
 
+    @commands.command(name="t")
+    async def tag_prefix_t(self, ctx, arg1: str = None, *, arg2: str = None):
+        await self.process_tag_card(ctx, arg1, arg2)
+
     @app_commands.command(name="untag", description="Remove a folder tag from a card (Defaults to latest card)")
     async def untag_slash(self, interaction: discord.Interaction, code: str = None):
         try:
