@@ -11,7 +11,7 @@ import time
 import string
 import io
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 load_dotenv()
@@ -25,7 +25,7 @@ def generate_card_code() -> str:
     return "".join(random.choices(chars, k=6))
 
 # ==========================================
-# 🗄️ SQLITE DATABASE INITIALIZATION
+# 🗄️ SQLITE DATABASE INITIALIZATION & ECONOMY
 # ==========================================
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -59,11 +59,82 @@ def init_db():
         current_mint INTEGER NOT NULL
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        gems INTEGER DEFAULT 100,
+        last_daily INTEGER DEFAULT 0
+    )
+    """)
     
     conn.commit()
     conn.close()
 
 init_db()
+
+def get_user_gems(user_id: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute("INSERT INTO users (user_id, gems) VALUES (?, 100)", (user_id,))
+        conn.commit()
+        gems = 100
+    else:
+        gems = row[0]
+    conn.close()
+    return gems
+
+def add_user_gems(user_id: int, amount: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        new_gems = 100 + amount
+        cursor.execute("INSERT INTO users (user_id, gems) VALUES (?, ?)", (user_id, new_gems))
+    else:
+        new_gems = row[0] + amount
+        cursor.execute("UPDATE users SET gems = ? WHERE user_id = ?", (new_gems, user_id))
+    conn.commit()
+    conn.close()
+    return new_gems
+
+def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
+    if amount <= 0:
+        return False
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT gems FROM users WHERE user_id = ?", (from_user_id,))
+        row1 = cursor.fetchone()
+        from_gems = row1[0] if row1 else 0
+
+        if from_gems < amount:
+            conn.close()
+            return False
+
+        # Deduct
+        cursor.execute("UPDATE users SET gems = gems - ? WHERE user_id = ?", (amount, from_user_id))
+
+        # Credit
+        cursor.execute("SELECT gems FROM users WHERE user_id = ?", (to_user_id,))
+        row2 = cursor.fetchone()
+        if not row2:
+            cursor.execute("INSERT INTO users (user_id, gems) VALUES (?, ?)", (to_user_id, 100 + amount))
+        else:
+            cursor.execute("UPDATE users SET gems = gems + ? WHERE user_id = ?", (amount, to_user_id))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error transferring gems: {e}")
+        conn.rollback()
+        conn.close()
+        return False
 
 def get_next_mint(character_name: str) -> int:
     conn = sqlite3.connect(DB_PATH)
@@ -135,6 +206,13 @@ RARITY_COLORS = {
     "⚪ Common": (140, 155, 170)    # Slate Silver
 }
 
+RARITY_GEM_REWARDS = {
+    "✨ Legendary": 100,
+    "🟣 Epic": 50,
+    "🔷 Rare": 25,
+    "⚪ Common": 10
+}
+
 async def fetch_image(session, url):
     try:
         async with session.get(url, timeout=8) as resp:
@@ -165,28 +243,23 @@ async def render_three_cards_composite(cards: list) -> io.BytesIO:
         y = padding_y
         rc = RARITY_COLORS.get(card["rarity"], (140, 155, 170))
         
-        # 1. Outer Dark Frame & Inner Inset Line
         draw.rectangle([x, y, x + card_w, y + card_h], fill=(28, 30, 34, 255), outline=(60, 65, 75), width=2)
         draw.rectangle([x + 4, y + 4, x + card_w - 4, y + card_h - 4], outline=rc, width=2)
         
-        # 2. Paste Resized Image
         raw_img = raw_images[idx]
         img_w, img_h = card_w - 14, card_h - 68
         resized_img = raw_img.resize((img_w, img_h), Image.Resampling.LANCZOS)
         canvas.paste(resized_img, (x + 7, y + 7))
         
-        # 3. Top-Left Badge
         badge_poly = [(x + 4, y + 4), (x + 38, y + 4), (x + 44, y + 16), (x + 38, y + 34), (x + 4, y + 34)]
         draw.polygon(badge_poly, fill=(15, 16, 18), outline=rc)
         draw.text((x + 16, y + 10), str(idx + 1), fill=(255, 255, 255))
         
-        # 4. Bottom Info Box
         box_y1 = y + card_h - 60
         box_y2 = y + card_h - 6
         draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
         draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
         
-        # Left Text (Short Edition & ID)
         draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
         draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
 
@@ -326,37 +399,6 @@ async def fetch_random_anilist_cards(count: int = 3):
     return cards
 
 # ==========================================
-# 🎨 COLOR ROLES CONFIGURATION
-# ==========================================
-COLOR_ROLES = [
-    {"name": "Cherry Pink", "emoji": "🩷", "hex": 0xFFB6C1},
-    {"name": "Lavender", "emoji": "💜", "hex": 0x9370DB},
-    {"name": "Sunset Red", "emoji": "🔴", "hex": 0xE60023},
-    {"name": "Mint Green", "emoji": "💚", "hex": 0x98FF98},
-    {"name": "Sky Blue", "emoji": "🩵", "hex": 0x87CEEB},
-    {"name": "Lemon Yellow", "emoji": "💛", "hex": 0xFFFACD},
-    {"name": "Peach Coral", "emoji": "🧡", "hex": 0xFF7F50},
-    {"name": "Royal Blue", "emoji": "💙", "hex": 0x007AFF},
-    {"name": "Pure White", "emoji": "🤍", "hex": 0xFFFFFF},
-    {"name": "Midnight", "emoji": "🖤", "hex": 0x36393F},
-]
-
-PIGEON_MESSAGES = [
-    "Coo coo! 🍞 Don't let a bad sketch ruin your day. Even a dropped bagel on 5th Ave gets a second chance!",
-    "Coo coo! 🎨 You don't need perfection, you just need to start. Look at me — I can't read the room, but I still show up!",
-    "Coo coo! 🍟 If someone tells you your goals are too big, tell them you're just aerodynamically blessed like me!",
-    "Coo coo! 🗽 Life is tough, but so is NYC sidewalk pizza. Keep chewing and keep creating!",
-    "Coo coo! 🌾 Take a break, stretch your wrist, and drink water. You can't draw masterpieces on an empty stomach!",
-    "Coo coo! 👔 Wear your bowtie with confidence, even when you're just hunting for breadcrumbs!",
-    "Coo coo! ✨ Art block is temporary, but your talent is forever. Go make something cool!",
-    "Coo coo! 🥯 They said I couldn't fly over the park bench because I was too fat. I waddled instead. Adapt and conquer!",
-    "Coo coo! 💅 Never be afraid to third-wheel your own success!",
-    "Coo coo! 🎨 Yuki told me every artist starts with a rough draft. Mine was a pretzel stain on the sidewalk!",
-    "Coo coo! 🌟 Ratan told me to reach for the stars. I reached for a French fry instead, but the energy is the same!",
-    "Coo coo! 🍕 Keep pushing forward! Every line you draw brings you closer to your dream!"
-]
-
-# ==========================================
 # 🎴 CARD DROP BUTTON UI
 # ==========================================
 class CardGrabButton(discord.ui.Button):
@@ -404,19 +446,23 @@ class CardGrabButton(discord.ui.Button):
             edition=1
         )
 
+        gem_reward = RARITY_GEM_REWARDS.get(self.card_info["rarity"], 10)
+        new_total = add_user_gems(interaction.user.id, gem_reward)
+
         embed = discord.Embed(
             title=f"🎉 Claimed: {self.card_info['name']}",
             description=(
                 f"👤 **Claimed by:** {interaction.user.mention}\n"
                 f"📺 **Series:** {self.card_info['series']}\n"
-                f"🆔 **Card ID:** `{self.card_info['code']}`"
+                f"🆔 **Card ID:** `{self.card_info['code']}`\n"
+                f"💎 **Bonus Earned:** +{gem_reward} Gems! *(Total: {new_total:,} 💎)*"
             ),
             color=discord.Color.gold()
         )
 
         await interaction.response.edit_message(embeds=[embed], view=view)
         await interaction.followup.send(
-            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']}**)! `Card ID: {self.card_info['code']}`"
+            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']}**) and earned **+{gem_reward} 💎 Gems**! `Card ID: {self.card_info['code']}`"
         )
 
 class CardDropView(discord.ui.View):
@@ -443,16 +489,16 @@ class CardDropView(discord.ui.View):
                     pass
 
 # ==========================================
-# 🔄 KARUTA-STYLE TRADING ENGINE
+# 🔄 KARUTA-STYLE TRADING ENGINE WITH GEMS
 # ==========================================
 ACTIVE_TRADES = {}  # {channel_id: TradeSession}
 
-class AddCardModal(discord.ui.Modal, title="Add Card to Trade"):
-    card_code_input = discord.ui.TextInput(
-        label="Card ID",
-        placeholder="Enter 6-character Card ID (e.g. 136hma)",
-        min_length=3,
-        max_length=10,
+class AddCardModal(discord.ui.Modal, title="Offer Card or Gems"):
+    input_val = discord.ui.TextInput(
+        label="Card ID or Gems Amount",
+        placeholder="Enter 6-char Card ID (e.g. 136hma) OR Gems (e.g. 250g or 250gems)",
+        min_length=1,
+        max_length=15,
         required=True
     )
 
@@ -461,14 +507,21 @@ class AddCardModal(discord.ui.Modal, title="Add Card to Trade"):
         self.trade_session = trade_session
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self.trade_session.add_card(interaction, self.card_code_input.value.strip())
+        val = self.input_val.value.strip().lower()
+        if val.endswith("g") or val.endswith("gems") or val.isdigit():
+            clean_num = val.rstrip("gems").rstrip("g").strip()
+            if clean_num.isdigit():
+                amt = int(clean_num)
+                await self.trade_session.set_gems(interaction, amt)
+                return
+        await self.trade_session.add_card(interaction, self.input_val.value.strip())
 
-class RemoveCardModal(discord.ui.Modal, title="Remove Card from Trade"):
-    card_code_input = discord.ui.TextInput(
-        label="Card ID to Remove",
-        placeholder="Enter Card ID currently in trade (e.g. 136hma)",
-        min_length=3,
-        max_length=10,
+class RemoveCardModal(discord.ui.Modal, title="Remove Card or Reset Gems"):
+    input_val = discord.ui.TextInput(
+        label="Card ID to Remove (or 'gems' to reset gems)",
+        placeholder="Enter Card ID currently in trade or type 'gems'",
+        min_length=1,
+        max_length=15,
         required=True
     )
 
@@ -477,21 +530,25 @@ class RemoveCardModal(discord.ui.Modal, title="Remove Card from Trade"):
         self.trade_session = trade_session
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self.trade_session.remove_card(interaction, self.card_code_input.value.strip())
+        val = self.input_val.value.strip().lower()
+        if val in ["gems", "gem", "g"]:
+            await self.trade_session.set_gems(interaction, 0)
+            return
+        await self.trade_session.remove_card(interaction, self.input_val.value.strip())
 
 class TradeView(discord.ui.View):
     def __init__(self, trade_session):
         super().__init__(timeout=300)
         self.trade_session = trade_session
 
-    @discord.ui.button(label="Offer Card", style=discord.ButtonStyle.primary, emoji="➕")
+    @discord.ui.button(label="Offer Card / Gems", style=discord.ButtonStyle.primary, emoji="➕")
     async def offer_card_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id not in [self.trade_session.p1.id, self.trade_session.p2.id]:
             await interaction.response.send_message("Coo coo! ⚠️ You are not part of this trade session!", ephemeral=True)
             return
         await interaction.response.send_modal(AddCardModal(self.trade_session))
 
-    @discord.ui.button(label="Remove Card", style=discord.ButtonStyle.secondary, emoji="➖")
+    @discord.ui.button(label="Remove Offer", style=discord.ButtonStyle.secondary, emoji="➖")
     async def remove_card_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id not in [self.trade_session.p1.id, self.trade_session.p2.id]:
             await interaction.response.send_message("Coo coo! ⚠️ You are not part of this trade session!", ephemeral=True)
@@ -519,6 +576,8 @@ class TradeSession:
         self.p2 = p2
         self.p1_cards = []
         self.p2_cards = []
+        self.p1_gems = 0
+        self.p2_gems = 0
         self.p1_confirmed = False
         self.p2_confirmed = False
         self.message = None
@@ -531,20 +590,24 @@ class TradeSession:
             color=discord.Color.blue()
         )
 
-        p1_text = ""
+        p1_items = []
+        if self.p1_gems > 0:
+            p1_items.append(f"• 💎 **{self.p1_gems:,} Gems**")
         if self.p1_cards:
             for c in self.p1_cards:
-                p1_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
-        else:
-            p1_text = "*No cards offered yet*"
+                p1_items.append(f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})")
+
+        p1_text = "\n".join(p1_items) if p1_items else "*No items offered yet*"
         p1_status = "✅ **CONFIRMED**" if self.p1_confirmed else "⏳ *Waiting...*"
 
-        p2_text = ""
+        p2_items = []
+        if self.p2_gems > 0:
+            p2_items.append(f"• 💎 **{self.p2_gems:,} Gems**")
         if self.p2_cards:
             for c in self.p2_cards:
-                p2_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
-        else:
-            p2_text = "*No cards offered yet*"
+                p2_items.append(f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})")
+
+        p2_text = "\n".join(p2_items) if p2_items else "*No items offered yet*"
         p2_status = "✅ **CONFIRMED**" if self.p2_confirmed else "⏳ *Waiting...*"
 
         embed.add_field(
@@ -557,7 +620,7 @@ class TradeSession:
             value=p2_text,
             inline=True
         )
-        embed.set_footer(text="Use buttons below or type !ta <code_or_id> / !tr <code_or_id> in chat!")
+        embed.set_footer(text="Offer cards/gems via buttons or type !ta <code_or_amountG> in chat!")
         return embed
 
     async def update_message(self, interaction=None):
@@ -573,6 +636,40 @@ class TradeSession:
                 await self.message.edit(embed=embed, view=self.view)
             except Exception:
                 pass
+
+    async def set_gems(self, interaction_or_ctx, amount: int):
+        is_p1 = (interaction_or_ctx.user.id if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author.id) == self.p1.id
+        user = self.p1 if is_p1 else self.p2
+
+        if amount < 0:
+            msg = "Coo coo! ⚠️ Gem offer cannot be negative!"
+            if isinstance(interaction_or_ctx, discord.Interaction):
+                await interaction_or_ctx.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction_or_ctx.send(msg)
+            return
+
+        user_balance = get_user_gems(user.id)
+        if amount > user_balance:
+            msg = f"Coo coo! ⚠️ You only have **{user_balance:,} 💎 Gems** in your balance!"
+            if isinstance(interaction_or_ctx, discord.Interaction):
+                await interaction_or_ctx.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction_or_ctx.send(msg)
+            return
+
+        if is_p1:
+            self.p1_gems = amount
+        else:
+            self.p2_gems = amount
+
+        self.p1_confirmed = False
+        self.p2_confirmed = False
+
+        if isinstance(interaction_or_ctx, discord.Interaction):
+            await self.update_message(interaction_or_ctx)
+        else:
+            await self.update_message()
 
     async def add_card(self, interaction_or_ctx, code_str: str):
         is_p1 = (interaction_or_ctx.user.id if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author.id) == self.p1.id
@@ -649,21 +746,34 @@ class TradeSession:
             p1_codes = [c["code"] for c in self.p1_cards]
             p2_codes = [c["code"] for c in self.p2_cards]
 
-            success = transfer_cards_between_users(self.p1.id, p1_codes, self.p2.id, p2_codes)
-            if success:
-                p1_rec_text = ""
+            # Execute Card Transfer
+            card_success = transfer_cards_between_users(self.p1.id, p1_codes, self.p2.id, p2_codes)
+
+            # Execute Gems Transfer
+            gem_success_1 = True
+            if self.p1_gems > 0:
+                gem_success_1 = transfer_gems(self.p1.id, self.p2.id, self.p1_gems)
+
+            gem_success_2 = True
+            if self.p2_gems > 0:
+                gem_success_2 = transfer_gems(self.p2.id, self.p1.id, self.p2_gems)
+
+            if card_success and gem_success_1 and gem_success_2:
+                p1_rec_items = []
+                if self.p2_gems > 0:
+                    p1_rec_items.append(f"• 💎 **{self.p2_gems:,} Gems**")
                 if self.p2_cards:
                     for c in self.p2_cards:
-                        p1_rec_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
-                else:
-                    p1_rec_text = "*None (Gift)*\n"
+                        p1_rec_items.append(f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})")
+                p1_rec_text = "\n".join(p1_rec_items) if p1_rec_items else "*None (Gift)*\n"
 
-                p2_rec_text = ""
+                p2_rec_items = []
+                if self.p1_gems > 0:
+                    p2_rec_items.append(f"• 💎 **{self.p1_gems:,} Gems**")
                 if self.p1_cards:
                     for c in self.p1_cards:
-                        p2_rec_text += f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})\n"
-                else:
-                    p2_rec_text = "*None (Gift)*\n"
+                        p2_rec_items.append(f"• `{c['code']}` — **{c['character_name']}** ({c['rarity']})")
+                p2_rec_text = "\n".join(p2_rec_items) if p2_rec_items else "*None (Gift)*\n"
 
                 embed = discord.Embed(
                     title="🎉 Trade Completed Successfully!",
@@ -718,6 +828,37 @@ class TradeSession:
 
         if self.channel.id in ACTIVE_TRADES:
             del ACTIVE_TRADES[self.channel.id]
+
+# ==========================================
+# 🎨 COLOR ROLES CONFIGURATION
+# ==========================================
+COLOR_ROLES = [
+    {"name": "Cherry Pink", "emoji": "🩷", "hex": 0xFFB6C1},
+    {"name": "Lavender", "emoji": "💜", "hex": 0x9370DB},
+    {"name": "Sunset Red", "emoji": "🔴", "hex": 0xE60023},
+    {"name": "Mint Green", "emoji": "💚", "hex": 0x98FF98},
+    {"name": "Sky Blue", "emoji": "🩵", "hex": 0x87CEEB},
+    {"name": "Lemon Yellow", "emoji": "💛", "hex": 0xFFFACD},
+    {"name": "Peach Coral", "emoji": "🧡", "hex": 0xFF7F50},
+    {"name": "Royal Blue", "emoji": "💙", "hex": 0x007AFF},
+    {"name": "Pure White", "emoji": "🤍", "hex": 0xFFFFFF},
+    {"name": "Midnight", "emoji": "🖤", "hex": 0x36393F},
+]
+
+PIGEON_MESSAGES = [
+    "Coo coo! 🍞 Don't let a bad sketch ruin your day. Even a dropped bagel on 5th Ave gets a second chance!",
+    "Coo coo! 🎨 You don't need perfection, you just need to start. Look at me — I can't read the room, but I still show up!",
+    "Coo coo! 🍟 If someone tells you your goals are too big, tell them you're just aerodynamically blessed like me!",
+    "Coo coo! 🗽 Life is tough, but so is NYC sidewalk pizza. Keep chewing and keep creating!",
+    "Coo coo! 🌾 Take a break, stretch your wrist, and drink water. You can't draw masterpieces on an empty stomach!",
+    "Coo coo! 👔 Wear your bowtie with confidence, even when you're just hunting for breadcrumbs!",
+    "Coo coo! ✨ Art block is temporary, but your talent is forever. Go make something cool!",
+    "Coo coo! 🥯 They said I couldn't fly over the park bench because I was too fat. I waddled instead. Adapt and conquer!",
+    "Coo coo! 💅 Never be afraid to third-wheel your own success!",
+    "Coo coo! 🎨 Yuki told me every artist starts with a rough draft. Mine was a pretzel stain on the sidewalk!",
+    "Coo coo! 🌟 Ratan told me to reach for the stars. I reached for a French fry instead, but the energy is the same!",
+    "Coo coo! 🍕 Keep pushing forward! Every line you draw brings you closer to your dream!"
+]
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
@@ -807,7 +948,7 @@ async def on_member_join(member):
                 f"Coo coo! 🍞 Welcome to the nest, {member.mention}!\n\n"
                 f"I'm Coo Coo — New York's fattest pigeon and Yuki's friend! "
                 f"Head over to `#get-roles` to pick a name color!\n\n"
-                f"Here, take a fresh pretzel crust 🥨!"
+                f"Here, take a fresh pretzel crust 🥨 and **100 starter Gems 💎**!"
             ),
             color=discord.Color.from_rgb(255, 182, 193)
         )
@@ -818,6 +959,174 @@ async def on_member_join(member):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     print(f"❌ Slash command error: {error}")
+
+# ==========================================
+# 💎 GEMS ECONOMY COMMANDS
+# ==========================================
+async def process_balance(ctx_or_interaction, user: discord.User = None):
+    target = user or (ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author)
+    gems = get_user_gems(target.id)
+
+    embed = discord.Embed(
+        title=f"💎 {target.display_name}'s Gem Pouch",
+        description=f"Current Balance: **{gems:,} Gems 💎**",
+        color=discord.Color.cyan()
+    )
+    embed.set_footer(text="Type !daily to claim 500 free Gems every 24 hours!")
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="balance", description="Check your or another player's Gems balance")
+async def balance_slash(interaction: discord.Interaction, user: discord.User = None):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_balance(interaction, user)
+
+@bot.command(name="balance")
+async def balance_prefix(ctx, user: discord.User = None):
+    await process_balance(ctx, user)
+
+@bot.command(name="bal")
+async def balance_prefix_bal(ctx, user: discord.User = None):
+    await process_balance(ctx, user)
+
+@bot.command(name="gems")
+async def balance_prefix_gems(ctx, user: discord.User = None):
+    await process_balance(ctx, user)
+
+async def process_daily(ctx_or_interaction):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    now_ts = int(time.time())
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT gems, last_daily FROM users WHERE user_id = ?", (user.id,))
+    row = cursor.fetchone()
+
+    current_gems = row[0] if row else 100
+    last_daily = row[1] if row else 0
+
+    cooldown = 86400  # 24 hours
+    elapsed = now_ts - last_daily
+
+    if elapsed < cooldown:
+        remaining = cooldown - elapsed
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
+        seconds = remaining % 60
+        conn.close()
+
+        msg = f"Coo coo! ⏳ You have already claimed your daily Gems! Return in **{hours}h {minutes}m {seconds}s**!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    reward = 500
+    new_gems = current_gems + reward
+
+    if not row:
+        cursor.execute("INSERT INTO users (user_id, gems, last_daily) VALUES (?, ?, ?)", (user.id, new_gems, now_ts))
+    else:
+        cursor.execute("UPDATE users SET gems = ?, last_daily = ? WHERE user_id = ?", (new_gems, now_ts, user.id))
+
+    conn.commit()
+    conn.close()
+
+    embed = discord.Embed(
+        title="🎁 Daily Reward Claimed!",
+        description=(
+            f"Coo coo! 🐦 You claimed **+500 💎 Gems**!\n\n"
+            f"💎 **New Balance:** **{new_gems:,} Gems**\n"
+            f"⏰ Next Daily available in **24 hours**!"
+        ),
+        color=discord.Color.green()
+    )
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="daily", description="Claim your daily 500 Gems reward (Available every 24 hours)")
+async def daily_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_daily(interaction)
+
+@bot.command(name="daily")
+async def daily_prefix(ctx):
+    await process_daily(ctx)
+
+async def process_pay(ctx_or_interaction, target: discord.User, amount: int):
+    sender = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+
+    if target.bot:
+        msg = "Coo coo! ⚠️ You cannot send Gems to bots!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    if target.id == sender.id:
+        msg = "Coo coo! ⚠️ You cannot pay Gems to yourself!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    if amount <= 0:
+        msg = "Coo coo! ⚠️ Amount must be greater than 0 Gems!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    success = transfer_gems(sender.id, target.id, amount)
+    if success:
+        embed = discord.Embed(
+            title="💸 Gems Transferred!",
+            description=f"Successfully sent **{amount:,} 💎 Gems** to {target.mention}!",
+            color=discord.Color.gold()
+        )
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+    else:
+        sender_gems = get_user_gems(sender.id)
+        msg = f"Coo coo! ⚠️ You don't have enough Gems! You only have **{sender_gems:,} 💎**!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
+
+@bot.tree.command(name="pay", description="Transfer Gems directly to another player")
+async def pay_slash(interaction: discord.Interaction, target: discord.User, amount: int):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_pay(interaction, target, amount)
+
+@bot.command(name="pay")
+async def pay_prefix(ctx, target: discord.User, amount: int):
+    await process_pay(ctx, target, amount)
+
+@bot.command(name="give")
+async def pay_prefix_give(ctx, target: discord.User, amount: int):
+    await process_pay(ctx, target, amount)
 
 # ==========================================
 # 🎴 ANILIST CARD DROP & INVENTORY COMMANDS
@@ -883,13 +1192,14 @@ async def inventory_slash(interaction: discord.Interaction):
     except Exception:
         pass
     rows = get_user_inventory(interaction.user.id)
+    gems = get_user_gems(interaction.user.id)
     if not rows:
-        await interaction.followup.send("Coo coo! 🎴 You haven't grabbed any cards yet! Type `/drop` to start collecting!")
+        await interaction.followup.send(f"Coo coo! 🎴 You haven't grabbed any cards yet! (Balance: **{gems:,} 💎 Gems**). Type `/drop` to start collecting!")
         return
 
     embed = discord.Embed(
         title=f"🎴 {interaction.user.display_name}'s Card Collection",
-        description=f"Total Cards Collected: **{len(rows)}**",
+        description=f"Total Cards: **{len(rows)}** | Balance: **{gems:,} 💎 Gems**",
         color=discord.Color.purple()
     )
 
@@ -913,13 +1223,14 @@ async def inventory_slash(interaction: discord.Interaction):
 @bot.command(name="inventory")
 async def inventory_prefix(ctx):
     rows = get_user_inventory(ctx.author.id)
+    gems = get_user_gems(ctx.author.id)
     if not rows:
-        await ctx.send("Coo coo! 🎴 You haven't grabbed any cards yet! Type `!drop` to start collecting!")
+        await ctx.send(f"Coo coo! 🎴 You haven't grabbed any cards yet! (Balance: **{gems:,} 💎 Gems**). Type `!drop` to start collecting!")
         return
 
     embed = discord.Embed(
         title=f"🎴 {ctx.author.display_name}'s Card Collection",
-        description=f"Total Cards Collected: **{len(rows)}**",
+        description=f"Total Cards: **{len(rows)}** | Balance: **{gems:,} 💎 Gems**",
         color=discord.Color.purple()
     )
 
@@ -1077,7 +1388,7 @@ async def start_trade_session(ctx_or_interaction, partner: discord.User):
         msg = await ctx_or_interaction.send(embed=embed, view=session.view)
         session.message = msg
 
-@bot.tree.command(name="trade", description="Initiates a Karuta-style card trade with another player")
+@bot.tree.command(name="trade", description="Initiates a Karuta-style card/gems trade with another player")
 async def trade_slash(interaction: discord.Interaction, partner: discord.User):
     try:
         await interaction.response.defer()
@@ -1094,7 +1405,7 @@ async def trade_prefix_shortcut(ctx, partner: discord.User):
     await start_trade_session(ctx, partner)
 
 @bot.command(name="ta")
-async def trade_add_prefix(ctx, code: str):
+async def trade_add_prefix(ctx, code_or_gems: str):
     if ctx.channel.id not in ACTIVE_TRADES:
         await ctx.send("Coo coo! ⚠️ There is no active trade session in this channel!")
         return
@@ -1102,10 +1413,17 @@ async def trade_add_prefix(ctx, code: str):
     if ctx.author.id not in [session.p1.id, session.p2.id]:
         await ctx.send("Coo coo! ⚠️ You are not part of the active trade in this channel!")
         return
-    await session.add_card(ctx, code)
+    
+    val = code_or_gems.lower().strip()
+    if val.endswith("g") or val.endswith("gems") or val.isdigit():
+        clean_num = val.rstrip("gems").rstrip("g").strip()
+        if clean_num.isdigit():
+            await session.set_gems(ctx, int(clean_num))
+            return
+    await session.add_card(ctx, code_or_gems)
 
 @bot.command(name="tr")
-async def trade_remove_prefix(ctx, code: str):
+async def trade_remove_prefix(ctx, code_or_gems: str):
     if ctx.channel.id not in ACTIVE_TRADES:
         await ctx.send("Coo coo! ⚠️ There is no active trade session in this channel!")
         return
@@ -1113,7 +1431,12 @@ async def trade_remove_prefix(ctx, code: str):
     if ctx.author.id not in [session.p1.id, session.p2.id]:
         await ctx.send("Coo coo! ⚠️ You are not part of the active trade in this channel!")
         return
-    await session.remove_card(ctx, code)
+
+    val = code_or_gems.lower().strip()
+    if val in ["gems", "gem", "g"]:
+        await session.set_gems(ctx, 0)
+        return
+    await session.remove_card(ctx, code_or_gems)
 
 # ==========================================
 # 📖 COMPREHENSIVE HELP EMBED SYSTEM
@@ -1123,6 +1446,17 @@ async def send_help_menu(ctx_or_interaction):
         title="🐦 Coo Coo Bot — Official Command & Rule Guide",
         description="Welcome to Coo Coo! Below is a complete list of commands, shortcuts, and card mechanics.",
         color=discord.Color.gold()
+    )
+
+    embed.add_field(
+        name="💎 Gems Economy",
+        value=(
+            "• **`!bal`** or **`!gems`** or **`/balance`** — Check your Gem balance.\n"
+            "• **`!daily`** or **`/daily`** — Claim 500 free Gems every 24 hours!\n"
+            "• **`!pay @user <amt>`** or **`/pay`** — Transfer Gems to a friend.\n"
+            "• **Bonus:** Grabbing cards earns bonus Gems based on rarity!"
+        ),
+        inline=False
     )
 
     embed.add_field(
@@ -1137,23 +1471,23 @@ async def send_help_menu(ctx_or_interaction):
     )
 
     embed.add_field(
-        name="🤝 Card Trading",
+        name="🤝 Card & Gems Trading",
         value=(
             "• **`!t @user`** or **`!trade @user`** or **`/trade`** — Start a trade.\n"
-            "• **`!ta <id>`** — Add a card from your inventory to trade.\n"
-            "• **`!tr <id>`** — Remove a card from your active trade offer.\n"
+            "• **`!ta <id>`** or **`!ta 250g`** — Add a card or Gems to trade offer.\n"
+            "• **`!tr <id>`** or **`!tr gems`** — Remove a card or reset Gems.\n"
             "• **Buttons (`➕` `➖` `✅` `❌`)** — Manage trade & confirm."
         ),
         inline=False
     )
 
     embed.add_field(
-        name="👑 Card Rarities (Based on AniList Popularity)",
+        name="👑 Card Rarities & Gem Rewards",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12,000+ AniList favorites\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4,000 to 12,000 AniList favorites\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1,000 to 4,000 AniList favorites\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1,000 AniList favorites"
+            "• **`✨ Legendary` (Gold Frame)** — 12,000+ Favs | **+100 💎**\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4,000-12,000 Favs | **+50 💎**\n"
+            "• **`🔷 Rare` (Cyan Frame)** — 1,000-4,000 Favs | **+25 💎**\n"
+            "• **`⚪ Common` (Silver Frame)** — Under 1,000 Favs | **+10 💎**"
         ),
         inline=False
     )
@@ -1167,7 +1501,7 @@ async def send_help_menu(ctx_or_interaction):
         inline=False
     )
 
-    embed.set_footer(text="Coo Coo Bot • Anime Card Engine")
+    embed.set_footer(text="Coo Coo Bot • Anime Card & Gems Economy Engine")
 
     if isinstance(ctx_or_interaction, discord.Interaction):
         await ctx_or_interaction.followup.send(embed=embed)
