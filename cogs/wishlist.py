@@ -1,22 +1,22 @@
-import sqlite3
+import psycopg2
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import DB_PATH
+from db import get_connection, release_connection
 
 def _init_wishlist_table():
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS wishlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
             character_name TEXT NOT NULL,
             UNIQUE(user_id, character_name)
         )
     ''')
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 _init_wishlist_table()
 
@@ -29,16 +29,16 @@ async def get_wishlist_pings(channel, card_names: list) -> str:
     if not card_names:
         return ""
     
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     
-    placeholders = ",".join(["?"] * len(card_names))
+    placeholders = ",".join(["%s"] * len(card_names))
     query = f"SELECT user_id, character_name FROM wishlists WHERE LOWER(character_name) IN ({placeholders})"
     
     # We compare in lowercase to ensure case-insensitive matching
     cursor.execute(query, [name.lower() for name in card_names])
     rows = cursor.fetchall()
-    conn.close()
+    release_connection(conn)
     
     if not rows:
         return ""
@@ -68,15 +68,15 @@ class WishlistCog(commands.Cog):
     async def process_wish(self, ctx_or_interaction, query: str):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
         
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         
         # Check current wishlist count
-        cursor.execute("SELECT COUNT(*) FROM wishlists WHERE user_id = ?", (user.id,))
+        cursor.execute("SELECT COUNT(*) FROM wishlists WHERE user_id = %s", (user.id,))
         count = cursor.fetchone()[0]
         
         if count >= 10:
-            conn.close()
+            release_connection(conn)
             msg = "Coo coo! ⚠️ Your wishlist is full! (10/10) Please remove a character before adding another."
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -84,11 +84,11 @@ class WishlistCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cursor.execute("SELECT DISTINCT character_name FROM cards_pool WHERE character_name LIKE ?", (f"%{query}%",))
+        cursor.execute("SELECT DISTINCT character_name FROM cards_pool WHERE character_name ILIKE %s", (f"%{query}%",))
         rows = cursor.fetchall()
         
         if not rows:
-            conn.close()
+            release_connection(conn)
             msg = f"Coo coo! ⚠️ No characters found matching `{query}`!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -107,7 +107,7 @@ class WishlistCog(commands.Cog):
         elif len(rows) == 1:
             char_name = rows[0][0]
         else:
-            conn.close()
+            release_connection(conn)
             options = ", ".join([f"`{r[0]}`" for r in rows[:5]])
             if len(rows) > 5:
                 options += f" ... and {len(rows)-5} more"
@@ -119,16 +119,17 @@ class WishlistCog(commands.Cog):
             return
             
         try:
-            cursor.execute("INSERT INTO wishlists (user_id, character_name) VALUES (?, ?)", (user.id, char_name))
+            cursor.execute("INSERT INTO wishlists (user_id, character_name) VALUES (%s, %s)", (user.id, char_name))
             conn.commit()
             success = True
-        except sqlite3.IntegrityError:
+        except (psycopg2.IntegrityError, Exception):
+            conn.rollback()
             success = False
             
         # Get new count
-        cursor.execute("SELECT COUNT(*) FROM wishlists WHERE user_id = ?", (user.id,))
+        cursor.execute("SELECT COUNT(*) FROM wishlists WHERE user_id = %s", (user.id,))
         new_count = cursor.fetchone()[0]
-        conn.close()
+        release_connection(conn)
         
         if success:
             embed = discord.Embed(
@@ -150,15 +151,15 @@ class WishlistCog(commands.Cog):
     async def process_unwish(self, ctx_or_interaction, query: str):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
         
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         
         # We need to find the exact character in the wishlist
-        cursor.execute("SELECT character_name FROM wishlists WHERE user_id = ? AND character_name LIKE ?", (user.id, f"%{query}%"))
+        cursor.execute("SELECT character_name FROM wishlists WHERE user_id = %s AND character_name ILIKE %s", (user.id, f"%{query}%"))
         rows = cursor.fetchall()
         
         if not rows:
-            conn.close()
+            release_connection(conn)
             msg = f"Coo coo! ⚠️ No characters found on your wishlist matching `{query}`!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -177,7 +178,7 @@ class WishlistCog(commands.Cog):
         elif len(rows) == 1:
             char_name = rows[0][0]
         else:
-            conn.close()
+            release_connection(conn)
             options = ", ".join([f"`{r[0]}`" for r in rows])
             msg = f"Coo coo! ⚠️ Multiple characters found on your wishlist matching `{query}`! Please be more specific:\n{options}"
             if isinstance(ctx_or_interaction, discord.Interaction):
@@ -186,12 +187,12 @@ class WishlistCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
             
-        cursor.execute("DELETE FROM wishlists WHERE user_id = ? AND character_name = ?", (user.id, char_name))
+        cursor.execute("DELETE FROM wishlists WHERE user_id = %s AND character_name = %s", (user.id, char_name))
         conn.commit()
         
-        cursor.execute("SELECT COUNT(*) FROM wishlists WHERE user_id = ?", (user.id,))
+        cursor.execute("SELECT COUNT(*) FROM wishlists WHERE user_id = %s", (user.id,))
         new_count = cursor.fetchone()[0]
-        conn.close()
+        release_connection(conn)
         
         embed = discord.Embed(
             title="💔 Wishlist Removed!",
@@ -206,11 +207,11 @@ class WishlistCog(commands.Cog):
     async def process_wishlist(self, ctx_or_interaction):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
         
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT character_name FROM wishlists WHERE user_id = ?", (user.id,))
+        cursor.execute("SELECT character_name FROM wishlists WHERE user_id = %s", (user.id,))
         rows = cursor.fetchall()
-        conn.close()
+        release_connection(conn)
         
         count = len(rows)
         if count == 0:

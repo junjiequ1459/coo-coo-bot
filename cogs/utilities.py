@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from config import COLOR_ROLES, PIGEON_MESSAGES
+from db import get_connection, release_connection
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
@@ -262,7 +263,7 @@ class UtilitiesCog(commands.Cog):
 
     @app_commands.command(name="users", description="[Owner Only] View all registered users and their balances in the database")
     async def users_slash(self, interaction: discord.Interaction):
-        from config import BOT_OWNER_IDS, DB_PATH
+        from config import BOT_OWNER_IDS
         if interaction.user.id not in BOT_OWNER_IDS:
             await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
             return
@@ -272,12 +273,12 @@ class UtilitiesCog(commands.Cog):
         except Exception:
             pass
 
-        import sqlite3, time
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        import time
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT u.user_id, u.gems, u.dust, u.premium_until, (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id) FROM users u")
         rows = cursor.fetchall()
-        conn.close()
+        release_connection(conn)
 
         if not rows:
             await interaction.followup.send("Coo coo! 📭 No users found in the database yet!", ephemeral=True)
@@ -304,17 +305,17 @@ class UtilitiesCog(commands.Cog):
 
     @commands.command(name="users")
     async def users_prefix(self, ctx):
-        from config import BOT_OWNER_IDS, DB_PATH
+        from config import BOT_OWNER_IDS
         if ctx.author.id not in BOT_OWNER_IDS:
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
 
-        import sqlite3, time
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        import time
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT u.user_id, u.gems, u.dust, u.premium_until, (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id) FROM users u")
         rows = cursor.fetchall()
-        conn.close()
+        release_connection(conn)
 
         if not rows:
             await ctx.send("Coo coo! 📭 No users found in the database yet!")

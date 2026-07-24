@@ -1,60 +1,11 @@
 import os
-import sqlite3
-import shutil
 from dotenv import load_dotenv
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
 BOT_OWNER_IDS = [154017382560563200]
-
-DATA_DIR = os.getenv("DATA_DIR", "/data")
-if os.path.exists(DATA_DIR):
-    DB_PATH = os.path.join(DATA_DIR, "inventory.db")
-    repo_db = os.path.join(os.path.dirname(__file__), "inventory.db")
-    
-    if not os.path.exists(DB_PATH) and os.path.exists(repo_db):
-        try:
-            shutil.copyfile(repo_db, DB_PATH)
-            print("📦 Successfully seeded Railway /data volume with 10,004 character master database!")
-        except Exception as e:
-            print(f"Volume seed warning: {e}")
-
-    if os.path.exists(DB_PATH) and os.path.exists(repo_db):
-        try:
-            conn = sqlite3.connect(DB_PATH, timeout=10.0)
-            cur = conn.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cards_pool'")
-            has_table = cur.fetchone()
-            if not has_table:
-                print("📦 Seeding cards_pool table into Railway volume DB...")
-                cur.execute(f"ATTACH DATABASE '{repo_db}' AS repo_db")
-                cur.execute("CREATE TABLE cards_pool AS SELECT * FROM repo_db.cards_pool")
-                cur.execute("DETACH DATABASE repo_db")
-                conn.commit()
-                print("📦 Successfully seeded 10,004 cards into Railway volume!")
-            conn.close()
-        except Exception as e:
-            print(f"Volume cards_pool seed warning: {e}")
-else:
-    DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
-
-try:
-    if os.path.exists(DB_PATH):
-        conn = sqlite3.connect(DB_PATH, timeout=10.0)
-        cur = conn.cursor()
-        cur.execute("PRAGMA table_info(inventory)")
-        cols = [c[1] for c in cur.fetchall()]
-        if cols and "quality" not in cols:
-            cur.execute("ALTER TABLE inventory ADD COLUMN quality TEXT DEFAULT 'Good ⭐⭐'")
-            cur.execute("UPDATE inventory SET quality = 'Good ⭐⭐'")
-            conn.commit()
-        if cols and "quality" in cols:
-            cur.execute("UPDATE inventory SET quality = 'Good ⭐⭐' WHERE quality IS NULL OR quality = ''")
-            conn.commit()
-        conn.close()
-except Exception as e:
-    print(f"Inventory quality column migration warning: {e}")
 
 DROP_COOLDOWN_SEC = 900  # 15 Minutes (Standard)
 GRAB_COOLDOWN_SEC = 300  # 5 Minutes (Standard)

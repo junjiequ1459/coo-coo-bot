@@ -1,9 +1,8 @@
 import time
-import sqlite3
+from db import get_connection, release_connection
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import DB_PATH
 from database import (
     get_user_inventory, get_user_dust, get_user_gems,
     get_user_drop_tickets, get_user_grab_tickets,
@@ -111,27 +110,27 @@ class InventoryCog(commands.Cog):
     async def process_view_card(self, ctx_or_interaction, card_code_query: str = None):
         try:
             user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
-            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            conn = get_connection()
             cursor = conn.cursor()
 
             if not card_code_query:
-                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at, dropped_by FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at, dropped_by FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
                 row = cursor.fetchone()
             else:
                 query_str = card_code_query.lower().strip()
-                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at, dropped_by FROM inventory WHERE (code = ? OR id = ?)", (query_str, query_str))
+                cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at, dropped_by FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s)", (query_str, query_str))
                 row = cursor.fetchone()
 
                 if not row:
-                    cursor.execute("SELECT COUNT(*) FROM inventory WHERE user_id = ? AND LOWER(tag) = ?", (user.id, query_str))
+                    cursor.execute("SELECT COUNT(*) FROM inventory WHERE user_id = %s AND LOWER(tag) = %s", (user.id, query_str))
                     tag_count = cursor.fetchone()[0]
                     if tag_count > 0:
-                        conn.close()
+                        release_connection(conn)
                         await self.process_inventory(ctx_or_interaction, tag_filter=query_str)
                         return
 
             if not row:
-                conn.close()
+                release_connection(conn)
                 if not card_code_query:
                     msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet! Type `/drop` to grab your first card!"
                 else:
@@ -144,7 +143,7 @@ class InventoryCog(commands.Cog):
                 return
 
             cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val, grabbed_at, dropped_by_id = row
-            conn.close()
+            release_connection(conn)
 
             owner = self.bot.get_user(uid)
             owner_name = owner.mention if owner else f"<@{uid}>"

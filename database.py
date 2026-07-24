@@ -1,8 +1,8 @@
-import sqlite3
 import random
 import string
 import time
-from config import DB_PATH, RARITY_WEIGHTS
+from config import RARITY_WEIGHTS
+from db import get_connection, release_connection
 
 def generate_card_code() -> str:
     """Generates a random 6-character alphanumeric card code (e.g. 136hma)."""
@@ -10,15 +10,14 @@ def generate_card_code() -> str:
     return "".join(random.choices(chars, k=6))
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL;")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS inventory (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         code TEXT UNIQUE,
-        user_id INTEGER NOT NULL,
+        user_id BIGINT NOT NULL,
         character_name TEXT NOT NULL,
         series_name TEXT NOT NULL,
         image_url TEXT NOT NULL,
@@ -26,25 +25,11 @@ def init_db():
         mint_number INTEGER NOT NULL,
         edition INTEGER DEFAULT 1,
         tag TEXT DEFAULT NULL,
+        quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐',
+        dropped_by BIGINT DEFAULT NULL,
         grabbed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
-    
-    cursor.execute("PRAGMA table_info(inventory)")
-    inv_columns = [column[1] for column in cursor.fetchall()]
-    if "code" not in inv_columns:
-        cursor.execute("ALTER TABLE inventory ADD COLUMN code TEXT")
-    if "edition" not in inv_columns:
-        cursor.execute("ALTER TABLE inventory ADD COLUMN edition INTEGER DEFAULT 1")
-    if "tag" not in inv_columns:
-        cursor.execute("ALTER TABLE inventory ADD COLUMN tag TEXT DEFAULT NULL")
-    if "quality" not in inv_columns:
-        cursor.execute("ALTER TABLE inventory ADD COLUMN quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐'")
-        cursor.execute("UPDATE inventory SET quality = 'Mint ⭐⭐⭐⭐'")
-    if "dropped_by" not in inv_columns:
-        cursor.execute("ALTER TABLE inventory ADD COLUMN dropped_by INTEGER DEFAULT NULL")
-        # For existing cards, assume the current owner is who dropped it
-        cursor.execute("UPDATE inventory SET dropped_by = user_id WHERE dropped_by IS NULL")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
@@ -54,42 +39,24 @@ def init_db():
         PRIMARY KEY (character_name, edition)
     )
     """)
-    cursor.execute("PRAGMA table_info(mints)")
-    mint_columns = [col[1] for col in cursor.fetchall()]
-    if "edition" not in mint_columns:
-        cursor.execute("ALTER TABLE mints ADD COLUMN edition INTEGER DEFAULT 1")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
+        user_id BIGINT PRIMARY KEY,
         gems INTEGER DEFAULT 0,
         dust INTEGER DEFAULT 0,
-        last_daily INTEGER DEFAULT 0,
-        last_drop INTEGER DEFAULT 0,
-        last_grab INTEGER DEFAULT 0,
-        premium_until INTEGER DEFAULT 0,
-        drop_tickets INTEGER DEFAULT 0
+        last_daily BIGINT DEFAULT 0,
+        last_drop BIGINT DEFAULT 0,
+        last_grab BIGINT DEFAULT 0,
+        premium_until BIGINT DEFAULT 0,
+        drop_tickets INTEGER DEFAULT 0,
+        grab_tickets INTEGER DEFAULT 0
     )
     """)
 
-    cursor.execute("PRAGMA table_info(users)")
-    usr_columns = [column[1] for column in cursor.fetchall()]
-    if "dust" not in usr_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN dust INTEGER DEFAULT 0")
-    if "last_drop" not in usr_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN last_drop INTEGER DEFAULT 0")
-    if "last_grab" not in usr_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN last_grab INTEGER DEFAULT 0")
-    if "premium_until" not in usr_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN premium_until INTEGER DEFAULT 0")
-    if "drop_tickets" not in usr_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN drop_tickets INTEGER DEFAULT 0")
-    if "grab_tickets" not in usr_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN grab_tickets INTEGER DEFAULT 0")
-
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS cards_pool (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         anilist_id INTEGER UNIQUE,
         character_name TEXT NOT NULL,
         series_name TEXT NOT NULL,
@@ -98,235 +65,254 @@ def init_db():
         rarity TEXT NOT NULL
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS wishlists (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        character_name TEXT NOT NULL,
+        UNIQUE(user_id, character_name)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS favorites (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        card_code TEXT NOT NULL,
+        UNIQUE(user_id, card_code)
+    )
+    """)
     
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 init_db()
 
 def get_user_gems(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT gems FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     if not row:
-        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 0, 0)", (user_id,))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, 0, 0)", (user_id,))
         conn.commit()
         gems = 0
     else:
         gems = row[0]
-    conn.close()
+    release_connection(conn)
     return gems
 
 def get_user_dust(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT dust FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT dust FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     if not row:
-        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 0, 0)", (user_id,))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, 0, 0)", (user_id,))
         conn.commit()
         dust = 0
     else:
         dust = row[0] if row[0] is not None else 0
-    conn.close()
+    release_connection(conn)
     return dust
 
 def add_user_gems(user_id: int, amount: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT gems FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     if not row:
         new_gems = max(0, amount)
-        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, ?, 0)", (user_id, new_gems))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, %s, 0)", (user_id, new_gems))
     else:
         new_gems = row[0] + amount
-        cursor.execute("UPDATE users SET gems = ? WHERE user_id = ?", (new_gems, user_id))
+        cursor.execute("UPDATE users SET gems = %s WHERE user_id = %s", (new_gems, user_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return new_gems
 
 def add_user_dust(user_id: int, amount: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT dust FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT dust FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     if not row:
         new_dust = amount
-        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 0, ?)", (user_id, new_dust))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, 0, %s)", (user_id, new_dust))
     else:
         curr = row[0] if row[0] is not None else 0
         new_dust = curr + amount
-        cursor.execute("UPDATE users SET dust = ? WHERE user_id = ?", (new_dust, user_id))
+        cursor.execute("UPDATE users SET dust = %s WHERE user_id = %s", (new_dust, user_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return new_dust
 
 def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
     if amount <= 0:
         return False
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT gems FROM users WHERE user_id = ?", (from_user_id,))
+        cursor.execute("SELECT gems FROM users WHERE user_id = %s", (from_user_id,))
         row1 = cursor.fetchone()
         from_gems = row1[0] if row1 else 0
 
         if from_gems < amount:
-            conn.close()
+            release_connection(conn)
             return False
 
-        cursor.execute("UPDATE users SET gems = gems - ? WHERE user_id = ?", (amount, from_user_id))
+        cursor.execute("UPDATE users SET gems = gems - %s WHERE user_id = %s", (amount, from_user_id))
 
-        cursor.execute("SELECT gems FROM users WHERE user_id = ?", (to_user_id,))
+        cursor.execute("SELECT gems FROM users WHERE user_id = %s", (to_user_id,))
         row2 = cursor.fetchone()
         if not row2:
-            cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, ?, 0)", (to_user_id, amount))
+            cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, %s, 0)", (to_user_id, amount))
         else:
-            cursor.execute("UPDATE users SET gems = gems + ? WHERE user_id = ?", (amount, to_user_id))
+            cursor.execute("UPDATE users SET gems = gems + %s WHERE user_id = %s", (amount, to_user_id))
 
         conn.commit()
-        conn.close()
+        release_connection(conn)
         return True
     except Exception as e:
         print(f"Error transferring gems: {e}")
         conn.rollback()
-        conn.close()
+        release_connection(conn)
         return False
 
 def get_next_mint(character_name: str, edition: int = 1) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT current_mint FROM mints WHERE character_name = ? AND edition = ?", (character_name, edition))
+    cursor.execute("SELECT current_mint FROM mints WHERE character_name = %s AND edition = %s", (character_name, edition))
     row = cursor.fetchone()
     if row:
         next_mint = row[0] + 1
-        cursor.execute("UPDATE mints SET current_mint = ? WHERE character_name = ? AND edition = ?", (next_mint, character_name, edition))
+        cursor.execute("UPDATE mints SET current_mint = %s WHERE character_name = %s AND edition = %s", (next_mint, character_name, edition))
     else:
         next_mint = 1
-        cursor.execute("INSERT INTO mints (character_name, edition, current_mint) VALUES (?, ?, ?)", (character_name, edition, next_mint))
+        cursor.execute("INSERT INTO mints (character_name, edition, current_mint) VALUES (%s, %s, %s)", (character_name, edition, next_mint))
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return next_mint
 
 def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = None, dropped_by: int = None) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     q_final = quality if quality else "Mint ⭐⭐⭐⭐"
     dropper = dropped_by if dropped_by else user_id
     cursor.execute("""
     INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality, dropped_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    RETURNING id
     """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, q_final, dropper))
-    inserted_id = cursor.lastrowid
+    inserted_id = cursor.fetchone()[0]
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return inserted_id
 
 def get_user_inventory(user_id: int, tag_filter: str = None):
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     if tag_filter:
-        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = ? AND LOWER(tag) = ? ORDER BY id DESC", (user_id, tag_filter.lower().strip()))
+        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = %s AND LOWER(tag) = %s ORDER BY id DESC", (user_id, tag_filter.lower().strip()))
     else:
-        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
+        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = %s ORDER BY id DESC", (user_id,))
     rows = cursor.fetchall()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def get_card_by_code_and_owner(code: str, user_id: int):
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag, quality FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
+    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag, quality FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (code.lower().strip(), code.strip(), user_id))
     row = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
     return row
 
 def update_card_tag(code_str: str, user_id: int, tag_name: str = None) -> bool:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     query_str = code_str.lower().strip()
-    cursor.execute("UPDATE inventory SET tag = ? WHERE (code = ? OR id = ?) AND user_id = ?", (tag_name, query_str, query_str, user_id))
+    cursor.execute("UPDATE inventory SET tag = %s WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (tag_name, query_str, query_str, user_id))
     affected = cursor.rowcount
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return affected > 0
 
 def update_card_quality(code_str: str, user_id: int, new_quality: str) -> bool:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     query_str = code_str.lower().strip()
-    cursor.execute("UPDATE inventory SET quality = ? WHERE (code = ? OR id = ?) AND user_id = ?", (new_quality, query_str, query_str, user_id))
+    cursor.execute("UPDATE inventory SET quality = %s WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (new_quality, query_str, query_str, user_id))
     affected = cursor.rowcount
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return affected > 0
 
 def delete_card_from_inventory(code_str: str, user_id: int):
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     query_str = code_str.lower().strip()
-    cursor.execute("SELECT id, code, character_name, rarity FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user_id))
+    cursor.execute("SELECT id, code, character_name, rarity FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (query_str, query_str, user_id))
     row = cursor.fetchone()
     if not row:
-        conn.close()
+        release_connection(conn)
         return None
-    cursor.execute("DELETE FROM inventory WHERE id = ?", (row[0],))
+    cursor.execute("DELETE FROM inventory WHERE id = %s", (row[0],))
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return row
 
 def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int, user2_codes: list):
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     try:
         for code in user1_codes:
-            cursor.execute("UPDATE inventory SET user_id = ? WHERE code = ?", (user2_id, code))
+            cursor.execute("UPDATE inventory SET user_id = %s WHERE code = %s", (user2_id, code))
         for code in user2_codes:
-            cursor.execute("UPDATE inventory SET user_id = ? WHERE code = ?", (user1_id, code))
+            cursor.execute("UPDATE inventory SET user_id = %s WHERE code = %s", (user1_id, code))
         conn.commit()
-        conn.close()
+        release_connection(conn)
         return True
     except Exception as e:
         print(f"Error transferring cards: {e}")
         conn.rollback()
-        conn.close()
+        release_connection(conn)
         return False
 
 def get_user_cooldowns(user_id: int):
     """Returns timestamps for last_drop, last_grab, last_daily."""
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT last_drop, last_grab, last_daily FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT last_drop, last_grab, last_daily FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
     if not row:
         return 0, 0, 0
     return (row[0] or 0), (row[1] or 0), (row[2] or 0)
 
 def set_user_cooldown(user_id: int, cd_type: str, ts: int):
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
     if not cursor.fetchone():
-        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 0, 0)", (user_id,))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, 0, 0)", (user_id,))
     
     if cd_type == "drop":
-        cursor.execute("UPDATE users SET last_drop = ? WHERE user_id = ?", (ts, user_id))
+        cursor.execute("UPDATE users SET last_drop = %s WHERE user_id = %s", (ts, user_id))
     elif cd_type == "grab":
-        cursor.execute("UPDATE users SET last_grab = ? WHERE user_id = ?", (ts, user_id))
+        cursor.execute("UPDATE users SET last_grab = %s WHERE user_id = %s", (ts, user_id))
     elif cd_type == "daily":
-        cursor.execute("UPDATE users SET last_daily = ? WHERE user_id = ?", (ts, user_id))
+        cursor.execute("UPDATE users SET last_daily = %s WHERE user_id = %s", (ts, user_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 def get_user_premium_until(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT premium_until FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT premium_until FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
     if not row or not row[0]:
         return 0
     return row[0]
@@ -336,7 +322,7 @@ def is_user_premium(user_id: int) -> bool:
     return int(time.time()) < prem_until
 
 def add_user_premium(user_id: int, days: int = 30) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     now = int(time.time())
     curr_until = get_user_premium_until(user_id)
@@ -344,14 +330,14 @@ def add_user_premium(user_id: int, days: int = 30) -> int:
     start_base = max(now, curr_until)
     new_until = start_base + (days * 86400)
     
-    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
     if not cursor.fetchone():
-        cursor.execute("INSERT INTO users (user_id, gems, dust, premium_until) VALUES (?, 0, 0, ?)", (user_id, new_until))
+        cursor.execute("INSERT INTO users (user_id, gems, dust, premium_until) VALUES (%s, 0, 0, %s)", (user_id, new_until))
     else:
-        cursor.execute("UPDATE users SET premium_until = ? WHERE user_id = ?", (new_until, user_id))
+        cursor.execute("UPDATE users SET premium_until = %s WHERE user_id = %s", (new_until, user_id))
         
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return new_until
 
 def get_effective_cooldowns(user_id: int):
@@ -361,51 +347,51 @@ def get_effective_cooldowns(user_id: int):
     return 900, 300      # 15 Minutes Drop CD, 5 Minutes Grab CD
 
 def get_user_drop_tickets(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT drop_tickets FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT drop_tickets FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
     if not row or not row[0]:
         return 0
     return row[0]
 
 def add_user_drop_tickets(user_id: int, amount: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     curr = get_user_drop_tickets(user_id)
     new_val = max(0, curr + amount)
-    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
     if not cursor.fetchone():
-        cursor.execute("INSERT INTO users (user_id, gems, dust, drop_tickets) VALUES (?, 0, 0, ?)", (user_id, new_val))
+        cursor.execute("INSERT INTO users (user_id, gems, dust, drop_tickets) VALUES (%s, 0, 0, %s)", (user_id, new_val))
     else:
-        cursor.execute("UPDATE users SET drop_tickets = ? WHERE user_id = ?", (new_val, user_id))
+        cursor.execute("UPDATE users SET drop_tickets = %s WHERE user_id = %s", (new_val, user_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return new_val
 
 def get_user_grab_tickets(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT grab_tickets FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT grab_tickets FROM users WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
     if not row or not row[0]:
         return 0
     return row[0]
 
 def add_user_grab_tickets(user_id: int, amount: int) -> int:
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     curr = get_user_grab_tickets(user_id)
     new_val = max(0, curr + amount)
-    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
     if not cursor.fetchone():
-        cursor.execute("INSERT INTO users (user_id, gems, dust, grab_tickets) VALUES (?, 0, 0, ?)", (user_id, new_val))
+        cursor.execute("INSERT INTO users (user_id, gems, dust, grab_tickets) VALUES (%s, 0, 0, %s)", (user_id, new_val))
     else:
-        cursor.execute("UPDATE users SET grab_tickets = ? WHERE user_id = ?", (new_val, user_id))
+        cursor.execute("UPDATE users SET grab_tickets = %s WHERE user_id = %s", (new_val, user_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
     return new_val
 
 QUALITY_WEIGHTS = [
@@ -426,7 +412,7 @@ def sample_rarity() -> str:
 
 def get_cards_from_db_pool(count: int = 3):
     """Fetches cards using weighted rarity probabilities (76% Common, 15% Rare, 8% Epic, 1% Legendary)."""
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
 
     cards = []
@@ -435,7 +421,7 @@ def get_cards_from_db_pool(count: int = 3):
         cursor.execute("""
         SELECT character_name, series_name, image_url, rarity
         FROM cards_pool
-        WHERE rarity = ?
+        WHERE rarity = %s
         ORDER BY RANDOM()
         LIMIT 1
         """, (target_rarity,))
@@ -459,5 +445,5 @@ def get_cards_from_db_pool(count: int = 3):
                 "edition": 1
             })
 
-    conn.close()
+    release_connection(conn)
     return cards

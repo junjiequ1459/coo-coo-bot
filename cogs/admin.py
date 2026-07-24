@@ -1,9 +1,9 @@
 import time
-import sqlite3
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import BOT_OWNER_IDS, DB_PATH
+from db import get_connection, release_connection
+from config import BOT_OWNER_IDS
 from database import (
     add_user_gems, add_user_dust, add_user_drop_tickets, add_user_grab_tickets,
     add_user_premium, save_card_to_inventory, generate_card_code, get_next_mint
@@ -99,12 +99,12 @@ class AdminCog(commands.Cog):
             await ctx_or_interaction.send(embed=embed)
 
     async def grant_card(self, ctx_or_interaction, target: discord.User, character_query: str):
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         query_str = f"%{character_query.strip().lower()}%"
-        cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) LIKE ? ORDER BY favourites DESC LIMIT 1", (query_str,))
+        cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) ILIKE %s ORDER BY favourites DESC LIMIT 1", (query_str,))
         row = cursor.fetchone()
-        conn.close()
+        release_connection(conn)
 
         if not row:
             msg = f"Coo coo! ⚠️ Character matching `{character_query}` not found in master database pool!"
@@ -275,14 +275,14 @@ class AdminCog(commands.Cog):
             return
 
         char_name, series, img_url, rarity = parts[0], parts[1], parts[2], parts[3]
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO cards_pool (character_name, series_name, image_url, rarity)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s)
         """, (char_name, series, img_url, rarity))
         conn.commit()
-        conn.close()
+        release_connection(conn)
 
         embed = discord.Embed(
             title="👑 Master Card Added to Drop Pool!",
@@ -311,11 +311,11 @@ class AdminCog(commands.Cog):
         else:
             char_name = " ".join(parts)
 
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM mints WHERE LOWER(character_name) = LOWER(?) AND edition = ?", (char_name, edition))
+        cursor.execute("DELETE FROM mints WHERE LOWER(character_name) = LOWER(%s) AND edition = %s", (char_name, edition))
         conn.commit()
-        conn.close()
+        release_connection(conn)
 
         embed = discord.Embed(
             title="👑 Mint Counter Reset!",

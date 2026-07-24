@@ -1,24 +1,23 @@
-import sqlite3
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import DB_PATH
+from db import get_connection, release_connection
 from utils.renderer import render_single_card
 
 # --- Favorites Table Setup ---
 def _init_favorites_table():
-    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS favorites (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
             card_code TEXT NOT NULL,
             UNIQUE(user_id, card_code)
         )
     ''')
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 _init_favorites_table()
 
@@ -32,15 +31,15 @@ class FavoritesCog(commands.Cog):
     async def process_fav(self, ctx_or_interaction, code: str = None):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
 
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
 
         # If no code, default to latest card
         if not code:
-            cursor.execute("SELECT code FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT code FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
             if not row:
-                conn.close()
+                release_connection(conn)
                 msg = "Coo coo! ⚠️ You don't have any cards yet! Type `/drop` to start collecting!"
                 if isinstance(ctx_or_interaction, discord.Interaction):
                     await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -53,13 +52,13 @@ class FavoritesCog(commands.Cog):
 
         # Check card exists and belongs to user
         cursor.execute(
-            "SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, quality FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?",
+            "SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, quality FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s",
             (code, code, user.id)
         )
         card_row = cursor.fetchone()
 
         if not card_row:
-            conn.close()
+            release_connection(conn)
             msg = f"Coo coo! ⚠️ Card `{code}` not found in your inventory!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -71,14 +70,14 @@ class FavoritesCog(commands.Cog):
         card_code = card_code if card_code else f"c{cid:04d}"
 
         # Check favorites count
-        cursor.execute("SELECT COUNT(*) FROM favorites WHERE user_id = ?", (user.id,))
+        cursor.execute("SELECT COUNT(*) FROM favorites WHERE user_id = %s", (user.id,))
         fav_count = cursor.fetchone()[0]
 
         if fav_count >= MAX_FAVORITES:
             # Check if this card is already favorited (allow re-fav)
-            cursor.execute("SELECT id FROM favorites WHERE user_id = ? AND card_code = ?", (user.id, card_code))
+            cursor.execute("SELECT id FROM favorites WHERE user_id = %s AND card_code = %s", (user.id, card_code))
             if not cursor.fetchone():
-                conn.close()
+                release_connection(conn)
                 msg = f"Coo coo! ⚠️ Your favorites are full! (**{fav_count}/{MAX_FAVORITES}**) Use `!unfav <code>` to remove one first."
                 if isinstance(ctx_or_interaction, discord.Interaction):
                     await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -87,9 +86,9 @@ class FavoritesCog(commands.Cog):
                 return
 
         # Check if already favorited
-        cursor.execute("SELECT id FROM favorites WHERE user_id = ? AND card_code = ?", (user.id, card_code))
+        cursor.execute("SELECT id FROM favorites WHERE user_id = %s AND card_code = %s", (user.id, card_code))
         if cursor.fetchone():
-            conn.close()
+            release_connection(conn)
             msg = f"Coo coo! ⚠️ **{char_name}** (`{card_code}`) is already in your favorites!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -97,10 +96,10 @@ class FavoritesCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cursor.execute("INSERT INTO favorites (user_id, card_code) VALUES (?, ?)", (user.id, card_code))
+        cursor.execute("INSERT INTO favorites (user_id, card_code) VALUES (%s, %s)", (user.id, card_code))
         conn.commit()
         new_count = fav_count + 1
-        conn.close()
+        release_connection(conn)
 
         embed = discord.Embed(
             title="⭐ Added to Favorites!",
@@ -130,14 +129,14 @@ class FavoritesCog(commands.Cog):
 
         code = code.strip().lower()
 
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id FROM favorites WHERE user_id = ? AND card_code = ?", (user.id, code))
+        cursor.execute("SELECT id FROM favorites WHERE user_id = %s AND card_code = %s", (user.id, code))
         row = cursor.fetchone()
 
         if not row:
-            conn.close()
+            release_connection(conn)
             msg = f"Coo coo! ⚠️ Card `{code}` is not in your favorites!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -145,19 +144,19 @@ class FavoritesCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cursor.execute("DELETE FROM favorites WHERE id = ?", (row[0],))
+        cursor.execute("DELETE FROM favorites WHERE id = %s", (row[0],))
         conn.commit()
 
-        cursor.execute("SELECT COUNT(*) FROM favorites WHERE user_id = ?", (user.id,))
+        cursor.execute("SELECT COUNT(*) FROM favorites WHERE user_id = %s", (user.id,))
         new_count = cursor.fetchone()[0]
-        conn.close()
+        release_connection(conn)
 
         # Get card name for display
-        conn2 = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn2 = get_connection()
         cur2 = conn2.cursor()
-        cur2.execute("SELECT character_name FROM inventory WHERE code = ?", (code,))
+        cur2.execute("SELECT character_name FROM inventory WHERE code = %s", (code,))
         name_row = cur2.fetchone()
-        conn2.close()
+        release_connection(conn2)
         char_disp = f"**{name_row[0]}** (`{code}`)" if name_row else f"`{code}`"
 
         embed = discord.Embed(
@@ -174,14 +173,14 @@ class FavoritesCog(commands.Cog):
     async def process_favorites(self, ctx_or_interaction, target_user: discord.User = None):
         user = target_user or (ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author)
 
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT card_code FROM favorites WHERE user_id = ? ORDER BY id ASC", (user.id,))
+        cursor.execute("SELECT card_code FROM favorites WHERE user_id = %s ORDER BY id ASC", (user.id,))
         fav_rows = cursor.fetchall()
 
         if not fav_rows:
-            conn.close()
+            release_connection(conn)
             if target_user and target_user.id != (ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author).id:
                 msg = f"Coo coo! 📋 **{user.display_name}** has no favorites yet!"
             else:
@@ -199,7 +198,7 @@ class FavoritesCog(commands.Cog):
 
         for idx, (card_code,) in enumerate(fav_rows):
             cursor.execute(
-                "SELECT character_name, series_name, rarity, mint_number, edition, quality FROM inventory WHERE code = ?",
+                "SELECT character_name, series_name, rarity, mint_number, edition, quality FROM inventory WHERE code = %s",
                 (card_code,)
             )
             card = cursor.fetchone()
@@ -218,7 +217,7 @@ class FavoritesCog(commands.Cog):
                     inline=False
                 )
 
-        conn.close()
+        release_connection(conn)
         embed.set_footer(text="Use !fav <code> to add • !unfav <code> to remove")
 
         if isinstance(ctx_or_interaction, discord.Interaction):

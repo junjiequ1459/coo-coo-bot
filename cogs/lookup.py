@@ -1,8 +1,7 @@
-import sqlite3
+from db import get_connection, release_connection
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import DB_PATH
 from utils.renderer import render_single_card
 
 class LookupCog(commands.Cog):
@@ -10,14 +9,14 @@ class LookupCog(commands.Cog):
         self.bot = bot
 
     async def display_single_character_lookup(self, ctx_or_interaction, char_name: str, series: str, img_url: str, rarity: str, print_num_target: int = None):
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
 
         # If a specific print number was requested (e.g. !lu Yor Forger 1)
         if print_num_target is not None:
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(?) AND mint_number = ?", (char_name, print_num_target))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(%s) AND mint_number = %s", (char_name, print_num_target))
             inv_row = cursor.fetchone()
-            conn.close()
+            release_connection(conn)
 
             if not inv_row:
                 msg = f"Coo coo! ⚠️ **{char_name}** Print #{print_num_target} has not been claimed yet or is not in inventory!"
@@ -65,9 +64,9 @@ class LookupCog(commands.Cog):
             return
 
         # Overview Mode: list all claimed prints for this character across all players!
-        cursor.execute("SELECT code, user_id, mint_number, edition, quality FROM inventory WHERE LOWER(character_name) = LOWER(?) ORDER BY mint_number ASC", (char_name,))
+        cursor.execute("SELECT code, user_id, mint_number, edition, quality FROM inventory WHERE LOWER(character_name) = LOWER(%s) ORDER BY mint_number ASC", (char_name,))
         inv_rows = cursor.fetchall()
-        conn.close()
+        release_connection(conn)
 
         embed = discord.Embed(
             title=f"🔍 Character Lookup: {char_name}",
@@ -233,37 +232,37 @@ class CharacterSearchPaginatorView(discord.ui.View):
         self.update_view_items()
 
     def count_matches(self) -> int:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         tokens = [t.strip().lower() for t in self.search_query.split() if t.strip()]
         if not tokens:
-            conn.close()
+            release_connection(conn)
             return 0
         
         clauses = []
         params = []
         for t in tokens:
-            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') ILIKE %s")
             params.append(f"%{t}%")
         
         sql = f"SELECT COUNT(*) FROM cards_pool WHERE {' AND '.join(clauses)}"
         cursor.execute(sql, tuple(params))
         cnt = cursor.fetchone()[0]
-        conn.close()
+        release_connection(conn)
         return cnt
 
     def fetch_page_matches(self) -> list:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         tokens = [t.strip().lower() for t in self.search_query.split() if t.strip()]
         if not tokens:
-            conn.close()
+            release_connection(conn)
             return []
 
         clauses = []
         params = []
         for t in tokens:
-            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') ILIKE %s")
             params.append(f"%{t}%")
         
         offset = self.current_page * self.per_page
@@ -273,11 +272,11 @@ class CharacterSearchPaginatorView(discord.ui.View):
         FROM cards_pool 
         WHERE {' AND '.join(clauses)} 
         ORDER BY length(character_name) ASC, character_name ASC 
-        LIMIT ? OFFSET ?
+        LIMIT %s OFFSET %s
         """
         cursor.execute(sql, tuple(params))
         rows = cursor.fetchall()
-        conn.close()
+        release_connection(conn)
         return rows
 
     def update_view_items(self):
@@ -371,23 +370,23 @@ class SeriesListPaginatorView(discord.ui.View):
         self.update_view_items()
 
     def fetch_all_series(self) -> list:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         tokens = [t.strip().lower() for t in self.series_query.split() if t.strip()]
         if not tokens:
-            conn.close()
+            release_connection(conn)
             return []
 
         clauses = []
         params = []
         for t in tokens:
-            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(series_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') LIKE ?")
+            clauses.append("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(series_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') ILIKE %s")
             params.append(f"%{t}%")
 
         sql = f"SELECT DISTINCT series_name FROM cards_pool WHERE {' AND '.join(clauses)} ORDER BY series_name ASC"
         cursor.execute(sql, tuple(params))
         rows = [r[0] for r in cursor.fetchall()]
-        conn.close()
+        release_connection(conn)
         return rows
 
     def update_view_items(self):
@@ -447,7 +446,7 @@ class SeriesListPaginatorView(discord.ui.View):
             await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
     def build_embed(self) -> discord.Embed:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
 
         embed = discord.Embed(
@@ -457,7 +456,7 @@ class SeriesListPaginatorView(discord.ui.View):
         )
 
         for idx, sname in enumerate(self.current_page_series):
-            cursor.execute("SELECT COUNT(*) FROM cards_pool WHERE series_name = ?", (sname,))
+            cursor.execute("SELECT COUNT(*) FROM cards_pool WHERE series_name = %s", (sname,))
             char_cnt = cursor.fetchone()[0]
 
             embed.add_field(
@@ -466,7 +465,7 @@ class SeriesListPaginatorView(discord.ui.View):
                 inline=False
             )
 
-        conn.close()
+        release_connection(conn)
         embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 series per page")
         return embed
 
@@ -484,26 +483,26 @@ class SeriesCharacterPaginatorView(discord.ui.View):
         self.update_view_items()
 
     def count_matches(self) -> int:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM cards_pool WHERE LOWER(series_name) = LOWER(?)", (self.series_name,))
+        cursor.execute("SELECT COUNT(*) FROM cards_pool WHERE LOWER(series_name) = LOWER(%s)", (self.series_name,))
         cnt = cursor.fetchone()[0]
-        conn.close()
+        release_connection(conn)
         return cnt
 
     def fetch_page_matches(self) -> list:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
         offset = self.current_page * self.per_page
         cursor.execute("""
         SELECT character_name, series_name, image_url, rarity 
         FROM cards_pool 
-        WHERE LOWER(series_name) = LOWER(?) 
+        WHERE LOWER(series_name) = LOWER(%s) 
         ORDER BY character_name ASC 
-        LIMIT ? OFFSET ?
+        LIMIT %s OFFSET %s
         """, (self.series_name, self.per_page, offset))
         rows = cursor.fetchall()
-        conn.close()
+        release_connection(conn)
         return rows
 
     def update_view_items(self):
@@ -563,7 +562,7 @@ class SeriesCharacterPaginatorView(discord.ui.View):
             await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
     def build_embed(self) -> discord.Embed:
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
 
         embed = discord.Embed(
@@ -574,7 +573,7 @@ class SeriesCharacterPaginatorView(discord.ui.View):
 
         for idx, match in enumerate(self.current_matches):
             cname, sname, iurl, rval = match
-            cursor.execute("SELECT COUNT(*) FROM inventory WHERE LOWER(character_name) = LOWER(?)", (cname,))
+            cursor.execute("SELECT COUNT(*) FROM inventory WHERE LOWER(character_name) = LOWER(%s)", (cname,))
             claimed_cnt = cursor.fetchone()[0]
 
             embed.add_field(
@@ -583,7 +582,7 @@ class SeriesCharacterPaginatorView(discord.ui.View):
                 inline=False
             )
 
-        conn.close()
+        release_connection(conn)
         embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Showing 5 characters per page")
         return embed
 

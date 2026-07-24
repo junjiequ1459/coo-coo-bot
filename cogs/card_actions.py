@@ -1,9 +1,9 @@
 import time
-import sqlite3
+from db import get_connection, release_connection
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import DB_PATH, BURN_REWARDS
+from config import BURN_REWARDS
 from database import (
     get_card_by_code_and_owner, update_card_tag,
     delete_card_from_inventory, get_user_dust, add_user_dust,
@@ -132,11 +132,11 @@ class CardActionsCog(commands.Cog):
         if card_code:
             card_row = get_card_by_code_and_owner(card_code, user.id)
         else:
-            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag, quality FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag, quality FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
-            conn.close()
+            release_connection(conn)
             card_row = row
 
         if not card_row:
@@ -227,11 +227,11 @@ class CardActionsCog(commands.Cog):
 
         if arg2 is None:
             tag_name = arg1.strip()
-            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
-            conn.close()
+            release_connection(conn)
 
             if not row:
                 msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet!"
@@ -253,11 +253,11 @@ class CardActionsCog(commands.Cog):
                 tag_name = potential_tag
             else:
                 tag_name = f"{potential_code} {potential_tag}".strip()
-                conn = sqlite3.connect(DB_PATH, timeout=20.0)
+                conn = get_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+                cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
                 row = cursor.fetchone()
-                conn.close()
+                release_connection(conn)
 
                 if not row:
                     msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet!"
@@ -294,11 +294,11 @@ class CardActionsCog(commands.Cog):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
 
         if not code:
-            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
-            conn.close()
+            release_connection(conn)
 
             if not row:
                 msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet!"
@@ -337,11 +337,11 @@ class CardActionsCog(commands.Cog):
 
         card_row = get_card_by_code_and_owner(card_code_query if card_code_query else "", user.id) if card_code_query else None
         if not card_row:
-            conn = sqlite3.connect(DB_PATH, timeout=20.0)
+            conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
-            conn.close()
+            release_connection(conn)
 
             if row:
                 cid, ccode, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val = row
@@ -360,11 +360,11 @@ class CardActionsCog(commands.Cog):
         q_curr = (q_val or "Good ⭐⭐").strip()
 
         # Fetch image URL if needed
-        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT image_url FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code_str.lower(), code_str, user.id))
+        cursor.execute("SELECT image_url FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (code_str.lower(), code_str, user.id))
         img_row = cursor.fetchone()
-        conn.close()
+        release_connection(conn)
         img_url = img_row[0] if img_row else ""
 
         q_clean = q_curr.lower()

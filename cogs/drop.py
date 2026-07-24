@@ -3,11 +3,13 @@ import random
 import discord
 from discord.ext import commands
 from discord import app_commands
+from db import get_connection, release_connection
 from database import (
     get_user_cooldowns, set_user_cooldown, get_effective_cooldowns,
     get_user_drop_tickets, add_user_drop_tickets,
     get_user_grab_tickets, add_user_grab_tickets,
-    save_card_to_inventory, get_cards_from_db_pool, roll_card_quality
+    save_card_to_inventory, get_cards_from_db_pool, roll_card_quality,
+    get_next_mint, generate_card_code
 )
 from utils.renderer import render_three_cards_composite
 from utils.anilist import fetch_random_anilist_cards
@@ -168,11 +170,11 @@ class DropCog(commands.Cog):
             cards = get_cards_from_db_pool(3)
 
             if forced_character:
-                conn = sqlite3.connect(DB_PATH, timeout=20.0)
+                conn = get_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) LIKE ? LIMIT 1", (f"%{forced_character.strip().lower()}%",))
+                cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) ILIKE %s LIMIT 1", (f"%{forced_character.strip().lower()}%",))
                 row = cursor.fetchone()
-                conn.close()
+                release_connection(conn)
                 if row:
                     fc_name, fc_series, fc_img, fc_rarity = row
                     fc_mint = get_next_mint(fc_name)
