@@ -1546,18 +1546,27 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
 
     if not card_code_query:
         cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+        row = cursor.fetchone()
     else:
         query_str = card_code_query.lower().strip()
-        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE code = ? OR id = ?", (query_str, query_str))
-    
-    row = cursor.fetchone()
-    conn.close()
+        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user.id))
+        row = cursor.fetchone()
+
+        # If not found by Card ID, check if query_str is a Tag name in user's inventory!
+        if not row:
+            cursor.execute("SELECT COUNT(*) FROM inventory WHERE user_id = ? AND LOWER(tag) = ?", (user.id, query_str))
+            tag_count = cursor.fetchone()[0]
+            if tag_count > 0:
+                conn.close()
+                await process_inventory(ctx_or_interaction, tag_filter=query_str)
+                return
 
     if not row:
+        conn.close()
         if not card_code_query:
             msg = "Coo coo! ⚠️ You don't have any cards in your inventory yet! Type `/drop` to grab your first card!"
         else:
-            msg = f"Coo coo! ⚠️ Card ID `{card_code_query}` not found in database!"
+            msg = f"Coo coo! ⚠️ Card ID or Tag `{card_code_query}` not found in your inventory!"
             
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg)
@@ -1566,6 +1575,8 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
         return
 
     cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, grabbed_at = row
+    conn.close()
+
     owner = bot.get_user(uid)
     owner_name = owner.display_name if owner else f"User {uid}"
     ed_val = edition if edition else 1
@@ -1753,7 +1764,7 @@ async def send_help_menu(ctx_or_interaction):
             "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
             "• **`!tag <id> <name>`** or **`/tag`** — Assign a folder tag to a card.\n"
             "• **`!untag <id>`** or **`/untag`** — Remove a tag from a card.\n"
-            "• **`!inv <tag>`** — View cards in a specific tag folder!"
+            "• **`!inv <tag>`** or **`!v <tag>`** — View cards in a specific tag folder!"
         ),
         inline=False
     )
