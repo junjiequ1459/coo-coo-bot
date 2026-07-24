@@ -190,6 +190,24 @@ class AdminCog(commands.Cog):
         await self.grant_card(ctx, target, character_name)
 
     # --- DIRECT SHORTCUT COMMANDS ---
+    @commands.command(name="givegems")
+    async def givegems_prefix(self, ctx, target: discord.User, amount: int):
+        if not self.is_owner(ctx.author.id):
+            await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
+            return
+        await self.grant_gems(ctx, target, amount)
+
+    @app_commands.command(name="givegems", description="[Owner Only] Grant Gems directly to any user")
+    async def givegems_slash(self, interaction: discord.Interaction, target: discord.User, amount: int):
+        if not self.is_owner(interaction.user.id):
+            await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
+            return
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.grant_gems(interaction, target, amount)
+
     @commands.command(name="givedust")
     async def givedust_prefix(self, ctx, target: discord.User, amount: int):
         if not self.is_owner(ctx.author.id):

@@ -230,10 +230,6 @@ class EconomyCog(commands.Cog):
     async def pay_prefix(self, ctx, target: discord.User, amount: int):
         await self.process_pay(ctx, target, amount)
 
-    @commands.command(name="give")
-    async def pay_prefix_give(self, ctx, target: discord.User, amount: int):
-        await self.process_pay(ctx, target, amount)
-
     @app_commands.command(name="dust", description="Check your current Dust flask balance")
     async def dust_slash(self, interaction: discord.Interaction):
         try:
