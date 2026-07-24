@@ -86,6 +86,8 @@ async def main():
         cogs = [
             "cogs.drop",
             "cogs.inventory",
+            "cogs.card_actions",
+            "cogs.lookup",
             "cogs.economy",
             "cogs.shop",
             "cogs.trade",
