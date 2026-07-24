@@ -1427,8 +1427,20 @@ async def vt_slash(interaction: discord.Interaction, tag: str):
         pass
     await process_inventory(interaction, tag)
 
+@bot.tree.command(name="viewtag", description="View all cards in a specific tag folder")
+async def viewtag_slash(interaction: discord.Interaction, tag: str):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_inventory(interaction, tag)
+
 @bot.command(name="vt")
 async def view_tag_prefix_vt(ctx, *, tag: str):
+    await process_inventory(ctx, tag)
+
+@bot.command(name="viewtag")
+async def view_tag_prefix_viewtag(ctx, *, tag: str):
     await process_inventory(ctx, tag)
 
 # ==========================================
@@ -1776,7 +1788,7 @@ async def send_help_menu(ctx_or_interaction):
             "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
             "• **`!tag <id> <name>`** or **`/tag`** — Assign a folder tag to a card.\n"
             "• **`!untag <id>`** or **`/untag`** — Remove a tag from a card.\n"
-            "• **`!vt <tag>`** or **`!inv <tag>`** — View all cards in a specific tag folder!"
+            "• **`!viewtag <tag>`** or **`!vt <tag>`** or **`!inv <tag>`** — View all cards in a tag folder!"
         ),
         inline=False
     )
