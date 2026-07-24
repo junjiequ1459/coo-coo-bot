@@ -42,16 +42,19 @@ def init_db():
         rarity TEXT NOT NULL,
         mint_number INTEGER NOT NULL,
         edition INTEGER DEFAULT 1,
+        tag TEXT DEFAULT NULL,
         grabbed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
     
     cursor.execute("PRAGMA table_info(inventory)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if "code" not in columns:
+    inv_columns = [column[1] for column in cursor.fetchall()]
+    if "code" not in inv_columns:
         cursor.execute("ALTER TABLE inventory ADD COLUMN code TEXT")
-    if "edition" not in columns:
+    if "edition" not in inv_columns:
         cursor.execute("ALTER TABLE inventory ADD COLUMN edition INTEGER DEFAULT 1")
+    if "tag" not in inv_columns:
+        cursor.execute("ALTER TABLE inventory ADD COLUMN tag TEXT DEFAULT NULL")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
@@ -64,9 +67,15 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         gems INTEGER DEFAULT 100,
+        dust INTEGER DEFAULT 0,
         last_daily INTEGER DEFAULT 0
     )
     """)
+
+    cursor.execute("PRAGMA table_info(users)")
+    usr_columns = [column[1] for column in cursor.fetchall()]
+    if "dust" not in usr_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN dust INTEGER DEFAULT 0")
     
     conn.commit()
     conn.close()
@@ -79,13 +88,27 @@ def get_user_gems(user_id: int) -> int:
     cursor.execute("SELECT gems FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     if not row:
-        cursor.execute("INSERT INTO users (user_id, gems) VALUES (?, 100)", (user_id,))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 100, 0)", (user_id,))
         conn.commit()
         gems = 100
     else:
         gems = row[0]
     conn.close()
     return gems
+
+def get_user_dust(user_id: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT dust FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 100, 0)", (user_id,))
+        conn.commit()
+        dust = 0
+    else:
+        dust = row[0] if row[0] is not None else 0
+    conn.close()
+    return dust
 
 def add_user_gems(user_id: int, amount: int) -> int:
     conn = sqlite3.connect(DB_PATH)
@@ -94,13 +117,29 @@ def add_user_gems(user_id: int, amount: int) -> int:
     row = cursor.fetchone()
     if not row:
         new_gems = 100 + amount
-        cursor.execute("INSERT INTO users (user_id, gems) VALUES (?, ?)", (user_id, new_gems))
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, ?, 0)", (user_id, new_gems))
     else:
         new_gems = row[0] + amount
         cursor.execute("UPDATE users SET gems = ? WHERE user_id = ?", (new_gems, user_id))
     conn.commit()
     conn.close()
     return new_gems
+
+def add_user_dust(user_id: int, amount: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT dust FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        new_dust = amount
+        cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, 100, ?)", (user_id, new_dust))
+    else:
+        curr = row[0] if row[0] is not None else 0
+        new_dust = curr + amount
+        cursor.execute("UPDATE users SET dust = ? WHERE user_id = ?", (new_dust, user_id))
+    conn.commit()
+    conn.close()
+    return new_dust
 
 def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
     if amount <= 0:
@@ -123,7 +162,7 @@ def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
         cursor.execute("SELECT gems FROM users WHERE user_id = ?", (to_user_id,))
         row2 = cursor.fetchone()
         if not row2:
-            cursor.execute("INSERT INTO users (user_id, gems) VALUES (?, ?)", (to_user_id, 100 + amount))
+            cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (?, ?, 0)", (to_user_id, 100 + amount))
         else:
             cursor.execute("UPDATE users SET gems = gems + ? WHERE user_id = ?", (amount, to_user_id))
 
@@ -163,10 +202,13 @@ def save_card_to_inventory(user_id: int, code: str, character_name: str, series_
     conn.close()
     return inserted_id
 
-def get_user_inventory(user_id: int):
+def get_user_inventory(user_id: int, tag_filter: str = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    if tag_filter:
+        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag FROM inventory WHERE user_id = ? AND LOWER(tag) = ? ORDER BY id DESC", (user_id, tag_filter.lower().strip()))
+    else:
+        cursor.execute("SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, tag FROM inventory WHERE user_id = ? ORDER BY id DESC", (user_id,))
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -174,8 +216,32 @@ def get_user_inventory(user_id: int):
 def get_card_by_code_and_owner(code: str, user_id: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
+    cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, tag FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (code.lower().strip(), code.strip(), user_id))
     row = cursor.fetchone()
+    conn.close()
+    return row
+
+def update_card_tag(code_str: str, user_id: int, tag_name: str = None) -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    query_str = code_str.lower().strip()
+    cursor.execute("UPDATE inventory SET tag = ? WHERE (code = ? OR id = ?) AND user_id = ?", (tag_name, query_str, query_str, user_id))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+def delete_card_from_inventory(code_str: str, user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    query_str = code_str.lower().strip()
+    cursor.execute("SELECT id, code, character_name, rarity FROM inventory WHERE (code = ? OR id = ?) AND user_id = ?", (query_str, query_str, user_id))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return None
+    cursor.execute("DELETE FROM inventory WHERE id = ?", (row[0],))
+    conn.commit()
     conn.close()
     return row
 
@@ -204,6 +270,13 @@ RARITY_COLORS = {
     "🟣 Epic": (147, 112, 219),     # Rich Purple
     "🔷 Rare": (0, 229, 255),       # Cyan Blue
     "⚪ Common": (140, 155, 170)    # Slate Silver
+}
+
+BURN_REWARDS = {
+    "✨ Legendary": {"dust": 200, "gems": 150},
+    "🟣 Epic": {"dust": 100, "gems": 75},
+    "🔷 Rare": {"dust": 50, "gems": 35},
+    "⚪ Common": {"dust": 20, "gems": 15}
 }
 
 async def fetch_image(session, url):
@@ -674,7 +747,7 @@ class TradeSession:
                 await interaction_or_ctx.send(msg)
             return
 
-        cid, code, uid, char_name, series, rarity, mint_num, edition = card_row
+        cid, code, uid, char_name, series, rarity, mint_num, edition, tag = card_row
         card_code = code if code else f"c{cid:04d}"
 
         if any(c["code"] == card_code for c in target_list):
@@ -735,10 +808,8 @@ class TradeSession:
             p1_codes = [c["code"] for c in self.p1_cards]
             p2_codes = [c["code"] for c in self.p2_cards]
 
-            # Execute Card Transfer
             card_success = transfer_cards_between_users(self.p1.id, p1_codes, self.p2.id, p2_codes)
 
-            # Execute Gems Transfer
             gem_success_1 = True
             if self.p1_gems > 0:
                 gem_success_1 = transfer_gems(self.p1.id, self.p2.id, self.p1_gems)
@@ -1130,6 +1201,153 @@ async def pay_prefix_give(ctx, target: discord.User, amount: int):
     await process_pay(ctx, target, amount)
 
 # ==========================================
+# 🧪 BURN, DUST & TAGGING SYSTEM
+# ==========================================
+async def process_dust_balance(ctx_or_interaction):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    dust = get_user_dust(user.id)
+    gems = get_user_gems(user.id)
+
+    embed = discord.Embed(
+        title=f"🧪 {user.display_name}'s Dust Flask",
+        description=(
+            f"🧪 **Current Dust:** **{dust:,} Dust**\n"
+            f"💎 **Current Gems:** **{gems:,} Gems**"
+        ),
+        color=discord.Color.purple()
+    )
+    embed.set_footer(text="Burn duplicate or unwanted cards with !burn <card_id> to generate Dust and Gems!")
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="dust", description="Check your current Dust flask balance")
+async def dust_slash(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_dust_balance(interaction)
+
+@bot.command(name="dust")
+async def dust_prefix(ctx):
+    await process_dust_balance(ctx)
+
+async def process_burn_card(ctx_or_interaction, card_code: str):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    deleted = delete_card_from_inventory(card_code, user.id)
+
+    if not deleted:
+        msg = f"Coo coo! ⚠️ Card `{card_code}` not found in your inventory!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    cid, code, char_name, rarity = deleted
+    rewards = BURN_REWARDS.get(rarity, {"dust": 20, "gems": 15})
+    
+    new_dust = add_user_dust(user.id, rewards["dust"])
+    new_gems = add_user_gems(user.id, rewards["gems"])
+
+    embed = discord.Embed(
+        title=f"🔥 Burned: {char_name}",
+        description=(
+            f"🔥 **{user.mention}** burned `{code}` (**{char_name}** — {rarity}) into ashes!\n\n"
+            f"🧪 **Gained Dust:** **+{rewards['dust']} Dust** *(Total: {new_dust:,} 🧪)*\n"
+            f"💎 **Gained Gems:** **+{rewards['gems']} Gems** *(Total: {new_gems:,} 💎)*"
+        ),
+        color=discord.Color.red()
+    )
+
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="burn", description="Burn an unwanted card to convert it into Dust and Gems")
+async def burn_slash(interaction: discord.Interaction, code: str):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_burn_card(interaction, code)
+
+@bot.command(name="burn")
+async def burn_prefix(ctx, code: str):
+    await process_burn_card(ctx, code)
+
+async def process_tag_card(ctx_or_interaction, code: str, tag_name: str):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    clean_tag = tag_name.strip()
+
+    success = update_card_tag(code, user.id, clean_tag)
+    if success:
+        embed = discord.Embed(
+            title="🏷️ Card Tagged!",
+            description=f"Successfully assigned tag **`[{clean_tag}]`** to card `{code.lower()}`!",
+            color=discord.Color.blue()
+        )
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+    else:
+        msg = f"Coo coo! ⚠️ Card `{code}` not found in your inventory!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+
+@bot.tree.command(name="tag", description="Assign a custom folder tag to a card")
+async def tag_slash(interaction: discord.Interaction, code: str, tag: str):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_tag_card(interaction, code, tag)
+
+@bot.command(name="tag")
+async def tag_prefix(ctx, code: str, *, tag: str):
+    await process_tag_card(ctx, code, tag)
+
+async def process_untag_card(ctx_or_interaction, code: str):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    success = update_card_tag(code, user.id, None)
+
+    if success:
+        embed = discord.Embed(
+            title="🏷️ Card Untagged!",
+            description=f"Removed tag from card `{code.lower()}`!",
+            color=discord.Color.dark_grey()
+        )
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+    else:
+        msg = f"Coo coo! ⚠️ Card `{code}` not found in your inventory!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+
+@bot.tree.command(name="untag", description="Remove a folder tag from a card")
+async def untag_slash(interaction: discord.Interaction, code: str):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_untag_card(interaction, code)
+
+@bot.command(name="untag")
+async def untag_prefix(ctx, code: str):
+    await process_untag_card(ctx, code)
+
+# ==========================================
 # 🎴 ANILIST CARD DROP & INVENTORY COMMANDS
 # ==========================================
 
@@ -1186,30 +1404,35 @@ async def drop_prefix(ctx):
 async def drop_prefix_d(ctx):
     await execute_card_drop(ctx, ctx.author)
 
-@bot.tree.command(name="inventory", description="View your collected Anime Cards")
-async def inventory_slash(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-    except Exception:
-        pass
-    rows = get_user_inventory(interaction.user.id)
-    gems = get_user_gems(interaction.user.id)
+async def process_inventory(ctx_or_interaction, tag_filter: str = None):
+    user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
+    rows = get_user_inventory(user.id, tag_filter)
+    gems = get_user_gems(user.id)
+    dust = get_user_dust(user.id)
+
+    title_suffix = f" (Tag: [{tag_filter}])" if tag_filter else ""
+
     if not rows:
-        await interaction.followup.send(f"Coo coo! 🎴 You haven't grabbed any cards yet! (Balance: **{gems:,} 💎 Gems**). Type `/drop` to start collecting!")
+        msg = f"Coo coo! 🎴 No cards found in your collection{title_suffix}! (Balance: **{gems:,} 💎 Gems** | **{dust:,} 🧪 Dust**). Type `/drop` to start collecting!"
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(msg)
+        else:
+            await ctx_or_interaction.send(msg)
         return
 
     embed = discord.Embed(
-        title=f"🎴 {interaction.user.display_name}'s Card Collection",
-        description=f"Total Cards: **{len(rows)}** | Balance: **{gems:,} 💎 Gems**",
+        title=f"🎴 {user.display_name}'s Card Collection{title_suffix}",
+        description=f"Total Cards: **{len(rows)}** | Balance: **{gems:,} 💎 Gems** | **{dust:,} 🧪 Dust**",
         color=discord.Color.purple()
     )
 
     for row in rows[:10]:
-        card_id, code, char_name, series, rarity, mint_num, edition, img_url = row
+        card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val = row
         code_str = code if code else f"c{card_id:04d}"
         ed_val = edition if edition else 1
+        tag_disp = f" 🏷️ `[{tag_val}]`" if tag_val else ""
         embed.add_field(
-            name=f"🆔 Card ID: `{code_str}` • {char_name}",
+            name=f"🆔 Card ID: `{code_str}` • {char_name}{tag_disp}",
             value=f"Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
             inline=False
         )
@@ -1219,41 +1442,30 @@ async def inventory_slash(interaction: discord.Interaction):
     else:
         embed.set_footer(text="Type /card code:<code> to see full card artwork!")
 
-    await interaction.followup.send(embed=embed)
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+@bot.tree.command(name="inventory", description="View your collected Anime Cards (Optional tag filter)")
+async def inventory_slash(interaction: discord.Interaction, tag: str = None):
+    try:
+        await interaction.response.defer()
+    except Exception:
+        pass
+    await process_inventory(interaction, tag)
 
 @bot.command(name="inventory")
-async def inventory_prefix(ctx):
-    rows = get_user_inventory(ctx.author.id)
-    gems = get_user_gems(ctx.author.id)
-    if not rows:
-        await ctx.send(f"Coo coo! 🎴 You haven't grabbed any cards yet! (Balance: **{gems:,} 💎 Gems**). Type `!drop` to start collecting!")
-        return
-
-    embed = discord.Embed(
-        title=f"🎴 {ctx.author.display_name}'s Card Collection",
-        description=f"Total Cards: **{len(rows)}** | Balance: **{gems:,} 💎 Gems**",
-        color=discord.Color.purple()
-    )
-
-    for row in rows[:10]:
-        card_id, code, char_name, series, rarity, mint_num, edition, img_url = row
-        code_str = code if code else f"c{card_id:04d}"
-        ed_val = edition if edition else 1
-        embed.add_field(
-            name=f"🆔 Card ID: `{code_str}` • {char_name}",
-            value=f"Edition {ed_val} • Print #{mint_num} | 📺 *{series}* | {rarity}",
-            inline=False
-        )
-
-    await ctx.send(embed=embed)
+async def inventory_prefix(ctx, *, tag: str = None):
+    await process_inventory(ctx, tag)
 
 @bot.command(name="i")
-async def inventory_prefix_i(ctx):
-    await inventory_prefix(ctx)
+async def inventory_prefix_i(ctx, *, tag: str = None):
+    await process_inventory(ctx, tag)
 
 @bot.command(name="inv")
-async def inventory_prefix_inv(ctx):
-    await inventory_prefix(ctx)
+async def inventory_prefix_inv(ctx, *, tag: str = None):
+    await process_inventory(ctx, tag)
 
 async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
@@ -1261,10 +1473,10 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     cursor = conn.cursor()
 
     if not card_code_query:
-        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
+        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user.id,))
     else:
         query_str = card_code_query.lower().strip()
-        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, grabbed_at FROM inventory WHERE code = ? OR id = ?", (query_str, query_str))
+        cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, grabbed_at FROM inventory WHERE code = ? OR id = ?", (query_str, query_str))
     
     row = cursor.fetchone()
     conn.close()
@@ -1281,7 +1493,7 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
             await ctx_or_interaction.send(msg)
         return
 
-    cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, grabbed_at = row
+    cid, code, uid, char_name, series, rarity, mint_num, edition, img_url, tag_val, grabbed_at = row
     owner = bot.get_user(uid)
     owner_name = owner.display_name if owner else f"User {uid}"
     ed_val = edition if edition else 1
@@ -1301,11 +1513,14 @@ async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     buf = await render_single_card(card_data)
     file = discord.File(fp=buf, filename="card.png")
 
+    tag_disp = f"🏷️ **Tag:** `[{tag_val}]`\n" if tag_val else ""
+
     embed = discord.Embed(
         title=f"🆔 Card ID: {code_str} • {char_name}",
         description=(
             f"📺 **Series:** {series}\n"
             f"👤 **Owner:** {owner_name}\n"
+            f"{tag_disp}"
             f"📅 **Grabbed:** {grabbed_at}"
         ),
         color=discord.Color.magenta()
@@ -1450,11 +1665,23 @@ async def send_help_menu(ctx_or_interaction):
     )
 
     embed.add_field(
-        name="💎 Gems Economy",
+        name="💎 Gems & 🧪 Dust Economy",
         value=(
-            "• **`!bal`** or **`/bal`** or **`/balance`** — Check your personal Gem balance (Private!).\n"
+            "• **`!bal`** or **`/bal`** — Check your personal Gem balance (Private!).\n"
+            "• **`!dust`** or **`/dust`** — Check your Dust flask balance.\n"
             "• **`!daily`** or **`/daily`** — Claim 500 free Gems every 24 hours!\n"
             "• **`!pay @user <amt>`** or **`/pay`** — Transfer Gems to a friend."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🔥 Burning & 🏷️ Tagging",
+        value=(
+            "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust & Gems!\n"
+            "• **`!tag <id> <name>`** or **`/tag`** — Assign a folder tag to a card.\n"
+            "• **`!untag <id>`** or **`/untag`** — Remove a tag from a card.\n"
+            "• **`!inv <tag>`** — View cards in a specific tag folder!"
         ),
         inline=False
     )
@@ -1482,12 +1709,12 @@ async def send_help_menu(ctx_or_interaction):
     )
 
     embed.add_field(
-        name="👑 Card Rarities",
+        name="👑 Card Rarities & Burn Yields",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12,000+ Favs\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4,000-12,000 Favs\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1,000-4,000 Favs\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1,000 Favs"
+            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | Burns to **+200 🧪 / +150 💎**\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | Burns to **+100 🧪 / +75 💎**\n"
+            "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | Burns to **+50 🧪 / +35 💎**\n"
+            "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | Burns to **+20 🧪 / +15 💎**"
         ),
         inline=False
     )
@@ -1501,7 +1728,7 @@ async def send_help_menu(ctx_or_interaction):
         inline=False
     )
 
-    embed.set_footer(text="Coo Coo Bot • Anime Card & Gems Economy Engine")
+    embed.set_footer(text="Coo Coo Bot • Anime Card, Tagging & Dusting Engine")
 
     if isinstance(ctx_or_interaction, discord.Interaction):
         await ctx_or_interaction.followup.send(embed=embed)
