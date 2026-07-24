@@ -517,8 +517,8 @@ class TradeSession:
         self.channel = channel
         self.p1 = p1
         self.p2 = p2
-        self.p1_cards = []  # list of card dicts
-        self.p2_cards = []  # list of card dicts
+        self.p1_cards = []
+        self.p2_cards = []
         self.p1_confirmed = False
         self.p2_confirmed = False
         self.message = None
@@ -607,7 +607,6 @@ class TradeSession:
             "rarity": rarity
         })
 
-        # Reset confirmations on any modification!
         self.p1_confirmed = False
         self.p2_confirmed = False
 
@@ -632,7 +631,6 @@ class TradeSession:
 
         target_list.remove(matching[0])
 
-        # Reset confirmations on any modification!
         self.p1_confirmed = False
         self.p2_confirmed = False
 
@@ -653,7 +651,6 @@ class TradeSession:
 
             success = transfer_cards_between_users(self.p1.id, p1_codes, self.p2.id, p2_codes)
             if success:
-                # Build Detailed Card Receipts!
                 p1_rec_text = ""
                 if self.p2_cards:
                     for c in self.p2_cards:
@@ -906,6 +903,10 @@ async def drop_slash(interaction: discord.Interaction):
 async def drop_prefix(ctx):
     await execute_card_drop(ctx, ctx.author)
 
+@bot.command(name="d")
+async def drop_prefix_d(ctx):
+    await execute_card_drop(ctx, ctx.author)
+
 @bot.tree.command(name="inventory", description="View your collected Anime Cards")
 async def inventory_slash(interaction: discord.Interaction):
     try:
@@ -964,6 +965,14 @@ async def inventory_prefix(ctx):
         )
 
     await ctx.send(embed=embed)
+
+@bot.command(name="i")
+async def inventory_prefix_i(ctx):
+    await inventory_prefix(ctx)
+
+@bot.command(name="inv")
+async def inventory_prefix_inv(ctx):
+    await inventory_prefix(ctx)
 
 async def process_view_card(ctx_or_interaction, card_code_query: str = None):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
