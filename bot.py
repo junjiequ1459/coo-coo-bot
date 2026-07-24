@@ -1503,13 +1503,11 @@ async def drop_prefix_d(ctx):
 async def process_inventory(ctx_or_interaction, tag_filter: str = None):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
     rows = get_user_inventory(user.id, tag_filter)
-    gems = get_user_gems(user.id)
-    dust = get_user_dust(user.id)
 
     title_suffix = f" (Tag: [{tag_filter}])" if tag_filter else ""
 
     if not rows:
-        msg = f"Coo coo! 🎴 No cards found in your collection{title_suffix}! (Balance: **{gems:,} 💎 Gems** | **{dust:,} 🧪 Dust**). Type `/drop` to start collecting!"
+        msg = f"Coo coo! 🎴 No cards found in your collection{title_suffix}! Type `/drop` to start collecting!"
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(msg)
         else:
@@ -1518,7 +1516,7 @@ async def process_inventory(ctx_or_interaction, tag_filter: str = None):
 
     embed = discord.Embed(
         title=f"🎴 {user.display_name}'s Card Collection{title_suffix}",
-        description=f"Total Cards: **{len(rows)}** | Balance: **{gems:,} 💎 Gems** | **{dust:,} 🧪 Dust**",
+        description=f"Total Cards: **{len(rows)}**",
         color=discord.Color.purple()
     )
 
