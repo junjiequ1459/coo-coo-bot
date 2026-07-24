@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import random
 import asyncio
 import aiohttp
+from aiohttp import web
 import sqlite3
 import time
 import string
@@ -1206,16 +1207,16 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 async def handle_healthcheck(request):
-    return aiohttp.web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
+    return web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
 
 async def start_healthcheck_server():
     port = int(os.getenv("PORT", 8080))
-    app = aiohttp.web.Application()
+    app = web.Application()
     app.router.add_get("/", handle_healthcheck)
     app.router.add_get("/health", handle_healthcheck)
-    runner = aiohttp.web.AppRunner(app)
+    runner = web.AppRunner(app)
     await runner.setup()
-    site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     print(f"🌐 Railway HTTP Healthcheck Server active on port {port}!")
 
