@@ -4,6 +4,18 @@ import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from config import RARITY_COLORS
 
+# Shared aiohttp session — reused across all renders to avoid SSL handshake overhead
+_http_session = None
+
+async def get_http_session():
+    global _http_session
+    if _http_session is None or _http_session.closed:
+        _http_session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=10),
+            connector=aiohttp.TCPConnector(limit=10, keepalive_timeout=60)
+        )
+    return _http_session
+
 async def fetch_image(session, url):
     try:
         if url and str(url).startswith("http"):
@@ -138,9 +150,11 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
 
-    async with aiohttp.ClientSession() as session:
-        tasks = [fetch_image(session, card["image"]) for card in cards]
-        raw_images = await asyncio.gather(*tasks)
+    session = await get_http_session()
+    # Use medium-size images for drops (faster download, still looks good at 246x330)
+    medium_urls = [card["image"].replace("/large/", "/medium/") if card.get("image") else card.get("image") for card in cards]
+    tasks = [fetch_image(session, url) for url in medium_urls]
+    raw_images = await asyncio.gather(*tasks)
 
     for i, card in enumerate(cards):
         x = 20 + i * (card_w + gap)
@@ -195,8 +209,8 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     canvas = Image.new("RGBA", (card_w, card_h), (18, 19, 22, 255))
     draw = ImageDraw.Draw(canvas)
 
-    async with aiohttp.ClientSession() as session:
-        raw_img = await fetch_image(session, card_data["image_url"])
+    session = await get_http_session()
+    raw_img = await fetch_image(session, card_data["image_url"])
 
     rc = RARITY_COLORS.get(card_data["rarity"], (140, 155, 170))
     q_val = card_data.get("quality", "Good ⭐⭐")

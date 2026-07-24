@@ -359,10 +359,11 @@ def get_user_drop_tickets(user_id: int) -> int:
 def add_user_drop_tickets(user_id: int, amount: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
-    curr = get_user_drop_tickets(user_id)
+    cursor.execute("SELECT drop_tickets FROM users WHERE user_id = %s", (user_id,))
+    row = cursor.fetchone()
+    curr = row[0] if row and row[0] else 0
     new_val = max(0, curr + amount)
-    cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
-    if not cursor.fetchone():
+    if not row:
         cursor.execute("INSERT INTO users (user_id, gems, dust, drop_tickets) VALUES (%s, 0, 0, %s)", (user_id, new_val))
     else:
         cursor.execute("UPDATE users SET drop_tickets = %s WHERE user_id = %s", (new_val, user_id))
@@ -383,10 +384,11 @@ def get_user_grab_tickets(user_id: int) -> int:
 def add_user_grab_tickets(user_id: int, amount: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
-    curr = get_user_grab_tickets(user_id)
+    cursor.execute("SELECT grab_tickets FROM users WHERE user_id = %s", (user_id,))
+    row = cursor.fetchone()
+    curr = row[0] if row and row[0] else 0
     new_val = max(0, curr + amount)
-    cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
-    if not cursor.fetchone():
+    if not row:
         cursor.execute("INSERT INTO users (user_id, gems, dust, grab_tickets) VALUES (%s, 0, 0, %s)", (user_id, new_val))
     else:
         cursor.execute("UPDATE users SET grab_tickets = %s WHERE user_id = %s", (new_val, user_id))
