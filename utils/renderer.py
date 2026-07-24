@@ -16,49 +16,45 @@ async def fetch_image(session, url):
     return img
 
 def apply_quality_filter_to_image(img: Image.Image, quality_str: str) -> Image.Image:
-    """Applies visual quality filters (wear, scratches, fade, desaturation, gold shine) to PIL card artwork!"""
+    """Applies visual quality wear filters scaled strictly by tier (ONLY Mint is pure original)!"""
     q_clean = quality_str.lower()
 
-    if "damaged" in q_clean or "❌" in q_clean:
-        # Damaged: Heavy red tint, 60% desaturated, dull contrast
+    if "mint" in q_clean or "⭐⭐⭐⭐" in q_clean:
+        # Mint ⭐⭐⭐⭐: ONLY Mint is pure 100% original untouched image!
+        return img
+
+    elif "excellent" in q_clean or "⭐⭐⭐" in q_clean:
+        # Excellent ⭐⭐⭐: Very slightly worn (15% desaturation)
         enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.4)
-        enhancer_c = ImageEnhance.Contrast(img)
-        img = enhancer_c.enhance(0.8)
-        overlay = Image.new("RGBA", img.size, (150, 0, 0, 45))
-        img = Image.alpha_composite(img.convert("RGBA"), overlay)
+        img = enhancer.enhance(0.85)
+        return img
+
+    elif "good" in q_clean or "⭐⭐" in q_clean:
+        # Good ⭐⭐: Moderately worn (30% desaturation & slight fade)
+        enhancer = ImageEnhance.Color(img)
+        img = enhancer.enhance(0.70)
+        enhancer_b = ImageEnhance.Brightness(img)
+        img = enhancer_b.enhance(0.95)
         return img
 
     elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
-        # Poor ⭐: Faded, 40% desaturated vintage worn look with warm sepia grain
+        # Poor ⭐: Heavily worn (50% desaturation + sepia vintage fade)
         enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.6)
+        img = enhancer.enhance(0.50)
         enhancer_b = ImageEnhance.Brightness(img)
         img = enhancer_b.enhance(0.88)
-        overlay = Image.new("RGBA", img.size, (110, 80, 50, 40))
+        overlay = Image.new("RGBA", img.size, (110, 80, 50, 35))
         img = Image.alpha_composite(img.convert("RGBA"), overlay)
         return img
 
-    elif "good" in q_clean:
-        # Good ⭐⭐: Standard clean artwork
-        return img
-
-    elif "excellent" in q_clean:
-        # Excellent ⭐⭐⭐: Enhanced contrast + vibrant color boost
+    elif "damaged" in q_clean or "❌" in q_clean:
+        # Damaged ❌: Severely damaged (70% desaturation + crimson tint)
         enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(1.15)
+        img = enhancer.enhance(0.30)
         enhancer_c = ImageEnhance.Contrast(img)
-        img = enhancer_c.enhance(1.1)
-        return img
-
-    elif "mint" in q_clean:
-        # Mint ⭐⭐⭐⭐: Gold/Pristine high contrast + crisp vibrant colors & sharpness
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(1.25)
-        enhancer_c = ImageEnhance.Contrast(img)
-        img = enhancer_c.enhance(1.15)
-        enhancer_s = ImageEnhance.Sharpness(img)
-        img = enhancer_s.enhance(1.3)
+        img = enhancer_c.enhance(0.80)
+        overlay = Image.new("RGBA", img.size, (150, 0, 0, 45))
+        img = Image.alpha_composite(img.convert("RGBA"), overlay)
         return img
 
     return img
