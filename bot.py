@@ -273,10 +273,10 @@ RARITY_COLORS = {
 }
 
 BURN_REWARDS = {
-    "✨ Legendary": {"dust": 200, "gems": 150},
-    "🟣 Epic": {"dust": 100, "gems": 75},
-    "🔷 Rare": {"dust": 50, "gems": 35},
-    "⚪ Common": {"dust": 20, "gems": 15}
+    "✨ Legendary": {"dust": 200},
+    "🟣 Epic": {"dust": 100},
+    "🔷 Rare": {"dust": 50},
+    "⚪ Common": {"dust": 20}
 }
 
 async def fetch_image(session, url):
@@ -1216,7 +1216,7 @@ async def process_dust_balance(ctx_or_interaction):
         ),
         color=discord.Color.purple()
     )
-    embed.set_footer(text="Burn duplicate or unwanted cards with !burn <card_id> to generate Dust and Gems!")
+    embed.set_footer(text="Burn duplicate or unwanted cards with !burn <card_id> to generate Dust!")
 
     if isinstance(ctx_or_interaction, discord.Interaction):
         await ctx_or_interaction.followup.send(embed=embed)
@@ -1248,17 +1248,15 @@ async def process_burn_card(ctx_or_interaction, card_code: str):
         return
 
     cid, code, char_name, rarity = deleted
-    rewards = BURN_REWARDS.get(rarity, {"dust": 20, "gems": 15})
+    rewards = BURN_REWARDS.get(rarity, {"dust": 20})
     
     new_dust = add_user_dust(user.id, rewards["dust"])
-    new_gems = add_user_gems(user.id, rewards["gems"])
 
     embed = discord.Embed(
         title=f"🔥 Burned: {char_name}",
         description=(
             f"🔥 **{user.mention}** burned `{code}` (**{char_name}** — {rarity}) into ashes!\n\n"
-            f"🧪 **Gained Dust:** **+{rewards['dust']} Dust** *(Total: {new_dust:,} 🧪)*\n"
-            f"💎 **Gained Gems:** **+{rewards['gems']} Gems** *(Total: {new_gems:,} 💎)*"
+            f"🧪 **Gained Dust:** **+{rewards['dust']} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
         ),
         color=discord.Color.red()
     )
@@ -1268,7 +1266,7 @@ async def process_burn_card(ctx_or_interaction, card_code: str):
     else:
         await ctx_or_interaction.send(embed=embed)
 
-@bot.tree.command(name="burn", description="Burn an unwanted card to convert it into Dust and Gems")
+@bot.tree.command(name="burn", description="Burn an unwanted card to convert it into Dust")
 async def burn_slash(interaction: discord.Interaction, code: str):
     try:
         await interaction.response.defer()
@@ -1678,7 +1676,7 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="🔥 Burning & 🏷️ Tagging",
         value=(
-            "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust & Gems!\n"
+            "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust!\n"
             "• **`!tag <id> <name>`** or **`/tag`** — Assign a folder tag to a card.\n"
             "• **`!untag <id>`** or **`/untag`** — Remove a tag from a card.\n"
             "• **`!inv <tag>`** — View cards in a specific tag folder!"
@@ -1711,10 +1709,10 @@ async def send_help_menu(ctx_or_interaction):
     embed.add_field(
         name="👑 Card Rarities & Burn Yields",
         value=(
-            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | Burns to **+200 🧪 / +150 💎**\n"
-            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | Burns to **+100 🧪 / +75 💎**\n"
-            "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | Burns to **+50 🧪 / +35 💎**\n"
-            "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | Burns to **+20 🧪 / +15 💎**"
+            "• **`✨ Legendary` (Gold Frame)** — 12k+ Favs | Burns to **+200 🧪 Dust**\n"
+            "• **`🟣 Epic` (Purple Frame)** — 4k-12k Favs | Burns to **+100 🧪 Dust**\n"
+            "• **`🔷 Rare` (Cyan Frame)** — 1k-4k Favs | Burns to **+50 🧪 Dust**\n"
+            "• **`⚪ Common` (Silver Frame)** — Under 1k Favs | Burns to **+20 🧪 Dust**"
         ),
         inline=False
     )
