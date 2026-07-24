@@ -39,6 +39,45 @@ def migrate():
     pg_cur = pg.cursor()
     
     try:
+        # --- Create tables first ---
+        print("🏗️  Creating tables in Supabase...")
+        pg_cur.execute("""
+            CREATE TABLE IF NOT EXISTS cards_pool (
+                id SERIAL PRIMARY KEY, anilist_id INTEGER UNIQUE,
+                character_name TEXT NOT NULL, series_name TEXT NOT NULL,
+                image_url TEXT NOT NULL, favourites INTEGER DEFAULT 0, rarity TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY, gems INTEGER DEFAULT 0, dust INTEGER DEFAULT 0,
+                last_daily BIGINT DEFAULT 0, last_drop BIGINT DEFAULT 0, last_grab BIGINT DEFAULT 0,
+                premium_until BIGINT DEFAULT 0, drop_tickets INTEGER DEFAULT 0, grab_tickets INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS inventory (
+                id SERIAL PRIMARY KEY, code TEXT UNIQUE, user_id BIGINT NOT NULL,
+                character_name TEXT NOT NULL, series_name TEXT NOT NULL, image_url TEXT NOT NULL,
+                rarity TEXT NOT NULL, mint_number INTEGER NOT NULL, edition INTEGER DEFAULT 1,
+                tag TEXT DEFAULT NULL, quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐',
+                dropped_by BIGINT DEFAULT NULL, grabbed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS mints (
+                character_name TEXT, edition INTEGER DEFAULT 1, current_mint INTEGER NOT NULL,
+                PRIMARY KEY (character_name, edition)
+            );
+            CREATE TABLE IF NOT EXISTS wishlists (
+                id SERIAL PRIMARY KEY, user_id BIGINT NOT NULL, character_name TEXT NOT NULL,
+                UNIQUE(user_id, character_name)
+            );
+            CREATE TABLE IF NOT EXISTS favorites (
+                id SERIAL PRIMARY KEY, user_id BIGINT NOT NULL, card_code TEXT NOT NULL,
+                UNIQUE(user_id, card_code)
+            );
+        """)
+        pg.commit()
+        print("✅ Tables created!")
+
+        # Switch to autocommit so one bad row doesn't kill the rest
+        pg.autocommit = True
+
         # --- Migrate cards_pool ---
         print("📦 Migrating cards_pool...")
         lite_cur = lite.execute("SELECT anilist_id, character_name, series_name, image_url, favourites, rarity FROM cards_pool")
@@ -53,7 +92,6 @@ def migrate():
                 count += 1
             except Exception as e:
                 print(f"  ⚠️ cards_pool row error: {e}")
-        pg.commit()
         print(f"  ✅ cards_pool: {count} rows")
         
         # --- Migrate users ---
@@ -74,7 +112,6 @@ def migrate():
                 count += 1
             except Exception as e:
                 print(f"  ⚠️ users row error: {e}")
-        pg.commit()
         print(f"  ✅ users: {count} rows")
         
         # --- Migrate inventory ---
@@ -95,7 +132,6 @@ def migrate():
                 count += 1
             except Exception as e:
                 print(f"  ⚠️ inventory row error: {e}")
-        pg.commit()
         print(f"  ✅ inventory: {count} rows")
         
         # --- Migrate mints ---
@@ -112,7 +148,6 @@ def migrate():
                 count += 1
             except Exception as e:
                 print(f"  ⚠️ mints row error: {e}")
-        pg.commit()
         print(f"  ✅ mints: {count} rows")
         
         # --- Migrate wishlists (if exists) ---
@@ -129,7 +164,6 @@ def migrate():
                     count += 1
                 except Exception:
                     pass
-            pg.commit()
             print(f"  ✅ wishlists: {count} rows")
         except sqlite3.OperationalError:
             print("  ⏭️  wishlists table doesn't exist — skipping")
@@ -148,7 +182,6 @@ def migrate():
                     count += 1
                 except Exception:
                     pass
-            pg.commit()
             print(f"  ✅ favorites: {count} rows")
         except sqlite3.OperationalError:
             print("  ⏭️  favorites table doesn't exist — skipping")
@@ -168,7 +201,6 @@ def migrate():
         print(f"❌ Migration error: {e}")
         import traceback
         traceback.print_exc()
-        pg.rollback()
         return False
     finally:
         lite.close()
