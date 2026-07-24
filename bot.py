@@ -1206,14 +1206,10 @@ async def pay_prefix_give(ctx, target: discord.User, amount: int):
 async def process_dust_balance(ctx_or_interaction):
     user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
     dust = get_user_dust(user.id)
-    gems = get_user_gems(user.id)
 
     embed = discord.Embed(
         title=f"🧪 {user.display_name}'s Dust Flask",
-        description=(
-            f"🧪 **Current Dust:** **{dust:,} Dust**\n"
-            f"💎 **Current Gems:** **{gems:,} Gems**"
-        ),
+        description=f"Current Balance: **{dust:,} Dust 🧪**",
         color=discord.Color.purple()
     )
     embed.set_footer(text="Burn duplicate or unwanted cards with !burn <card_id> to generate Dust!")
