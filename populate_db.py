@@ -7,8 +7,8 @@ import sys
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 ANILIST_URL = "https://graphql.anilist.co"
 
-ANILIST_QUERY = """query ($page: Int, $perPage: Int, $sort: [CharacterSort]) {
-  Page(page: $page, perPage: $perPage) {
+ANILIST_QUERY = """query ($page: Int, $sort: [CharacterSort]) {
+  Page(page: $page, perPage: 50) {
     characters(sort: $sort) {
       id
       name {
@@ -57,15 +57,12 @@ async def populate_cards_pool(target_count: int = 10000):
     conn.close()
 
     print(f"📦 Current DB Pool: {current_count:,} characters. Target: {target_count:,} characters.")
-    if current_count >= target_count:
-        print("✅ Already reached target!")
-        return
 
     async with aiohttp.ClientSession() as session:
-        sort_modes = [["FAVOURITES_DESC"], ["ID_DESC"], ["RELEVANCE"]]
+        sort_modes = [["ID"], ["ID_DESC"], ["FAVOURITES"]]
         
         for sort_mode in sort_modes:
-            for page in range(1, 300):
+            for page in range(1, 88):
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM cards_pool")
@@ -75,12 +72,12 @@ async def populate_cards_pool(target_count: int = 10000):
                     print(f"🎉 Reached target of {target_count:,} characters!")
                     return
 
-                variables = {"page": page, "perPage": 50, "sort": sort_mode}
+                variables = {"page": page, "sort": sort_mode}
                 try:
                     async with session.post(ANILIST_URL, json={"query": ANILIST_QUERY, "variables": variables}, timeout=15) as resp:
                         if resp.status == 200:
                             data = await resp.json()
-                            char_list = data["data"]["Page"]["characters"]
+                            char_list = data.get("data", {}).get("Page", {}).get("characters", [])
                             if not char_list:
                                 conn.close()
                                 break
@@ -120,7 +117,7 @@ async def populate_cards_pool(target_count: int = 10000):
                             cursor.execute("SELECT COUNT(*) FROM cards_pool")
                             new_curr = cursor.fetchone()[0]
                             conn.close()
-                            print(f"  [Sort {sort_mode[0]} | Page {page}] Total pool: {new_curr:,} / {target_count:,}")
+                            print(f"  [Sort {sort_mode[0]} | Page {page}/87] Total pool: {new_curr:,} / {target_count:,}")
                         else:
                             conn.close()
                             print(f"  HTTP {resp.status}, waiting 5s...")
