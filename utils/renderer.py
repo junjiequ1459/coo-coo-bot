@@ -165,9 +165,26 @@ async def fetch_image(session, url):
     draw.text((40, 200), "Image Unavailable", fill=(160, 175, 190))
     return img
 
-def resize_artwork_to_card(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Resize the complete source image to the card without cropping or zooming."""
-    return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+def crop_artwork_to_card(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Center-crop artwork to the card ratio while preserving its proportions."""
+    source_w, source_h = img.size
+    if source_w <= 0 or source_h <= 0:
+        return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+    source_ratio = source_w / source_h
+    target_ratio = target_w / target_h
+
+    if source_ratio > target_ratio:
+        crop_w = max(1, round(source_h * target_ratio))
+        left = (source_w - crop_w) // 2
+        crop_box = (left, 0, left + crop_w, source_h)
+    else:
+        crop_h = max(1, round(source_w / target_ratio))
+        top = (source_h - crop_h) // 2
+        crop_box = (0, top, source_w, top + crop_h)
+
+    cropped = img.crop(crop_box)
+    return cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
 def _draw_rainbow_line(target_img: Image.Image, box: tuple):
     """Draws a smooth rainbow gradient horizontal line."""
@@ -266,8 +283,8 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     content_w = view_w
     content_h = view_h
 
-    # 2. Artwork Viewport (the complete source image fills the card)
-    fitted_art = resize_artwork_to_card(raw_img, content_w, content_h)
+    # 2. Artwork Viewport (aspect-ratio crop; no stretching)
+    fitted_art = crop_artwork_to_card(raw_img, content_w, content_h)
 
     # Rounded corners mask for inner content box
     art_mask = Image.new("L", (content_w, content_h), 0)
