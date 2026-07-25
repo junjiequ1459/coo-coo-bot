@@ -57,9 +57,9 @@ FONT_TITLE_DROP = _load_font(46, bold=True)
 FONT_SERIES_DROP = _load_font(22, bold=False)
 FONT_BADGE_DROP = _load_monospace_font(15)
 
-FONT_TITLE_SINGLE = _load_font(33, bold=True)
-FONT_SERIES_SINGLE = _load_font(15, bold=False)
-FONT_BADGE_SINGLE = _load_monospace_font(13)
+FONT_TITLE_SINGLE = _load_font(50, bold=True)
+FONT_SERIES_SINGLE = _load_font(24, bold=False)
+FONT_BADGE_SINGLE = _load_monospace_font(16)
 
 # Shared aiohttp session
 _http_session = None
