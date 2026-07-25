@@ -3,6 +3,7 @@ import random
 import discord
 from discord.ext import commands
 from discord import app_commands
+from config import DROP_PRIORITY_SEC, DROP_CLAIM_TIMEOUT_SEC
 from db import get_connection, release_connection
 from database import (
     get_user_cooldowns, set_user_cooldown, get_effective_cooldowns,
@@ -54,12 +55,12 @@ class CardGrabButton(discord.ui.Button):
                 )
                 return
 
-        # Check 30 Seconds Exclusive Priority Window for the Dropper
+        # Check Exclusive Priority Window for the Dropper
         elapsed_drop = time.time() - view.drop_time
-        if elapsed_drop < 30.0 and interaction.user.id != view.dropper_id:
-            rem_prio = int(30.0 - elapsed_drop) + 1
+        if elapsed_drop < DROP_PRIORITY_SEC and interaction.user.id != view.dropper_id:
+            rem_prio = int(DROP_PRIORITY_SEC - elapsed_drop) + 1
             await interaction.response.send_message(
-                f"Coo coo! ⏳ <@{view.dropper_id}> has **30 seconds of exclusive drop priority**! ({rem_prio}s remaining)",
+                f"Coo coo! ⏳ <@{view.dropper_id}> has **{int(DROP_PRIORITY_SEC)} seconds of exclusive drop priority**! ({rem_prio}s remaining)",
                 ephemeral=True
             )
             return
@@ -117,7 +118,7 @@ class CardGrabButton(discord.ui.Button):
 
 class CardDropView(discord.ui.View):
     def __init__(self, cards: list, dropper_id: int):
-        super().__init__(timeout=300)
+        super().__init__(timeout=DROP_CLAIM_TIMEOUT_SEC)
         self.cards = cards
         self.dropper_id = dropper_id
         self.drop_time = time.time()
@@ -215,7 +216,7 @@ class DropCog(commands.Cog):
                     f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
                     f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
                     f"{ticket_text}"
-                    f"⏳ **Priority:** {user.mention} has **30 seconds of exclusive drop priority**!\n"
+                    f"⏳ **Priority:** {user.mention} has **{int(DROP_PRIORITY_SEC)} seconds of exclusive drop priority**!\n"
                     f"Click a button below to grab a card!"
                 ),
                 color=discord.Color.gold()

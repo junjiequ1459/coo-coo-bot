@@ -9,6 +9,8 @@ BOT_OWNER_IDS = [154017382560563200]
 
 DROP_COOLDOWN_SEC = 900  # 15 Minutes (Standard)
 GRAB_COOLDOWN_SEC = 300  # 5 Minutes (Standard)
+DROP_PRIORITY_SEC = 10   # 10 Seconds Exclusive Priority Window for the Dropper
+DROP_CLAIM_TIMEOUT_SEC = 60  # 60 Seconds Claim Window before cards expire
 DAILY_COOLDOWN_SEC = 86400  # 24 Hours
 
 RARITY_WEIGHTS = [
@@ -33,16 +35,14 @@ BURN_REWARDS = {
 }
 
 COLOR_ROLES = [
-    {"name": "Cherry Pink", "emoji": "🩷", "hex": 0xFFB6C1},
-    {"name": "Lavender", "emoji": "💜", "hex": 0x9370DB},
-    {"name": "Sunset Red", "emoji": "🔴", "hex": 0xE60023},
-    {"name": "Mint Green", "emoji": "💚", "hex": 0x98FF98},
-    {"name": "Sky Blue", "emoji": "🩵", "hex": 0x87CEEB},
-    {"name": "Lemon Yellow", "emoji": "💛", "hex": 0xFFFACD},
-    {"name": "Peach Coral", "emoji": "🧡", "hex": 0xFF7F50},
-    {"name": "Royal Blue", "emoji": "💙", "hex": 0x007AFF},
-    {"name": "Pure White", "emoji": "🤍", "hex": 0xFFFFFF},
-    {"name": "Midnight", "emoji": "🖤", "hex": 0x36393F},
+    {"name": "Ratan", "emoji": "💛", "hex": 0xFFFACD},
+    {"name": "Miin", "emoji": "🩷", "hex": 0xFFB6C1},
+    {"name": "Coo Coo", "emoji": "🩵", "hex": 0x87CEEB},
+]
+
+LEGACY_COLOR_ROLES = [
+    "Cherry Pink", "Lavender", "Sunset Red", "Mint Green", "Sky Blue",
+    "Lemon Yellow", "Peach Coral", "Royal Blue", "Pure White", "Midnight"
 ]
 
 PIGEON_MESSAGES = [

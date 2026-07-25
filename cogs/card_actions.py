@@ -368,7 +368,8 @@ class CardActionsCog(commands.Cog):
         img_url = img_row[0] if img_row else ""
 
         q_clean = q_curr.lower()
-        if "mint" in q_clean or "⭐⭐⭐⭐" in q_clean:
+        star_count = q_clean.count("⭐")
+        if "mint" in q_clean or star_count >= 4:
             msg = f"Coo coo! ✨ **{char_name}** (`{code_str}`) is already in pristine **Mint ⭐⭐⭐⭐** condition! No repairs needed!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg)
@@ -376,20 +377,21 @@ class CardActionsCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        next_quality = "Mint ⭐⭐⭐⭐"
-        cost = 1000
-        if "damaged" in q_clean or "❌" in q_clean:
-            next_quality = "Poor ⭐"
-            cost = 500
-        elif "poor" in q_clean or "⭐" in q_clean:
-            next_quality = "Good ⭐⭐"
-            cost = 1000
-        elif "good" in q_clean or "⭐⭐" in q_clean:
-            next_quality = "Excellent ⭐⭐⭐"
-            cost = 2000
-        elif "excellent" in q_clean or "⭐⭐⭐" in q_clean:
+        if "excellent" in q_clean or star_count == 3:
             next_quality = "Mint ⭐⭐⭐⭐"
             cost = 5000
+        elif "good" in q_clean or star_count == 2:
+            next_quality = "Excellent ⭐⭐⭐"
+            cost = 2000
+        elif "poor" in q_clean or star_count == 1:
+            next_quality = "Good ⭐⭐"
+            cost = 1000
+        elif "damaged" in q_clean or "❌" in q_clean or star_count == 0:
+            next_quality = "Poor ⭐"
+            cost = 500
+        else:
+            next_quality = "Good ⭐⭐"
+            cost = 1000
 
         user_dust = get_user_dust(user.id)
         if user_dust < cost:

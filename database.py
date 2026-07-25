@@ -242,8 +242,9 @@ def update_card_tag(code_str: str, user_id: int, tag_name: str = None) -> bool:
 def update_card_quality(code_str: str, user_id: int, new_quality: str) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
-    query_str = code_str.lower().strip()
-    cursor.execute("UPDATE inventory SET quality = %s WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (new_quality, query_str, query_str, user_id))
+    query_str = str(code_str).lower().strip()
+    raw_id = query_str[1:] if (query_str.startswith('c') and query_str[1:].isdigit()) else query_str
+    cursor.execute("UPDATE inventory SET quality = %s WHERE (code = %s OR CAST(id AS TEXT) = %s OR CAST(id AS TEXT) = %s) AND user_id = %s", (new_quality, query_str, query_str, raw_id, user_id))
     affected = cursor.rowcount
     conn.commit()
     release_connection(conn)

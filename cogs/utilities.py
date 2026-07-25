@@ -2,7 +2,7 @@ import random
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import COLOR_ROLES, PIGEON_MESSAGES
+from config import COLOR_ROLES, LEGACY_COLOR_ROLES, PIGEON_MESSAGES, DROP_PRIORITY_SEC
 from db import get_connection, release_connection
 
 class ColorButton(discord.ui.Button):
@@ -41,7 +41,7 @@ class ColorButton(discord.ui.Button):
             except Exception:
                 pass
 
-        color_role_names = [c["name"] for c in COLOR_ROLES]
+        color_role_names = [c["name"] for c in COLOR_ROLES] + LEGACY_COLOR_ROLES
         roles_to_remove = [r for r in member.roles if r.name in color_role_names and r.name != target_role_name]
         if roles_to_remove:
             await member.remove_roles(*roles_to_remove)
@@ -96,7 +96,7 @@ class UtilitiesCog(commands.Cog):
                 "• **`!cd`** or **`/cd`** — Check your Drop (15m), Grab (5m), and Daily (24h) timers!\n"
                 "• **`🎴 Drop Cooldown`** — 15 minutes per user (7.5m with Premium!).\n"
                 "• **`🖐️ Grab Cooldown`** — 5 minutes per user (2.5m with Premium!).\n"
-                "• **`🔒 Priority Window`** — Dropper has 30 seconds of exclusive grab priority."
+                f"• **`🔒 Priority Window`** — Dropper has {int(DROP_PRIORITY_SEC)} seconds of exclusive grab priority."
             ),
             inline=False
         )
@@ -105,7 +105,7 @@ class UtilitiesCog(commands.Cog):
             name="🎴 Card Drops & Collecting",
             value=(
                 "• **`!d`** or **`!drop`** or **`/drop`** — Drops 3 random anime cards (15m CD).\n"
-                "• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards (30s dropper priority!).\n"
+                f"• **`1️⃣ 2️⃣ 3️⃣ Buttons`** — Grab cards ({int(DROP_PRIORITY_SEC)}s dropper priority!).\n"
                 "• **`!v`** or **`!v <id>`** or **`/view`** — View high-res card artwork.\n"
                 "• **`!c`** or **`!collection`** or **`/collection`** — Open your Anime Cards binder collection.\n"
                 "• **`!i`** or **`!inv`** or **`/inventory`** — Check your items, tickets, gems & bag."
