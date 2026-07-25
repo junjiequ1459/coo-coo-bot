@@ -7,8 +7,9 @@ from db import get_connection, release_connection
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
+        emoji_str = f"{color_info['emoji']} " if color_info.get("emoji") else ""
         super().__init__(
-            label=f"{color_info['emoji']} {color_info['name']}",
+            label=f"{emoji_str}{color_info['name']}",
             style=discord.ButtonStyle.secondary,
             custom_id=f"coocoo_color_{color_info['name'].lower().replace(' ', '_')}"
         )

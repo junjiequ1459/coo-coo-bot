@@ -35,13 +35,13 @@ BURN_REWARDS = {
 }
 
 COLOR_ROLES = [
-    {"name": "Ratan", "emoji": "💛", "hex": 0xFFFACD},
-    {"name": "Miin", "emoji": "🩷", "hex": 0xFFB6C1},
-    {"name": "CooCoo", "emoji": "🩵", "hex": 0x87CEEB},
+    {"name": "Ratan", "emoji": "🟡", "hex": 0xFFFACD},
+    {"name": "Miin", "emoji": "🌸", "hex": 0xFFB6C1},
+    {"name": "Coo Coo", "emoji": "🔵", "hex": 0x87CEEB},
 ]
 
 LEGACY_COLOR_ROLES = [
-    "Coo Coo", "Cherry Pink", "Lavender", "Sunset Red", "Mint Green", "Sky Blue",
+    "Cherry Pink", "Lavender", "Sunset Red", "Mint Green", "Sky Blue",
     "Lemon Yellow", "Peach Coral", "Royal Blue", "Pure White", "Midnight"
 ]
 
