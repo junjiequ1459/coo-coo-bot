@@ -53,9 +53,9 @@ def _load_monospace_font(size):
     return _load_font(size, bold=True)
 
 # Pre-load clean fonts
-FONT_TITLE_DROP = _load_font(27, bold=True)
-FONT_SERIES_DROP = _load_font(13, bold=False)
-FONT_BADGE_DROP = _load_monospace_font(11)
+FONT_TITLE_DROP = _load_font(36, bold=True)
+FONT_SERIES_DROP = _load_font(15, bold=False)
+FONT_BADGE_DROP = _load_monospace_font(15)
 
 FONT_TITLE_SINGLE = _load_font(33, bold=True)
 FONT_SERIES_SINGLE = _load_font(15, bold=False)
@@ -170,9 +170,9 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     view_x, view_y = pad, pad
     view_w, view_h = card_w - pad * 2, card_h - pad * 2
 
-    # Inner Viewport Box Fill & Thin Gold Accent Line
+    # Inner Viewport Box Fill (Neutral dark border, no colored accent)
     f_draw.rounded_rectangle([view_x - 2, view_y - 2, view_x + view_w + 1, view_y + view_h + 1],
-                             radius=10, fill=(200, 160, 40), outline=(255, 220, 100), width=1)
+                             radius=10, fill=(50, 54, 62), outline=(70, 75, 85), width=1)
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
                              radius=8, fill=(18, 19, 22))
 
@@ -226,20 +226,29 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
         if right_line_x2 > right_line_x1:
             _draw_rainbow_line(canvas, (right_line_x1, line_y, right_line_x2, line_y + 1))
     elif "legendary" in rarity_str or "legend" in rarity_str:
+        line_color = (255, 215, 0, 220)       # Gold
         if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(255, 220, 100, 220), width=1)
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
         if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(255, 220, 100, 220), width=1)
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
     elif "epic" in rarity_str:
+        line_color = (147, 112, 219, 220)     # Rich Purple
         if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(190, 120, 255, 220), width=1)
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
         if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(190, 120, 255, 220), width=1)
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
+    elif "rare" in rarity_str:
+        line_color = (0, 229, 255, 220)       # Cyan Blue
+        if left_line_x2 > left_line_x1:
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
+        if right_line_x2 > right_line_x1:
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
     else:
+        line_color = (140, 155, 170, 220)     # Slate Silver (Common)
         if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(110, 170, 255, 220), width=1)
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
         if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(110, 170, 255, 220), width=1)
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
 
     sx = content_x + (content_w - s_tw) // 2
     draw.text((sx, sy), series_name, fill=(230, 235, 245), font=font_series)
