@@ -11,8 +11,9 @@ COOLDOWN_DURATION_SEC = 5  # 5-second rate limit per user
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
+        btn_label = color_info.get("label", color_info["name"])
         super().__init__(
-            label=color_info["name"],
+            label=btn_label,
             style=discord.ButtonStyle.secondary,
             custom_id=f"coocoo_color_{color_info['name'].lower().replace(' ', '_')}"
         )
@@ -257,12 +258,7 @@ class UtilitiesCog(commands.Cog):
     async def setup_colors_prefix(self, ctx):
         embed = discord.Embed(
             title="🐦 Coo Coo's Color Nest",
-            description=(
-                "Pick a character color below to customize your username color in the server!\n\n"
-                "• **Ratan** — Yellow (`#FFFACD`)\n"
-                "• **Miin** — Pink (`#FFB6C1`)\n"
-                "• **Coo Coo** — Light Blue (`#87CEEB`)"
-            ),
+            description="Pick a character color below to customize your username color in the server!",
             color=discord.Color.from_rgb(138, 158, 167)
         )
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")
@@ -276,12 +272,7 @@ class UtilitiesCog(commands.Cog):
             pass
         embed = discord.Embed(
             title="🐦 Coo Coo's Color Nest",
-            description=(
-                "Pick a character color below to customize your username color in the server!\n\n"
-                "• **Ratan** — Yellow (`#FFFACD`)\n"
-                "• **Miin** — Pink (`#FFB6C1`)\n"
-                "• **Coo Coo** — Light Blue (`#87CEEB`)"
-            ),
+            description="Pick a character color below to customize your username color in the server!",
             color=discord.Color.from_rgb(138, 158, 167)
         )
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")

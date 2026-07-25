@@ -35,9 +35,9 @@ BURN_REWARDS = {
 }
 
 COLOR_ROLES = [
-    {"name": "Ratan", "color_desc": "Yellow", "hex": 0xFFFACD},
-    {"name": "Miin", "color_desc": "Pink", "hex": 0xFFB6C1},
-    {"name": "Coo Coo", "color_desc": "Light Blue", "hex": 0x87CEEB},
+    {"name": "Ratan", "label": "Ratan (Yellow)", "color_desc": "Yellow", "hex": 0xFFFACD},
+    {"name": "Miin", "label": "Miin (Pink)", "color_desc": "Pink", "hex": 0xFFB6C1},
+    {"name": "Coo Coo", "label": "Coo Coo (Light Blue)", "color_desc": "Light Blue", "hex": 0x87CEEB},
 ]
 
 LEGACY_COLOR_ROLES = [
