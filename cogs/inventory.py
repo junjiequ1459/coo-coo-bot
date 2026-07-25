@@ -41,9 +41,9 @@ class CollectionPaginatorView(discord.ui.View):
 
         for row in page_rows:
             if len(row) >= 10:
-                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val, q_val = row[:10]
+                card_id, code, char_name, series, rarity, mint_num, edition, _, tag_val, q_val = row[:10]
             else:
-                card_id, code, char_name, series, rarity, mint_num, edition, img_url, tag_val = row
+                card_id, code, char_name, series, rarity, mint_num, edition, _, tag_val = row
                 q_val = "Good ⭐⭐"
 
             code_str = code if code else f"c{card_id:04d}"

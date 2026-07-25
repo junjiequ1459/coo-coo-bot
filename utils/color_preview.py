@@ -1,4 +1,3 @@
-import os
 from PIL import Image, ImageDraw, ImageFont
 
 def generate_color_preview(output_path="color_preview.png"):

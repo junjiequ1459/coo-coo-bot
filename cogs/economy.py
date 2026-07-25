@@ -36,7 +36,7 @@ class EconomyCog(commands.Cog):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
         now_ts = int(time.time())
 
-        l_drop, l_grab, last_daily = get_user_cooldowns(user.id)
+        _, _, last_daily = get_user_cooldowns(user.id)
         elapsed = now_ts - last_daily
 
         if elapsed < DAILY_COOLDOWN_SEC:
@@ -53,9 +53,6 @@ class EconomyCog(commands.Cog):
             return
 
         reward = 500
-        current_gems = get_user_gems(user.id)
-        new_gems = current_gems + reward
-        
         add_user_gems(user.id, reward)
         set_user_cooldown(user.id, "daily", now_ts)
 

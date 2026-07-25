@@ -1,35 +1,31 @@
 import io
 import os
-import math
 import asyncio
 import aiohttp
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================
 # 🔤 FONT LOADING
 # ==========================================
-def _load_font(size, bold=True):
+def _load_font(size, display=False):
     """Load a scalable font while preserving the requested pixel size."""
-    if bold:
+    if display:
         font_paths = [
-            "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
-            "/System/Library/Fonts/Supplemental/Impact.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-            "/System/Library/Fonts/Avenir Next.ttc",
-            "/System/Library/Fonts/Supplemental/Futura.ttc",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf",
+            "/System/Library/Fonts/SFNSRounded.ttf",
+            "/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
             "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         ]
     else:
         font_paths = [
-            "/System/Library/Fonts/Supplemental/Trebuchet MS.ttf",
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Avenir Next.ttc",
-            "/System/Library/Fonts/Supplemental/Futura.ttc",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/Trebuchet MS Bold Italic.ttf",
+            "/System/Library/Fonts/Avenir Next Condensed.ttc",
+            "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Oblique.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Italic.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
         ]
     for fp in font_paths:
         if os.path.exists(fp):
@@ -61,30 +57,86 @@ def _load_monospace_font(size):
                 return ImageFont.truetype(fp, size)
             except Exception:
                 continue
-    return _load_font(size, bold=True)
+    return _load_font(size, display=True)
 
 # Pre-load clean fonts at sizes that match the card proportions.
-FONT_TITLE_DROP = _load_font(34, bold=True)
-FONT_SERIES_DROP = _load_font(18, bold=True)
+FONT_TITLE_DROP = _load_font(34, display=True)
+FONT_SERIES_DROP = _load_font(18)
 FONT_BADGE_DROP = _load_monospace_font(15)
 
-FONT_TITLE_SINGLE = _load_font(40, bold=True)
-FONT_SERIES_SINGLE = _load_font(21, bold=True)
+FONT_TITLE_SINGLE = _load_font(40, display=True)
+FONT_SERIES_SINGLE = _load_font(21)
 FONT_BADGE_SINGLE = _load_monospace_font(17)
 
 
-def _fit_font_to_width(font, text: str, max_width: int, min_size: int):
-    """Shrink a scalable font only when a long name would clip the card."""
+def _text_width(font, text: str) -> int:
     bbox = font.getbbox(text)
-    if not bbox or bbox[2] - bbox[0] <= max_width:
-        return font
+    return bbox[2] - bbox[0] if bbox else 0
 
+
+def _wrap_text(text: str, font, max_width: int) -> list[str]:
+    """Wrap text by measured pixel width, including words wider than one line."""
+    words = " ".join(str(text).split()).split(" ")
+    if not words or words == [""]:
+        return [""]
+
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and _text_width(font, candidate) <= max_width:
+            current = candidate
+            continue
+        if not current and _text_width(font, word) <= max_width:
+            current = word
+            continue
+        if current:
+            lines.append(current)
+            current = ""
+
+        piece = ""
+        for char in word:
+            candidate_piece = piece + char
+            if piece and _text_width(font, candidate_piece) > max_width:
+                lines.append(piece)
+                piece = char
+            else:
+                piece = candidate_piece
+        current = piece
+
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _prepare_wrapped_text(font, text: str, max_width: int, min_size: int, max_lines: int = 2):
+    """Keep short text large and reduce only wrapped text enough to stay compact."""
+    lines = _wrap_text(text, font, max_width)
     current_size = getattr(font, "size", min_size)
-    target_size = max(min_size, int(current_size * max_width / (bbox[2] - bbox[0])))
-    try:
-        return font.font_variant(size=target_size)
-    except (AttributeError, OSError):
-        return font
+
+    if len(lines) > 1 and current_size > min_size:
+        current_size = max(min_size, round(current_size * 0.8))
+        try:
+            font = font.font_variant(size=current_size)
+            lines = _wrap_text(text, font, max_width)
+        except (AttributeError, OSError):
+            return font, lines
+
+    while len(lines) > max_lines and current_size > min_size:
+        current_size = max(min_size, current_size - 1)
+        try:
+            font = font.font_variant(size=current_size)
+        except (AttributeError, OSError):
+            break
+        lines = _wrap_text(text, font, max_width)
+
+    return font, lines
+
+
+def _font_line_height(font) -> int:
+    bbox = font.getbbox("Ag")
+    return bbox[3] - bbox[1] if bbox else getattr(font, "size", 14)
+
 
 # Shared aiohttp session
 _http_session = None
@@ -113,29 +165,9 @@ async def fetch_image(session, url):
     draw.text((40, 200), "Image Unavailable", fill=(160, 175, 190))
     return img
 
-def fit_artwork_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Scales artwork image top-aligned to fill 100% of the card canvas edge-to-edge."""
-    orig_w, orig_h = img.size
-    if orig_w == 0 or orig_h == 0:
-        return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-    
-    scale = max(target_w / orig_w, target_h / orig_h)
-    new_w = max(target_w, int(orig_w * scale))
-    new_h = max(target_h, int(orig_h * scale))
-    resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-    
-    left = (new_w - target_w) // 2
-    top = 0
-    return resized.crop((left, top, left + target_w, top + target_h))
-
-def _round_corners(img: Image.Image, radius: int) -> Image.Image:
-    """Apply rounded corners to an RGBA image using an alpha mask."""
-    mask = Image.new("L", img.size, 0)
-    d = ImageDraw.Draw(mask)
-    d.rounded_rectangle([0, 0, img.width - 1, img.height - 1], radius=radius, fill=255)
-    out = img.copy()
-    out.putalpha(mask)
-    return out
+def resize_artwork_to_card(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Resize the complete source image to the card without cropping or zooming."""
+    return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
 def _draw_rainbow_line(target_img: Image.Image, box: tuple):
     """Draws a smooth rainbow gradient horizontal line."""
@@ -234,8 +266,8 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     content_w = view_w
     content_h = view_h
 
-    # 2. Artwork Viewport (Fills 100% of inner content box)
-    fitted_art = fit_artwork_image(raw_img, content_w, content_h)
+    # 2. Artwork Viewport (the complete source image fills the card)
+    fitted_art = resize_artwork_to_card(raw_img, content_w, content_h)
 
     # Rounded corners mask for inner content box
     art_mask = Image.new("L", (content_w, content_h), 0)
@@ -244,85 +276,43 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     canvas.paste(fitted_art, (content_x, content_y), art_mask)
 
-    # 3. Bottom Dark Overlay Container Section
-    bot_h = int(content_h * 0.34)
-    bot_y = content_y + content_h - bot_h
-
-    bot_overlay = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
-    bo_draw = ImageDraw.Draw(bot_overlay)
-    
-    # Solid dark container background covering bottom portion of artwork
-    bo_draw.rectangle([0, 0, content_w - 1, bot_h - 1], fill=(18, 19, 22, 245))
-
-    canvas.paste(bot_overlay, (content_x, bot_y), bot_overlay)
-
-    # 4. Series Name & Rarity Accent Line (Only the series lines take rarity color)
-    series_name = card_data.get("series", card_data.get("series_name", "Genshin Impact"))[:24]
-    font_series = _fit_font_to_width(font_series, series_name, content_w - 48, 14)
-    s_bbox = font_series.getbbox(series_name)
-    s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 8
-    s_th = s_bbox[3] - s_bbox[1] if s_bbox else 14
-
-    sy = bot_y + 12
-    line_y = sy + s_th // 2
-    margin = 14
-    left_line_x1 = content_x + margin
-    left_line_x2 = content_x + (content_w - s_tw) // 2 - 8
-    right_line_x1 = content_x + (content_w + s_tw) // 2 + 8
-    right_line_x2 = content_x + content_w - margin
-
-    is_mythic = "mythic" in rarity_str
-    if is_mythic:
-        if left_line_x2 > left_line_x1:
-            _draw_rainbow_line(canvas, (left_line_x1, line_y, left_line_x2, line_y + 1))
-        if right_line_x2 > right_line_x1:
-            _draw_rainbow_line(canvas, (right_line_x1, line_y, right_line_x2, line_y + 1))
-    elif "legendary" in rarity_str or "legend" in rarity_str:
-        line_color = (255, 215, 0, 220)       # Gold
-        if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
-        if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
-    elif "epic" in rarity_str:
-        line_color = (147, 112, 219, 220)     # Rich Purple
-        if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
-        if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
-    elif "rare" in rarity_str:
-        line_color = (0, 229, 255, 220)       # Cyan Blue
-        if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
-        if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
-    else:
-        line_color = (140, 155, 170, 220)     # Slate Silver (Common)
-        if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=line_color, width=1)
-        if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=line_color, width=1)
-
-    sx = content_x + (content_w - s_tw) // 2
-    draw.text((sx, sy), series_name, fill=(230, 235, 245), font=font_series)
-
-    # Character Name
-    char_name = card_data.get("name", card_data.get("character_name", "Citlali"))[:20]
-    font_title = _fit_font_to_width(font_title, char_name, content_w - 24, 22)
-    c_bbox = font_title.getbbox(char_name)
-    c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 14
-    c_th = c_bbox[3] - c_bbox[1] if c_bbox else 24
-    nx = content_x + (content_w - c_tw) // 2
-    ny = sy + s_th + 4
-    draw.text(
-        (nx, ny),
-        char_name,
-        fill=(248, 249, 252),
-        font=font_title,
-        stroke_width=2,
-        stroke_fill=(6, 7, 9, 230),
+    series_name = str(
+        card_data.get("series")
+        or card_data.get("series_name")
+        or "Genshin Impact"
+    )
+    char_name = str(
+        card_data.get("name")
+        or card_data.get("character_name")
+        or "Citlali"
     )
 
-    # 5. Bottom Row: Left Pill Code Badge & Right Print/Edition Text
+    font_series, series_lines = _prepare_wrapped_text(
+        font_series,
+        series_name,
+        content_w - 36,
+        min_size=11,
+    )
+    font_title, title_lines = _prepare_wrapped_text(
+        font_title,
+        char_name,
+        content_w - 24,
+        min_size=16,
+    )
+
+    series_line_h = _font_line_height(font_series)
+    title_line_h = _font_line_height(font_title)
+    series_spacing = 1
+    title_spacing = 0
+    series_block_h = (
+        series_line_h * len(series_lines)
+        + series_spacing * max(0, len(series_lines) - 1)
+    )
+    title_block_h = (
+        title_line_h * len(title_lines)
+        + title_spacing * max(0, len(title_lines) - 1)
+    )
+
     card_code = str(card_data.get("code", "VL9BSJ3")).upper()
     mint_val = card_data.get("temp_mint", card_data.get("mint_number", 912))
     ed_val = card_data.get("edition", 2)
@@ -331,37 +321,161 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     code_bbox = font_badge.getbbox(card_code)
     code_tw = code_bbox[2] - code_bbox[0] if code_bbox else len(card_code) * 7
     code_th = code_bbox[3] - code_bbox[1] if code_bbox else 12
-
     badge_pw = code_tw + 16
     badge_ph = code_th + 6
-    badge_px = content_x + 12
-    badge_py = content_y + content_h - badge_ph - 10
-
-    code_pill = Image.new("RGBA", (badge_pw, badge_ph), (0, 0, 0, 0))
-    cp_draw = ImageDraw.Draw(code_pill)
-    cp_draw.rounded_rectangle([0, 0, badge_pw - 1, badge_ph - 1], radius=6, fill=(0, 0, 0, 240), outline=(40, 40, 40), width=1)
-    cp_draw.text(((badge_pw - code_tw) // 2, (badge_ph - code_th) // 2 - 1), card_code, fill=(255, 215, 0), font=font_badge)
-    canvas.paste(code_pill, (badge_px, badge_py), code_pill)
 
     ed_bbox = font_badge.getbbox(edition_str)
     ed_tw = ed_bbox[2] - ed_bbox[0] if ed_bbox else len(edition_str) * 7
     ed_th = ed_bbox[3] - ed_bbox[1] if ed_bbox else 12
-
     ed_pw = ed_tw + 16
     ed_ph = ed_th + 6
+
+    # 3. Compact opaque overlay, expanding only when wrapped text needs it.
+    base_panel_h = max(100, int(content_h * 0.24))
+    required_panel_h = (
+        7
+        + series_block_h
+        + 2
+        + title_block_h
+        + 5
+        + max(badge_ph, ed_ph)
+        + 10
+    )
+    bot_h = max(base_panel_h, required_panel_h)
+    bot_y = content_y + content_h - bot_h
+
+    bot_overlay = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
+    bo_draw = ImageDraw.Draw(bot_overlay)
+
+    panel_top = (251, 237, 190)
+    panel_bottom = (232, 198, 116)
+    for panel_y in range(bot_h):
+        blend = panel_y / max(1, bot_h - 1)
+        panel_color = tuple(
+            int(start + ((end - start) * blend))
+            for start, end in zip(panel_top, panel_bottom)
+        )
+        bo_draw.line(
+            [(0, panel_y), (content_w - 1, panel_y)],
+            fill=panel_color + (255,),
+        )
+    bo_draw.line([(0, 0), (content_w - 1, 0)], fill=(104, 83, 43, 225), width=2)
+
+    canvas.paste(bot_overlay, (content_x, bot_y), bot_overlay)
+
+    # 4. Wrapped series and character names
+    sy = bot_y + 7
+    series_max_w = max(_text_width(font_series, line) for line in series_lines)
+    line_y = sy + series_block_h // 2
+    margin = 14
+    left_line_x1 = content_x + margin
+    left_line_x2 = content_x + (content_w - series_max_w) // 2 - 8
+    right_line_x1 = content_x + (content_w + series_max_w) // 2 + 8
+    right_line_x2 = content_x + content_w - margin
+
+    line_segments = (
+        (left_line_x1, left_line_x2),
+        (right_line_x1, right_line_x2),
+    )
+    if "mythic" in rarity_str:
+        for line_x1, line_x2 in line_segments:
+            if line_x2 > line_x1:
+                _draw_rainbow_line(canvas, (line_x1, line_y, line_x2, line_y + 2))
+    else:
+        line_color = (
+            (255, 193, 59, 230)
+            if "legend" in rarity_str
+            else (167, 116, 255, 230)
+            if "epic" in rarity_str
+            else (44, 207, 255, 230)
+            if "rare" in rarity_str
+            else (143, 157, 176, 220)
+        )
+        for line_x1, line_x2 in line_segments:
+            if line_x2 > line_x1:
+                draw.line([(line_x1, line_y), (line_x2, line_y)], fill=line_color, width=2)
+
+    center_x = content_x + content_w // 2
+    for line_index, line in enumerate(series_lines):
+        draw.text(
+            (center_x, sy + line_index * (series_line_h + series_spacing)),
+            line,
+            fill=(58, 50, 34),
+            font=font_series,
+            anchor="mt",
+        )
+
+    title_y = sy + series_block_h + 2
+    for line_index, line in enumerate(title_lines):
+        draw.text(
+            (center_x, title_y + line_index * (title_line_h + title_spacing)),
+            line,
+            fill=(24, 25, 27),
+            font=font_title,
+            anchor="mt",
+            stroke_width=1,
+            stroke_fill=(255, 242, 196, 210),
+        )
+
+    # 5. Bottom Row: Left Pill Code Badge & Right Print/Edition Text
+    badge_px = content_x + 12
+    badge_py = content_y + content_h - badge_ph - 4
+
+    code_pill = Image.new("RGBA", (badge_pw, badge_ph), (0, 0, 0, 0))
+    cp_draw = ImageDraw.Draw(code_pill)
+    code_cut = min(5, badge_ph // 3)
+    code_shape = [
+        (code_cut, 0),
+        (badge_pw - code_cut - 1, 0),
+        (badge_pw - 1, code_cut),
+        (badge_pw - 1, badge_ph - code_cut - 1),
+        (badge_pw - code_cut - 1, badge_ph - 1),
+        (code_cut, badge_ph - 1),
+        (0, badge_ph - code_cut - 1),
+        (0, code_cut),
+    ]
+    cp_draw.polygon(code_shape, fill=(18, 19, 22, 255))
+    cp_draw.line(code_shape + [code_shape[0]], fill=(93, 75, 40), width=1)
+    cp_draw.text(
+        (badge_pw // 2, badge_ph // 2),
+        card_code,
+        fill=(245, 205, 91),
+        font=font_badge,
+        anchor="mm",
+    )
+    canvas.paste(code_pill, (badge_px, badge_py), code_pill)
+
     ed_px = content_x + content_w - ed_pw - 12
-    ed_py = badge_py
+    ed_py = content_y + content_h - ed_ph - 4
 
     ed_pill = Image.new("RGBA", (ed_pw, ed_ph), (0, 0, 0, 0))
     ep_draw = ImageDraw.Draw(ed_pill)
-    ep_draw.rounded_rectangle([0, 0, ed_pw - 1, ed_ph - 1], radius=6, fill=(0, 0, 0, 240), outline=(40, 40, 40), width=1)
-    ep_draw.text(((ed_pw - ed_tw) // 2, (ed_ph - ed_th) // 2 - 1), edition_str, fill=(255, 215, 0), font=font_badge)
+    ed_cut = min(5, ed_ph // 3)
+    ed_shape = [
+        (ed_cut, 0),
+        (ed_pw - ed_cut - 1, 0),
+        (ed_pw - 1, ed_cut),
+        (ed_pw - 1, ed_ph - ed_cut - 1),
+        (ed_pw - ed_cut - 1, ed_ph - 1),
+        (ed_cut, ed_ph - 1),
+        (0, ed_ph - ed_cut - 1),
+        (0, ed_cut),
+    ]
+    ep_draw.polygon(ed_shape, fill=(18, 19, 22, 255))
+    ep_draw.line(ed_shape + [ed_shape[0]], fill=(93, 75, 40), width=1)
+    ep_draw.text(
+        (ed_pw // 2, ed_ph // 2),
+        edition_str,
+        fill=(245, 205, 91),
+        font=font_badge,
+        anchor="mm",
+    )
     canvas.paste(ed_pill, (ed_px, ed_py), ed_pill)
 
 # ==========================================
 # 🃏 RENDER DROP CARDS (3 side-by-side)
 # ==========================================
-async def render_cards_image(cards: list, show_quality: bool = False) -> io.BytesIO:
+async def render_three_cards_composite(cards: list) -> io.BytesIO:
     """Renders 3 cards side-by-side for /drop."""
     card_w, card_h = 280, 450
     gap = 18
@@ -411,60 +525,3 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     canvas.save(buf, format="PNG")
     buf.seek(0)
     return buf
-
-# ==========================================
-# 🎨 RENDER FULL-ART UNFRAMED CARD
-# ==========================================
-async def render_full_art_card(card_data: dict, custom_frame: Image.Image = None) -> io.BytesIO:
-    """Renders a full-bleed unframed card (100% artwork canvas), ready for custom shop borders."""
-    card_w, card_h = 320, 500
-    corner_r = 12
-
-    canvas = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
-
-    session = await get_http_session()
-    raw_img = await fetch_image(session, card_data["image_url"])
-
-    fitted_art = fit_artwork_image(raw_img, card_w, card_h)
-    canvas.paste(fitted_art, (0, 0))
-
-    vignette = Image.new("RGBA", (card_w, card_h))
-    v_draw = ImageDraw.Draw(vignette)
-    for y in range(card_h - 110, card_h):
-        t = (y - (card_h - 110)) / 110
-        alpha = int(180 * t)
-        v_draw.line([(0, y), (card_w, y)], fill=(0, 0, 0, alpha))
-
-    canvas.paste(vignette, (0, 0), vignette)
-
-    if custom_frame:
-        resized_frame = fit_artwork_image(custom_frame, card_w, card_h)
-        canvas.paste(resized_frame, (0, 0), resized_frame)
-
-    series_name = card_data.get("series_name", card_data.get("series", "Genshin Impact"))[:24]
-    s_bbox = FONT_SERIES_SINGLE.getbbox(series_name)
-    s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 13
-    s_th = s_bbox[3] - s_bbox[1] if s_bbox else 22
-    sx = (card_w - s_tw) // 2
-    sy = card_h - 85
-    draw.text((sx + 2, sy + 2), series_name, fill=(0, 0, 0, 220), font=FONT_SERIES_SINGLE)
-    draw.text((sx, sy), series_name, fill=(255, 235, 170), font=FONT_SERIES_SINGLE)
-
-    char_name = card_data.get("character_name", card_data.get("name", "Citlali"))[:22]
-    c_bbox = FONT_TITLE_SINGLE.getbbox(char_name)
-    c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 16
-    c_th = c_bbox[3] - c_bbox[1] if c_bbox else 30
-    nx = (card_w - c_tw) // 2
-    ny = sy + s_th + 4
-    draw.text((nx + 2, ny + 2), char_name, fill=(0, 0, 0, 220), font=FONT_TITLE_SINGLE)
-    draw.text((nx, ny), char_name, fill=(255, 255, 255), font=FONT_TITLE_SINGLE)
-
-    canvas = _round_corners(canvas, corner_r)
-
-    buf = io.BytesIO()
-    canvas.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
-
-render_three_cards_composite = render_cards_image

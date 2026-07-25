@@ -1,4 +1,3 @@
-import time
 from db import get_connection, release_connection
 import discord
 from discord.ext import commands
@@ -7,7 +6,7 @@ from config import BURN_REWARDS, display_rarity
 from database import (
     get_card_by_code_and_owner, update_card_tag,
     delete_card_from_inventory, get_user_dust, add_user_dust,
-    update_card_quality, get_user_inventory
+    update_card_quality
 )
 from utils.renderer import render_single_card
 
@@ -147,11 +146,8 @@ class CardActionsCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        if len(card_row) >= 10:
-            cid, code, uid, char_name, series, rarity, mint_num, edition, tag, q_val = card_row[:10]
-        else:
-            cid, code, uid, char_name, series, rarity, mint_num, edition, tag = card_row[:9]
-            q_val = "Good ⭐⭐"
+        cid, code, _, char_name, _, rarity, _, _, _ = card_row[:9]
+        q_val = card_row[9] if len(card_row) >= 10 else "Good ⭐⭐"
 
         code_str = code if code else f"c{cid:04d}"
         base_dust = BURN_REWARDS.get(rarity, {"dust": 20})["dust"]
@@ -229,7 +225,7 @@ class CardActionsCog(commands.Cog):
             tag_name = arg1.strip()
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
             release_connection(conn)
 
@@ -241,7 +237,7 @@ class CardActionsCog(commands.Cog):
                     await ctx_or_interaction.send(msg)
                 return
 
-            cid, code, char_name = row
+            cid, code = row
             card_code = code if code else f"c{cid:04d}"
         else:
             potential_code = arg1.strip()
@@ -255,7 +251,7 @@ class CardActionsCog(commands.Cog):
                 tag_name = f"{potential_code} {potential_tag}".strip()
                 conn = get_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
+                cursor.execute("SELECT id, code FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
                 row = cursor.fetchone()
                 release_connection(conn)
 
@@ -267,7 +263,7 @@ class CardActionsCog(commands.Cog):
                         await ctx_or_interaction.send(msg)
                     return
 
-                cid, code, char_name = row
+                cid, code = row
                 card_code = code if code else f"c{cid:04d}"
 
         success = update_card_tag(card_code, user.id, tag_name)
@@ -296,7 +292,7 @@ class CardActionsCog(commands.Cog):
         if not code:
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, code, character_name FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
+            cursor.execute("SELECT id, code FROM inventory WHERE user_id = %s ORDER BY id DESC LIMIT 1", (user.id,))
             row = cursor.fetchone()
             release_connection(conn)
 
@@ -308,7 +304,7 @@ class CardActionsCog(commands.Cog):
                     await ctx_or_interaction.send(msg)
                 return
 
-            cid, ccode, char_name = row
+            cid, ccode = row
             card_code = ccode if ccode else f"c{cid:04d}"
         else:
             card_code = code
@@ -355,7 +351,7 @@ class CardActionsCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cid, code, uid, char_name, series, rarity, mint_num, edition, tag, q_val = card_row[:10]
+        cid, code, _, char_name, series, rarity, mint_num, edition, _, q_val = card_row[:10]
         code_str = code if code else f"c{cid:04d}"
         q_curr = (q_val or "Good ⭐⭐").strip()
 

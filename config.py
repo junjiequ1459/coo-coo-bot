@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
 BOT_OWNER_IDS = [154017382560563200]
 
 DROP_COOLDOWN_SEC = 900  # 15 Minutes (Standard)
@@ -33,14 +32,6 @@ def display_rarity(rarity: str) -> str:
     """Returns the emoji-prefixed display string for a rarity, e.g. '🌈 Mythic'."""
     emoji = RARITY_EMOJIS.get(rarity, "")
     return f"{emoji} {rarity}" if emoji else rarity
-
-RARITY_COLORS = {
-    "Mythic": (255, 0, 128),        # Rainbow (primary: Hot Pink)
-    "Legendary": (255, 215, 0),     # Gold
-    "Epic": (147, 112, 219),        # Rich Purple
-    "Rare": (0, 229, 255),          # Cyan Blue
-    "Common": (140, 155, 170)       # Slate Silver
-}
 
 BURN_REWARDS = {
     "Mythic": {"dust": 500},

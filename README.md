@@ -1,12 +1,12 @@
 # 🐦 Coo Coo Discord Bot
 
-Coo Coo is a Karuta-style Anime & Game Card Collecting Discord Bot powered by a local 10,000+ character SQLite database, custom PIL framed card rendering, and Gacha drop odds!
+Coo Coo is a Karuta-style Anime & Game Card Collecting Discord Bot powered by a Supabase PostgreSQL database, custom PIL framed card rendering, and Gacha drop odds!
 
 ---
 
 ## 🎴 Features & Mechanics
 
-- **⚡ 10,000+ Local Character Pool**: Offline 0ms SQLite card drops covering top Anime, Manga, Genshin Impact, and Honkai: Star Rail characters.
+- **⚡ 10,000+ Supabase Character Pool**: PostgreSQL-backed card drops covering top Anime, Manga, Genshin Impact, and Honkai: Star Rail characters.
 - **🎲 Gacha Rarity Distribution**:
   - `✨ Legendary` — **1%**
   - `🟣 Epic` — **8%**

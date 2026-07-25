@@ -1,7 +1,7 @@
 import random
 import string
 import time
-from config import RARITY_WEIGHTS
+from config import DROP_COOLDOWN_SEC, GRAB_COOLDOWN_SEC, RARITY_WEIGHTS
 from db import get_connection, release_connection
 
 def generate_card_code() -> str:
@@ -344,8 +344,8 @@ def add_user_premium(user_id: int, days: int = 30) -> int:
 def get_effective_cooldowns(user_id: int):
     """Returns (drop_cd_sec, grab_cd_sec) based on whether user has active Premium Pass."""
     if is_user_premium(user_id):
-        return 450, 150  # 7.5 Minutes Drop CD, 2.5 Minutes Grab CD
-    return 900, 300      # 15 Minutes Drop CD, 5 Minutes Grab CD
+        return DROP_COOLDOWN_SEC // 2, GRAB_COOLDOWN_SEC // 2
+    return DROP_COOLDOWN_SEC, GRAB_COOLDOWN_SEC
 
 def get_user_drop_tickets(user_id: int) -> int:
     conn = get_connection()
@@ -487,5 +487,4 @@ def get_cards_from_db_pool(count: int = 3):
     release_connection(conn)
 
     return cards
-
 

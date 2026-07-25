@@ -2,7 +2,7 @@ import time
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import DROP_COOLDOWN_SEC, GRAB_COOLDOWN_SEC, DAILY_COOLDOWN_SEC
+from config import DAILY_COOLDOWN_SEC
 from database import get_user_cooldowns, get_effective_cooldowns, is_user_premium, get_user_premium_until
 
 class CooldownsCog(commands.Cog):

@@ -1,7 +1,6 @@
 import os
 import time
-import psycopg2
-from psycopg2 import pool
+from psycopg2.pool import SimpleConnectionPool
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -13,7 +12,7 @@ def init_pool():
         return
     for attempt in range(3):
         try:
-            _pool = psycopg2.pool.SimpleConnectionPool(1, 5, dsn=DATABASE_URL)
+            _pool = SimpleConnectionPool(1, 5, dsn=DATABASE_URL)
             print("✅ PostgreSQL connection pool initialized!")
             return
         except Exception as e:

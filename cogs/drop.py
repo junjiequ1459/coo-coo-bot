@@ -36,8 +36,8 @@ class CardGrabButton(discord.ui.Button):
         now_ts = int(time.time())
 
         # Check Grab Cooldown (5 Minutes, or 2.5 Minutes for Premium)
-        l_drop, l_grab, l_daily = get_user_cooldowns(interaction.user.id)
-        d_cd, g_cd = get_effective_cooldowns(interaction.user.id)
+        _, l_grab, _ = get_user_cooldowns(interaction.user.id)
+        _, g_cd = get_effective_cooldowns(interaction.user.id)
         elapsed_grab = now_ts - l_grab
         used_grab_ticket = False
         if elapsed_grab < g_cd:
@@ -146,8 +146,8 @@ class DropCog(commands.Cog):
     async def execute_card_drop(self, ctx_or_interaction, user, forced_character: str = None, bypass_cooldown: bool = False):
         try:
             now_ts = int(time.time())
-            l_drop, l_grab, l_daily = get_user_cooldowns(user.id)
-            d_cd, g_cd = get_effective_cooldowns(user.id)
+            l_drop, _, _ = get_user_cooldowns(user.id)
+            d_cd, _ = get_effective_cooldowns(user.id)
             elapsed_drop = now_ts - l_drop
 
             used_ticket = False
@@ -263,7 +263,7 @@ class DropCog(commands.Cog):
             except Exception:
                 pass
 
-    @app_commands.command(name="drop", description="Drops 3 random Anime Cards from your local character DB")
+    @app_commands.command(name="drop", description="Drops 3 random Anime Cards from the Supabase card pool")
     async def drop_slash(self, interaction: discord.Interaction):
         try:
             await interaction.response.defer()

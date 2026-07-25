@@ -198,7 +198,7 @@ class TradeSession:
                 await interaction_or_ctx.send(msg)
             return
 
-        cid, code, uid, char_name, series, rarity, mint_num, edition, tag, q_val = card_row
+        cid, code, _, char_name, series, rarity, _, _, _, _ = card_row
         card_code = code if code else f"c{cid:04d}"
 
         if any(c["code"] == card_code for c in target_list):

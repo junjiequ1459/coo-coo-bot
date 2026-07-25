@@ -15,7 +15,7 @@ class LookupCog(commands.Cog):
 
         # If a specific print number was requested (e.g. !lu Yor Forger 1)
         if print_num_target is not None:
-            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at FROM inventory WHERE LOWER(character_name) = LOWER(%s) AND mint_number = %s", (char_name, print_num_target))
+            cursor.execute("SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, quality FROM inventory WHERE LOWER(character_name) = LOWER(%s) AND mint_number = %s", (char_name, print_num_target))
             inv_row = cursor.fetchone()
             release_connection(conn)
 
@@ -27,7 +27,7 @@ class LookupCog(commands.Cog):
                     await ctx_or_interaction.send(msg)
                 return
 
-            cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
+            cid, code, uid, cname, sname, rval, mnum, edval, iurl, qval = inv_row
             card_data = {
                 "id": cid,
                 "code": code if code else f"c{cid:04d}",
@@ -129,7 +129,7 @@ class LookupCog(commands.Cog):
             cursor = conn.cursor()
             query_id_str = code_search[1:] if code_search.startswith('c') else code_search
             cursor.execute("""
-            SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at 
+            SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, quality
             FROM inventory 
             WHERE LOWER(code) = %s OR CAST(id AS TEXT) = %s
             """, (code_search, query_id_str))
@@ -137,7 +137,7 @@ class LookupCog(commands.Cog):
             release_connection(conn)
 
             if inv_row:
-                cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
+                cid, code, uid, cname, sname, rval, mnum, edval, iurl, qval = inv_row
                 card_data = {
                     "id": cid,
                     "code": code if code else f"c{cid:04d}",
@@ -402,7 +402,7 @@ class CharacterSearchPaginatorView(discord.ui.View):
 
         # Add selection button for each match on current page (up to 5)
         for idx, match in enumerate(self.current_matches):
-            cname, sname, iurl, rval = match
+            cname, _, _, _ = match
             btn = discord.ui.Button(
                 label=f"{idx + 1}. {cname[:22]}",
                 style=discord.ButtonStyle.primary,
@@ -462,7 +462,7 @@ class CharacterSearchPaginatorView(discord.ui.View):
         )
 
         for idx, match in enumerate(self.current_matches):
-            cname, sname, iurl, rval = match
+            cname, sname, _, rval = match
             embed.add_field(
                 name=f"{idx + 1}️⃣ **{cname}**",
                 value=f"📺 *{sname}* | {display_rarity(rval)}",
@@ -627,7 +627,7 @@ class SeriesCharacterPaginatorView(discord.ui.View):
         self.current_matches = self.fetch_page_matches()
 
         for idx, match in enumerate(self.current_matches):
-            cname, sname, iurl, rval = match
+            cname, _, _, _ = match
             btn = discord.ui.Button(
                 label=f"{idx + 1}. {cname[:22]}",
                 style=discord.ButtonStyle.primary,
@@ -689,7 +689,7 @@ class SeriesCharacterPaginatorView(discord.ui.View):
         )
 
         for idx, match in enumerate(self.current_matches):
-            cname, sname, iurl, rval = match
+            cname, _, _, rval = match
             cursor.execute("SELECT COUNT(*) FROM inventory WHERE LOWER(character_name) = LOWER(%s)", (cname,))
             claimed_cnt = cursor.fetchone()[0]
 

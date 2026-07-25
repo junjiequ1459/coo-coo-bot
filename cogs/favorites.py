@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from db import get_connection, release_connection
-from utils.renderer import render_single_card
 from config import display_rarity
 
 MAX_FAVORITES = 5
@@ -37,7 +36,7 @@ class FavoritesCog(commands.Cog):
 
         # Check card exists and belongs to user
         cursor.execute(
-            "SELECT id, code, character_name, series_name, rarity, mint_number, edition, image_url, quality FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s",
+            "SELECT id, code, character_name, image_url FROM inventory WHERE (code = %s OR CAST(id AS TEXT) = %s) AND user_id = %s",
             (code, code, user.id)
         )
         card_row = cursor.fetchone()
@@ -51,7 +50,7 @@ class FavoritesCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        cid, card_code, char_name, series, rarity, mint_num, edition, img_url, q_val = card_row
+        cid, card_code, char_name, img_url = card_row
         card_code = card_code if card_code else f"c{cid:04d}"
 
         # Check favorites count
@@ -183,12 +182,12 @@ class FavoritesCog(commands.Cog):
 
         for idx, (card_code,) in enumerate(fav_rows):
             cursor.execute(
-                "SELECT character_name, series_name, rarity, mint_number, edition, quality FROM inventory WHERE code = %s",
+                "SELECT character_name, series_name, rarity, quality FROM inventory WHERE code = %s",
                 (card_code,)
             )
             card = cursor.fetchone()
             if card:
-                char_name, series, rarity, mint_num, edition, q_val = card
+                char_name, series, rarity, q_val = card
                 q_disp = q_val if q_val else "Good ⭐⭐"
                 embed.add_field(
                     name=f"{'⭐' * (idx + 1)} {char_name}",
