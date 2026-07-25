@@ -258,17 +258,6 @@ class LookupCog(commands.Cog):
             await self.display_single_character_lookup(ctx_or_interaction, match[0], match[1], match[2], match[3], print_num_target)
             return
 
-        # Check for exact character name match among current matches
-        exact_match = None
-        for m in paginator.current_matches:
-            if m[0].lower() == char_search.lower():
-                exact_match = m
-                break
-        
-        if exact_match:
-            await self.display_single_character_lookup(ctx_or_interaction, exact_match[0], exact_match[1], exact_match[2], exact_match[3], print_num_target)
-            return
-
         # Multiple matches: render interactive paginated selection list!
         embed = paginator.build_embed()
         if isinstance(ctx_or_interaction, discord.Interaction):
