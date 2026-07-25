@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from db import get_connection, release_connection
 from utils.renderer import render_single_card
+from config import display_rarity
 
 MAX_FAVORITES = 5
 
@@ -191,7 +192,7 @@ class FavoritesCog(commands.Cog):
                 q_disp = q_val if q_val else "Good ⭐⭐"
                 embed.add_field(
                     name=f"{'⭐' * (idx + 1)} {char_name}",
-                    value=f"🆔 `{card_code}` | {rarity}\n📺 *{series}* | {q_disp}",
+                    value=f"🆔 `{card_code}` | {display_rarity(rarity)}\n📺 *{series}* | {q_disp}",
                     inline=False
                 )
             else:

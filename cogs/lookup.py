@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from utils.renderer import render_single_card
+from config import display_rarity
 
 class LookupCog(commands.Cog):
     def __init__(self, bot):
@@ -48,7 +49,7 @@ class LookupCog(commands.Cog):
                 title=f"🎴 {char_name} · Print #{mnum}",
                 description=(
                     f"📺 **Series:** {sname}\n"
-                    f"✨ **Rarity:** {rval}\n"
+                    f"✨ **Rarity:** {display_rarity(rval)}\n"
                     f"🌟 **Quality:** {card_data['quality']}\n"
                     f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
                     f"👤 **Owner:** {owner_mention}"
@@ -72,7 +73,7 @@ class LookupCog(commands.Cog):
             title=f"🔍 Character Lookup: {char_name}",
             description=(
                 f"📺 **Series:** {series}\n"
-                f"✨ **Rarity:** {rarity}\n"
+                f"✨ **Rarity:** {display_rarity(rarity)}\n"
                 f"📊 **Claimed in Circulation:** **{len(inv_rows)} cards**"
             ),
             color=discord.Color.purple()
@@ -158,7 +159,7 @@ class LookupCog(commands.Cog):
                     title=f"🎴 {cname} · Print #{mnum}",
                     description=(
                         f"📺 **Series:** {sname}\n"
-                        f"✨ **Rarity:** {rval}\n"
+                        f"✨ **Rarity:** {display_rarity(rval)}\n"
                         f"🌟 **Quality:** {card_data['quality']}\n"
                         f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
                         f"👤 **Owner:** {owner_mention}"
@@ -228,7 +229,7 @@ class LookupCog(commands.Cog):
                     title=f"🎴 {cname} · Print #{mnum}",
                     description=(
                         f"📺 **Series:** {sname}\n"
-                        f"✨ **Rarity:** {rval}\n"
+                        f"✨ **Rarity:** {display_rarity(rval)}\n"
                         f"🌟 **Quality:** {card_data['quality']}\n"
                         f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
                         f"👤 **Owner:** {owner_mention}"
@@ -464,7 +465,7 @@ class CharacterSearchPaginatorView(discord.ui.View):
             cname, sname, iurl, rval = match
             embed.add_field(
                 name=f"{idx + 1}️⃣ **{cname}**",
-                value=f"📺 *{sname}* | {rval}",
+                value=f"📺 *{sname}* | {display_rarity(rval)}",
                 inline=False
             )
 
@@ -694,7 +695,7 @@ class SeriesCharacterPaginatorView(discord.ui.View):
 
             embed.add_field(
                 name=f"{idx + 1}️⃣ **{cname}**",
-                value=f"✨ **Rarity:** {rval} | 📊 **Claimed in Circulation:** {claimed_cnt}",
+                value=f"✨ **Rarity:** {display_rarity(rval)} | 📊 **Claimed in Circulation:** {claimed_cnt}",
                 inline=False
             )
 

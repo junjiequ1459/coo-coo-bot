@@ -3,7 +3,7 @@ from db import get_connection, release_connection
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import BURN_REWARDS
+from config import BURN_REWARDS, display_rarity
 from database import (
     get_card_by_code_and_owner, update_card_tag,
     delete_card_from_inventory, get_user_dust, add_user_dust,
@@ -38,7 +38,7 @@ class BurnConfirmView(discord.ui.View):
         embed = discord.Embed(
             title=f"🔥 Burned: {self.char_name}",
             description=(
-                f"🔥 **{interaction.user.mention}** confirmed and burned `{self.card_code}` (**{self.char_name}** — {self.rarity}) into ashes!\n\n"
+                f"🔥 **{interaction.user.mention}** confirmed and burned `{self.card_code}` (**{self.char_name}** — {display_rarity(self.rarity)}) into ashes!\n\n"
                 f"🧪 **Gained Dust:** **+{self.dust_reward} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
             ),
             color=discord.Color.red()
@@ -170,12 +170,12 @@ class CardActionsCog(commands.Cog):
 
         final_dust = max(1, int(base_dust * mult))
 
-        if rarity in ["🟣 Epic", "✨ Legendary"]:
+        if rarity in ["Epic", "Legendary", "Mythic"]:
             view = BurnConfirmView(user.id, code_str, char_name, rarity, final_dust)
             embed = discord.Embed(
-                title=f"⚠️ Are you sure you want to burn this {rarity} card?",
+                title=f"⚠️ Are you sure you want to burn this {display_rarity(rarity)} card?",
                 description=(
-                    f"🔥 You are about to burn **{char_name}** (`{code_str}`) — **{rarity}** ({q_val})!\n"
+                    f"🔥 You are about to burn **{char_name}** (`{code_str}`) — **{display_rarity(rarity)}** ({q_val})!\n"
                     f"🧪 **Yield:** **+{final_dust} Dust** *(Quality Multiplier: x{mult})*\n\n"
                     f"⚠️ *This action is permanent and cannot be undone! Click below to confirm.*"
                 ),
@@ -200,7 +200,7 @@ class CardActionsCog(commands.Cog):
         embed = discord.Embed(
             title=f"🔥 Burned: {char_name}",
             description=(
-                f"🔥 **{user.mention}** burned `{code_str}` (**{char_name}** — {rarity} • {q_val}) into ashes!\n\n"
+                f"🔥 **{user.mention}** burned `{code_str}` (**{char_name}** — {display_rarity(rarity)} • {q_val}) into ashes!\n\n"
                 f"🧪 **Gained Dust:** **+{final_dust} Dust** *(Total Balance: {new_dust:,} 🧪 Dust)*"
             ),
             color=discord.Color.red()

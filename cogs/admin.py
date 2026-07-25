@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from db import get_connection, release_connection
-from config import BOT_OWNER_IDS
+from config import BOT_OWNER_IDS, display_rarity
 from database import (
     add_user_gems, add_user_dust, add_user_drop_tickets, add_user_grab_tickets,
     add_user_premium, save_card_to_inventory, generate_card_code, get_next_mint
@@ -134,7 +134,7 @@ class AdminCog(commands.Cog):
             title=f"👑 Admin Grant: Card Spawner",
             description=(
                 f"Spawned & granted card to {target.mention}!\n\n"
-                f"🎴 **{char_name}** ({rarity})\n"
+                f"🎴 **{char_name}** ({display_rarity(rarity)})\n"
                 f"📺 **Series:** {series}\n"
                 f"🆔 **Card ID:** `{code}` | **Print:** #{mint_num}"
             ),
@@ -291,7 +291,7 @@ class AdminCog(commands.Cog):
             description=(
                 f"👤 **Character:** {char_name}\n"
                 f"📺 **Series:** {series}\n"
-                f"✨ **Rarity:** {rarity}\n"
+                f"✨ **Rarity:** {display_rarity(rarity)}\n"
                 f"🖼️ **Image URL:** [View Image]({img_url})\n\n"
                 f"This character is now live in the card drop pool!"
             ),

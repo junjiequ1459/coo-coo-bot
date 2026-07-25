@@ -14,24 +14,40 @@ DROP_CLAIM_TIMEOUT_SEC = 60  # 60 Seconds Claim Window before cards expire
 DAILY_COOLDOWN_SEC = 86400  # 24 Hours
 
 RARITY_WEIGHTS = [
-    ("⚪ Common", 0.76),     # 76% Drop Rate
-    ("🔷 Rare", 0.15),       # 15% Drop Rate
-    ("🟣 Epic", 0.08),       #  8% Drop Rate
-    ("✨ Legendary", 0.01)   #  1% Drop Rate
+    ("Common", 0.844),       # 84.4% Drop Rate
+    ("Rare", 0.10),          # 10% Drop Rate
+    ("Epic", 0.05),          #  5% Drop Rate
+    ("Legendary", 0.005),    #  0.5% Drop Rate
+    ("Mythic", 0.001)        #  0.1% Drop Rate
 ]
 
+RARITY_EMOJIS = {
+    "Mythic": "🌈",
+    "Legendary": "✨",
+    "Epic": "🟣",
+    "Rare": "🔷",
+    "Common": "⚪",
+}
+
+def display_rarity(rarity: str) -> str:
+    """Returns the emoji-prefixed display string for a rarity, e.g. '🌈 Mythic'."""
+    emoji = RARITY_EMOJIS.get(rarity, "")
+    return f"{emoji} {rarity}" if emoji else rarity
+
 RARITY_COLORS = {
-    "✨ Legendary": (255, 215, 0),   # Gold
-    "🟣 Epic": (147, 112, 219),     # Rich Purple
-    "🔷 Rare": (0, 229, 255),       # Cyan Blue
-    "⚪ Common": (140, 155, 170)    # Slate Silver
+    "Mythic": (255, 0, 128),        # Rainbow (primary: Hot Pink)
+    "Legendary": (255, 215, 0),     # Gold
+    "Epic": (147, 112, 219),        # Rich Purple
+    "Rare": (0, 229, 255),          # Cyan Blue
+    "Common": (140, 155, 170)       # Slate Silver
 }
 
 BURN_REWARDS = {
-    "✨ Legendary": {"dust": 200},
-    "🟣 Epic": {"dust": 100},
-    "🔷 Rare": {"dust": 50},
-    "⚪ Common": {"dust": 20}
+    "Mythic": {"dust": 500},
+    "Legendary": {"dust": 200},
+    "Epic": {"dust": 100},
+    "Rare": {"dust": 50},
+    "Common": {"dust": 20}
 }
 
 COLOR_ROLES = [

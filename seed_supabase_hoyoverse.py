@@ -349,8 +349,8 @@ def seed_database():
     print(f"🎮 Seeding {len(GENSHIN_CHARACTERS)} Genshin Impact characters...")
     for name, img_url in GENSHIN_CHARACTERS.items():
         anilist_id = 9910000 + zlib.crc32(name.encode('utf-8')) % 100000
-        rarity = "🔷 Rare" if name in LOW_RARITY_HINTS else "✨ Legendary"
-        favs = 3000 if rarity == "🔷 Rare" else 12000
+        rarity = "Rare" if name in LOW_RARITY_HINTS else "Legendary"
+        favs = 3000 if rarity == "Rare" else 12000
 
         cursor.execute('''
         INSERT INTO cards_pool (anilist_id, character_name, series_name, image_url, favourites, rarity)
@@ -389,8 +389,8 @@ def seed_database():
             img_url = f"https://static.wikia.nocookie.net/houkai-star-rail/images/8/80/Character_{c_clean}_Splash_Art.png"
 
         anilist_id = 9920000 + zlib.crc32(name.encode('utf-8')) % 100000
-        rarity = "🔷 Rare" if name in LOW_RARITY_HINTS or name in ['March 7th', 'Welt', 'Himeko', 'Arlan', 'Asta', 'Hook', 'Natasha', 'Misha', 'Sushang', 'Yukong'] else "✨ Legendary"
-        favs = 3000 if rarity == "🔷 Rare" else 12000
+        rarity = "Rare" if name in LOW_RARITY_HINTS or name in ['March 7th', 'Welt', 'Himeko', 'Arlan', 'Asta', 'Hook', 'Natasha', 'Misha', 'Sushang', 'Yukong'] else "Legendary"
+        favs = 3000 if rarity == "Rare" else 12000
 
         cursor.execute('''
         INSERT INTO cards_pool (anilist_id, character_name, series_name, image_url, favourites, rarity)

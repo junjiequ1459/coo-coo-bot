@@ -68,14 +68,16 @@ async def fetch_random_anilist_cards(count: int = 3):
         else:
             series = "Anime Series"
             
-        if favs >= 12000:
-            rarity = "✨ Legendary"
-        elif favs >= 4000:
-            rarity = "🟣 Epic"
+        if favs >= 10000:
+            rarity = "Mythic"
+        elif favs >= 5000:
+            rarity = "Legendary"
         elif favs >= 1000:
-            rarity = "🔷 Rare"
+            rarity = "Epic"
+        elif favs >= 500:
+            rarity = "Rare"
         else:
-            rarity = "⚪ Common"
+            rarity = "Common"
             
         temp_mint = get_next_mint(char_name)
         cards.append({
@@ -90,9 +92,9 @@ async def fetch_random_anilist_cards(count: int = 3):
         })
 
     DEFAULT_FALLBACKS = [
-        {"name": "Satoru Gojo", "series": "Jujutsu Kaisen", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b126448-aN2d0hG0240d.png", "rarity": "✨ Legendary"},
-        {"name": "Monkey D. Luffy", "series": "One Piece", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b40-X1W0z9Wn99g5.png", "rarity": "✨ Legendary"},
-        {"name": "Naruto Uzumaki", "series": "Naruto", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b17-0Vp9jR65iX1X.png", "rarity": "✨ Legendary"}
+        {"name": "Satoru Gojo", "series": "Jujutsu Kaisen", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b126448-aN2d0hG0240d.png", "rarity": "Legendary"},
+        {"name": "Monkey D. Luffy", "series": "One Piece", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b40-X1W0z9Wn99g5.png", "rarity": "Legendary"},
+        {"name": "Naruto Uzumaki", "series": "Naruto", "image": "https://s4.anilist.co/file/anilistcdn/character/large/b17-0Vp9jR65iX1X.png", "rarity": "Legendary"}
     ]
 
     idx = 0

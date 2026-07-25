@@ -9,6 +9,7 @@ from database import (
     is_user_premium, get_user_premium_until
 )
 from utils.renderer import render_single_card
+from config import display_rarity
 
 class CollectionPaginatorView(discord.ui.View):
     def __init__(self, user: discord.User, rows: list, tag_filter: str = None):
@@ -50,7 +51,7 @@ class CollectionPaginatorView(discord.ui.View):
             tag_disp = f" 🏷️ `[{tag_val}]`" if tag_val else ""
             embed.add_field(
                 name=f"🆔 Card ID: `{code_str}` • {char_name}{tag_disp}",
-                value=f"Edition {ed_val} • Print #{mint_num} | {q_val}\n📺 *{series}* | {rarity}",
+                value=f"Edition {ed_val} • Print #{mint_num} | {q_val}\n📺 *{series}* | {display_rarity(rarity)}",
                 inline=False
             )
 

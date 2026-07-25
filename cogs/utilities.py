@@ -194,7 +194,7 @@ class UtilitiesCog(commands.Cog):
             name="🛠️ Repair, 🔥 Burning & 🏷️ Tagging",
             value=(
                 "• **`!repair <id>`** or **`/repair`** — Repair & upgrade card condition using Dust 🧪!\n"
-                "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic+!).\n"
+                "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic, Legendary & Mythic!).\n"
                 "• **`!t <name>`** or **`!tag <id> <name>`** — Assign a folder tag to a card (Defaults to latest!).\n"
                 "• **`!ut`** or **`!untag <id>`** — Remove a tag from a card (Defaults to latest!).\n"
                 "• **`!vt <tag>`** or **`!viewtag <tag>`** — View all cards in a tag folder!"
@@ -226,10 +226,11 @@ class UtilitiesCog(commands.Cog):
         embed.add_field(
             name="👑 Card Rarities & Burn Yields",
             value=(
-                "• **`✨ Legendary` (Gold Frame)** — **1% Drop Rate** | Burns to **+200 🧪 Dust**\n"
-                "• **`🟣 Epic` (Purple Frame)** — **8% Drop Rate** | Burns to **+100 🧪 Dust**\n"
-                "• **`🔷 Rare` (Cyan Frame)** — **15% Drop Rate** | Burns to **+50 🧪 Dust**\n"
-                "• **`⚪ Common` (Silver Frame)** — **76% Drop Rate** | Burns to **+20 🧪 Dust**"
+                "• **`🌈 Mythic` (Rainbow Frame)** — **0.1% Drop Rate** | Burns to **+500 🧪 Dust**\n"
+                "• **`✨ Legendary` (Gold Frame)** — **0.5% Drop Rate** | Burns to **+200 🧪 Dust**\n"
+                "• **`🟣 Epic` (Purple Frame)** — **5% Drop Rate** | Burns to **+100 🧪 Dust**\n"
+                "• **`🔷 Rare` (Cyan Frame)** — **10% Drop Rate** | Burns to **+50 🧪 Dust**\n"
+                "• **`⚪ Common` (Silver Frame)** — **84.4% Drop Rate** | Burns to **+20 🧪 Dust**"
             ),
             inline=False
         )
