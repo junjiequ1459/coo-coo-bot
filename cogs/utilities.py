@@ -1,9 +1,13 @@
 import random
+import time
 import discord
 from discord.ext import commands
 from discord import app_commands
 from config import COLOR_ROLES, LEGACY_COLOR_ROLES, PIGEON_MESSAGES, DROP_PRIORITY_SEC
 from db import get_connection, release_connection
+
+COLOR_BUTTON_COOLDOWNS = {}  # {user_id: last_click_timestamp}
+COOLDOWN_DURATION_SEC = 5  # 5-second rate limit per user
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
@@ -21,6 +25,19 @@ class ColorButton(discord.ui.Button):
             await interaction.response.defer(ephemeral=True)
         except Exception:
             pass
+
+        now = time.time()
+        last_press = COLOR_BUTTON_COOLDOWNS.get(member.id, 0)
+        remaining = COOLDOWN_DURATION_SEC - (now - last_press)
+
+        if remaining > 0:
+            await interaction.followup.send(
+                f"Coo coo! ⏳ Rate limit active! Please wait **{int(remaining) + 1}s** before changing your color again!",
+                ephemeral=True
+            )
+            return
+
+        COLOR_BUTTON_COOLDOWNS[member.id] = now
 
         target_role_name = self.color_info["name"]
         target_role = discord.utils.get(guild.roles, name=target_role_name)
