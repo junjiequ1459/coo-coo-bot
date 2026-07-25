@@ -15,8 +15,6 @@ intents.message_content = True
 intents.members = True
 
 async def get_prefix(bot, message):
-    if message.channel and getattr(message.channel, 'name', '') == 'bot-commands':
-        return commands.when_mentioned_or("!", "")(bot, message)
     return commands.when_mentioned_or("!")(bot, message)
 
 bot = commands.Bot(command_prefix=get_prefix, intents=intents, help_command=None, case_insensitive=True)

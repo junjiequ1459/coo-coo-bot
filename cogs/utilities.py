@@ -110,21 +110,16 @@ class UtilitiesCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        channel = discord.utils.get(member.guild.text_channels, name="general") or discord.utils.get(member.guild.text_channels, name="welcome")
+        channel = discord.utils.find(
+            lambda candidate: (
+                candidate.name.lower() == "welcome"
+                and candidate.category is not None
+                and candidate.category.name.lower() == "information"
+            ),
+            member.guild.text_channels,
+        )
         if channel:
-            embed = discord.Embed(
-                title=f"🐦 Coo Coo Welcomes {member.display_name}!",
-                description=(
-                    f"Coo coo! 🍞 Welcome to the nest, {member.mention}!\n\n"
-                    f"I'm Coo Coo — New York's fattest pigeon and Yuki's friend! "
-                    f"Head over to `#get-roles` to pick a name color!\n\n"
-                    f"Here, take a fresh pretzel crust 🥨 and type `!daily` to claim your first **500 Gems 💎**!"
-                ),
-                color=discord.Color.from_rgb(255, 182, 193)
-            )
-            if member.avatar:
-                embed.set_thumbnail(url=member.avatar.url)
-            await channel.send(embed=embed)
+            await channel.send(f"Welcome to Yukisfriends {member.mention}")
 
     async def send_help_menu(self, ctx_or_interaction):
         embed = discord.Embed(
