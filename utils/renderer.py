@@ -1,16 +1,14 @@
 import io
 import os
-import math
 import asyncio
 import aiohttp
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
-from config import RARITY_COLORS
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 
 # ==========================================
 # 🔤 FONT LOADING
 # ==========================================
 def _load_font(size, bold=True):
-    """Load clean bold fonts for card text."""
+    """Load clean bold fonts for card title and series text."""
     if bold:
         font_paths = [
             "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
@@ -53,13 +51,13 @@ def _load_monospace_font(size):
                 continue
     return _load_font(size, bold=True)
 
-# Pre-load clean fonts matching the user's design screenshot
-FONT_TITLE_DROP = _load_font(26, bold=True)
-FONT_SERIES_DROP = _load_font(13, bold=True)
+# Pre-load clean, prominent fonts matching the user's redesign mockup
+FONT_TITLE_DROP = _load_font(27, bold=True)
+FONT_SERIES_DROP = _load_font(13, bold=False)
 FONT_BADGE_DROP = _load_monospace_font(11)
 
-FONT_TITLE_SINGLE = _load_font(32, bold=True)
-FONT_SERIES_SINGLE = _load_font(15, bold=True)
+FONT_TITLE_SINGLE = _load_font(33, bold=True)
+FONT_SERIES_SINGLE = _load_font(15, bold=False)
 FONT_BADGE_SINGLE = _load_monospace_font(13)
 
 # Shared aiohttp session
@@ -90,30 +88,19 @@ async def fetch_image(session, url):
     return img
 
 def fit_artwork_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Scales character image proportionally without zooming in or cropping out character details."""
+    """Scales artwork image proportionally top-aligned so it fills the viewport edge-to-edge without distortion."""
     orig_w, orig_h = img.size
     if orig_w == 0 or orig_h == 0:
         return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
     
-    scale_w = target_w / orig_w
-    scale_h = target_h / orig_h
-    scale = min(scale_w, scale_h)
-    
-    new_w = max(1, int(orig_w * scale))
-    new_h = max(1, int(orig_h * scale))
+    scale = max(target_w / orig_w, target_h / orig_h)
+    new_w = max(target_w, int(orig_w * scale))
+    new_h = max(target_h, int(orig_h * scale))
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
-    canvas = Image.new("RGBA", (target_w, target_h), (22, 24, 28, 255))
-    left = (target_w - new_w) // 2
-    top = (target_h - new_h) // 2
-    canvas.paste(resized, (left, top))
-    return canvas
-
-def fit_top_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    return fit_artwork_image(img, target_w, target_h)
-
-def fit_and_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    return fit_artwork_image(img, target_w, target_h)
+    left = (new_w - target_w) // 2
+    top = 0  # Align top center so character head and face are perfectly preserved
+    return resized.crop((left, top, left + target_w, top + target_h))
 
 def _round_corners(img: Image.Image, radius: int) -> Image.Image:
     """Apply rounded corners to an RGBA image using an alpha mask."""
@@ -125,24 +112,24 @@ def _round_corners(img: Image.Image, radius: int) -> Image.Image:
     return out
 
 # ==========================================
-# 🖼️ DRAW SINGLE CARD (Matching Redesign)
+# 🖼️ DRAW CARD (Exact Match to User Mockup)
 # ==========================================
 def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h: int,
                         raw_img: Image.Image, card_data: dict, font_title, font_series, font_badge):
-    """Draws a card matching the user's exact redesign screenshot without top-right rarity pill."""
+    """Draws a card matching the user's mockup: metallic outer frame, gold accent inner border, dark bottom container."""
     draw = ImageDraw.Draw(canvas)
     rarity_str = str(card_data.get("rarity", "Legendary")).lower()
     
-    # 1. Outer Metallic Frame with Rarity Accent Border
+    # 1. Metallic Outer Frame with Rounded Corners & Metallic Bevel
     frame_r = 16
     frame_img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     f_draw = ImageDraw.Draw(frame_img)
     
-    # Outer Metallic Fill
+    # Outer Metallic Fill & Bevel Highlights
     f_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=frame_r, fill=(28, 30, 36), outline=(90, 95, 110), width=2)
     f_draw.rounded_rectangle([2, 2, card_w - 3, card_h - 3], radius=frame_r - 2, fill=(22, 24, 28), outline=(180, 185, 200), width=2)
 
-    # 2. Inner Viewport Box Accent Colors based on Rarity (Mythic = Red/Crimson Glow, Legendary = Gold)
+    # 2. Inner Accent Colors based on Rarity Tier
     if "mythic" in rarity_str:
         accent_outer = (245, 65, 85)
         accent_inner = (255, 110, 130)
@@ -164,7 +151,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     view_x, view_y = pad, pad
     view_w, view_h = card_w - pad * 2, card_h - pad * 2
     
-    # Inner Viewport Accent Border
+    # Inner Viewport Accent Border (2px Gold / Accent Line framing inner card content)
     f_draw.rounded_rectangle([view_x - 2, view_y - 2, view_x + view_w + 1, view_y + view_h + 1],
                              radius=10, fill=accent_outer, outline=accent_inner, width=1)
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
@@ -172,17 +159,16 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     canvas.paste(frame_img, (x, y), frame_img)
     
-    # Absolute Inner Content Coordinates
     content_x = x + view_x
     content_y = y + view_y
     content_w = view_w
     content_h = view_h
 
-    # 3. Artwork Section (Occupies Top ~75% of viewport)
+    # 3. Artwork Viewport (Occupies top ~75% of inner content box)
     art_h = int(content_h * 0.75)
     fitted_art = fit_artwork_image(raw_img, content_w, art_h)
     
-    # Apply Top Rounded Corners to Artwork
+    # Apply Rounded Top Corners to Artwork
     art_mask = Image.new("L", (content_w, art_h), 255)
     art_mask_draw = ImageDraw.Draw(art_mask)
     art_mask_draw.rectangle([0, 8, content_w, art_h], fill=255)
@@ -193,16 +179,15 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     # 4. Bottom Dark Container Section
     bot_y = content_y + art_h
 
-    # Accent Line with Series Name Centered Over It
+    # Series Name flanked by horizontal accent divider lines
     series_name = card_data.get("series", card_data.get("series_name", "Genshin Impact"))[:24]
     s_bbox = font_series.getbbox(series_name)
     s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 8
     s_th = s_bbox[3] - s_bbox[1] if s_bbox else 14
 
     sy = bot_y + 14
-    # Horizontal accent lines flanking the series name
     line_y = sy + s_th // 2
-    margin = 12
+    margin = 14
     left_line_x1 = content_x + margin
     left_line_x2 = content_x + (content_w - s_tw) // 2 - 8
     right_line_x1 = content_x + (content_w + s_tw) // 2 + 8
@@ -216,7 +201,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     sx = content_x + (content_w - s_tw) // 2
     draw.text((sx, sy), series_name, fill=(230, 235, 245), font=font_series)
 
-    # Character Name (Large Bold Title Centered Below Series)
+    # Character Name (Prominent bold title centered below series name)
     char_name = card_data.get("name", card_data.get("character_name", "Citlali"))[:20]
     c_bbox = font_title.getbbox(char_name)
     c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 14
@@ -226,7 +211,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     draw.text((nx + 1, ny + 1), char_name, fill=(0, 0, 0, 180), font=font_title)
     draw.text((nx, ny), char_name, fill=(255, 255, 255), font=font_title)
 
-    # 5. Bottom Row Badges: Left Pill Code Badge, Right Print/Edition Text
+    # 5. Bottom Row: Left Pill Code Badge & Right Print/Edition Text
     card_code = str(card_data.get("code", "VL9BSJ3")).upper()
     mint_val = card_data.get("temp_mint", card_data.get("mint_number", 912))
     ed_val = card_data.get("edition", 2)
@@ -260,7 +245,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 # 🃏 RENDER DROP CARDS (3 side-by-side)
 # ==========================================
 async def render_cards_image(cards: list, show_quality: bool = False) -> io.BytesIO:
-    """Renders 3 cards side-by-side for /drop."""
+    """Renders 3 cards side-by-side for /drop matching the exact redesign mockup."""
     card_w, card_h = 280, 450
     gap = 18
     pad = 20
@@ -290,7 +275,7 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
 # 🃏 RENDER SINGLE CARD (view/lookup)
 # ==========================================
 async def render_single_card(card_data: dict) -> io.BytesIO:
-    """Renders a single card for /card."""
+    """Renders a single card for /card matching the exact redesign mockup."""
     card_w, card_h = 320, 500
     pad = 20
 
