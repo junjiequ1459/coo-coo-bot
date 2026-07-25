@@ -15,9 +15,13 @@ async def _mock_fetch(s, u):
         p = "/Users/user/Desktop/coo-coo-bot/firefly_cover_card.png"
     
     if os.path.exists(p):
-        return Image.open(p).convert("RGBA")
+        full_img = Image.open(p).convert("RGBA")
+        # If it's a pre-rendered card file, crop out the pure inner character portrait
+        if full_img.width > 200 and full_img.height > 300:
+            return full_img.crop((35, 35, full_img.width - 35, full_img.height - 110))
+        return full_img
     
-    # Create colorful dummy image
+    # Create colorful gradient dummy image
     img = Image.new("RGBA", (300, 450), (120, 140, 220, 255))
     return img
 

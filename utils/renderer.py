@@ -143,7 +143,7 @@ def apply_quality_effects_on_artwork(draw: ImageDraw.ImageDraw, x: int, y: int, 
         draw.line([br_x - 45, br_y - 30, br_x - 70, br_y - 20], fill=crack_col, width=1)
 
 def fit_top_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Scales image to fill target width/height and crops from TOP center so character head is never cut off."""
+    """Scales image to fill full target dimensions (edge-to-edge, zero black bars), top-aligned to preserve character head/face."""
     orig_w, orig_h = img.size
     if orig_w == 0 or orig_h == 0:
         return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
@@ -154,11 +154,11 @@ def fit_top_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
     left = (new_w - target_w) // 2
-    top = 0  # Align top so head/face is completely preserved
+    top = 0  # Preserve top of character image (head/face)
     return resized.crop((left, top, left + target_w, top + target_h))
 
 def fit_and_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Alias pointing to fit_top_crop_image."""
+    """Alias for fit_top_crop_image."""
     return fit_top_crop_image(img, target_w, target_h)
 
 # ==========================================
@@ -360,28 +360,23 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
         # 1. Draw Frame Structure
         _draw_karuta_frame_structure(draw, cx, cy, card_w, card_h)
 
-        # 2. Viewport bounds & Artwork positioning (starts from name banner)
+        # 2. Viewport bounds & Artwork positioning (Full width & height, top-aligned)
         content_x = cx + t_frame
         content_y = cy + t_frame
         content_w = card_w - t_frame * 2
         content_h = card_h - t_frame * 2
 
-        # Artwork starts right under top name banner and spans to bottom series banner
-        art_x = content_x
-        art_y = content_y + banner_h - 12
-        art_w = content_w
-        art_h = content_h - (banner_h - 12) * 2
-
-        fitted_art = fit_top_crop_image(raw_images[i], art_w, art_h)
+        # Artwork fills the entire content box from content_x to content_x + content_w
+        fitted_art = fit_top_crop_image(raw_images[i], content_w, content_h)
         if show_quality:
             fitted_art = apply_quality_filter_to_image(fitted_art, q_val)
 
-        canvas.paste(fitted_art, (art_x, art_y))
+        canvas.paste(fitted_art, (content_x, content_y))
 
         if show_quality:
-            apply_quality_effects_on_artwork(draw, art_x, art_y, art_w, art_h, q_val)
+            apply_quality_effects_on_artwork(draw, content_x, content_y, content_w, content_h, q_val)
 
-        # 3. Gold Banners
+        # 3. Gold Banners over Artwork
         canvas.paste(top_banner_img, (content_x, content_y), top_banner_img)
         canvas.paste(bot_banner_img, (content_x, content_y + content_h - banner_h), bot_banner_img)
 
@@ -443,15 +438,10 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     content_w = card_w - t_frame * 2
     content_h = card_h - t_frame * 2
 
-    art_x = content_x
-    art_y = content_y + banner_h - 12
-    art_w = content_w
-    art_h = content_h - (banner_h - 12) * 2
-
-    fitted_art = fit_top_crop_image(raw_img, art_w, art_h)
+    fitted_art = fit_top_crop_image(raw_img, content_w, content_h)
     filtered_art = apply_quality_filter_to_image(fitted_art, q_val)
-    canvas.paste(filtered_art, (art_x, art_y))
-    apply_quality_effects_on_artwork(draw, art_x, art_y, art_w, art_h, q_val)
+    canvas.paste(filtered_art, (content_x, content_y))
+    apply_quality_effects_on_artwork(draw, content_x, content_y, content_w, content_h, q_val)
 
     top_banner_img = _create_gold_banner(content_w, banner_h, arch_type="top")
     bot_banner_img = _create_gold_banner(content_w, banner_h, arch_type="bottom")
