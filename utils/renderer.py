@@ -89,24 +89,19 @@ async def fetch_image(session, url):
     return img
 
 def fit_artwork_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Scales character image proportionally without zooming in or cropping out character details."""
+    """Scales artwork image top-aligned to fill 100% of the card canvas edge-to-edge."""
     orig_w, orig_h = img.size
     if orig_w == 0 or orig_h == 0:
         return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
     
-    scale_w = target_w / orig_w
-    scale_h = target_h / orig_h
-    scale = min(scale_w, scale_h)
-    
-    new_w = max(1, int(orig_w * scale))
-    new_h = max(1, int(orig_h * scale))
+    scale = max(target_w / orig_w, target_h / orig_h)
+    new_w = max(target_w, int(orig_w * scale))
+    new_h = max(target_h, int(orig_h * scale))
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
-    canvas = Image.new("RGBA", (target_w, target_h), (22, 24, 28, 255))
-    left = (target_w - new_w) // 2
-    top = (target_h - new_h) // 2
-    canvas.paste(resized, (left, top))
-    return canvas
+    left = (new_w - target_w) // 2
+    top = 0
+    return resized.crop((left, top, left + target_w, top + target_h))
 
 def _round_corners(img: Image.Image, radius: int) -> Image.Image:
     """Apply rounded corners to an RGBA image using an alpha mask."""
@@ -156,7 +151,7 @@ def _draw_rainbow_line(target_img: Image.Image, box: tuple):
 # ==========================================
 def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h: int,
                         raw_img: Image.Image, card_data: dict, font_title, font_series, font_badge):
-    """Draws a card with a clean gold inner border, where ONLY the series accent lines take the rarity color (e.g. Rainbow for Mythic)."""
+    """Draws a card where artwork fills 100% of the inner box height and bottom container overlays the bottom portion."""
     draw = ImageDraw.Draw(canvas)
     rarity_str = str(card_data.get("rarity", "Legendary")).lower()
 
@@ -176,7 +171,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
                              radius=8, fill=(18, 19, 22))
 
-    # Inner Gold Border (Clean gold accent border around viewport as in mockup)
+    # Inner Gold Border
     f_draw.rounded_rectangle([view_x - 2, view_y - 2, view_x + view_w + 1, view_y + view_h + 1],
                              radius=10, fill=(200, 160, 40), outline=(255, 220, 100), width=1)
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
@@ -189,26 +184,36 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     content_w = view_w
     content_h = view_h
 
-    # 2. Artwork Viewport (Occupies top ~75% of inner content box, unzoomed)
-    art_h = int(content_h * 0.75)
-    fitted_art = fit_artwork_image(raw_img, content_w, art_h)
+    # 2. Artwork Viewport (Fills 100% of inner content box from top content_y to bottom content_y + content_h)
+    fitted_art = fit_artwork_image(raw_img, content_w, content_h)
 
-    art_mask = Image.new("L", (content_w, art_h), 255)
+    # Rounded corners mask for inner content box
+    art_mask = Image.new("L", (content_w, content_h), 0)
     art_mask_draw = ImageDraw.Draw(art_mask)
-    art_mask_draw.rectangle([0, 8, content_w, art_h], fill=255)
-    art_mask_draw.rounded_rectangle([0, 0, content_w - 1, art_h - 1], radius=8, fill=255)
+    art_mask_draw.rounded_rectangle([0, 0, content_w - 1, content_h - 1], radius=8, fill=255)
 
     canvas.paste(fitted_art, (content_x, content_y), art_mask)
 
-    # 3. Bottom Dark Container Section
-    bot_y = content_y + art_h
+    # 3. Bottom Dark Overlay Container Section (Sits on top of bottom portion of artwork)
+    bot_h = int(content_h * 0.26)
+    bot_y = content_y + content_h - bot_h
 
+    bot_overlay = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
+    bo_draw = ImageDraw.Draw(bot_overlay)
+    
+    # Solid dark container background covering the bottom portion of artwork
+    bo_poly = [0, 0, content_w - 1, bot_h - 1]
+    bo_draw.rectangle(bo_poly, fill=(18, 19, 22, 245))
+
+    canvas.paste(bot_overlay, (content_x, bot_y), bot_overlay)
+
+    # 4. Series Name & Rarity Accent Line (Sits along the top of bottom container)
     series_name = card_data.get("series", card_data.get("series_name", "Genshin Impact"))[:24]
     s_bbox = font_series.getbbox(series_name)
     s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 8
     s_th = s_bbox[3] - s_bbox[1] if s_bbox else 14
 
-    sy = bot_y + 14
+    sy = bot_y + 12
     line_y = sy + s_th // 2
     margin = 14
     left_line_x1 = content_x + margin
@@ -216,37 +221,32 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     right_line_x1 = content_x + (content_w + s_tw) // 2 + 8
     right_line_x2 = content_x + content_w - margin
 
-    # 4. Series Divider Lines take the Rarity Color
     is_mythic = "mythic" in rarity_str
     if is_mythic:
-        # Rainbow Gradient Lines for Mythic
         if left_line_x2 > left_line_x1:
             _draw_rainbow_line(canvas, (left_line_x1, line_y, left_line_x2, line_y + 1))
         if right_line_x2 > right_line_x1:
             _draw_rainbow_line(canvas, (right_line_x1, line_y, right_line_x2, line_y + 1))
     elif "legendary" in rarity_str or "legend" in rarity_str:
-        # Gold Line for Legendary
         if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(255, 220, 100, 200), width=1)
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(255, 220, 100, 220), width=1)
         if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(255, 220, 100, 200), width=1)
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(255, 220, 100, 220), width=1)
     elif "epic" in rarity_str:
-        # Purple Line for Epic
         if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(190, 120, 255, 200), width=1)
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(190, 120, 255, 220), width=1)
         if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(190, 120, 255, 200), width=1)
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(190, 120, 255, 220), width=1)
     else:
-        # Cyan Line for Rare/Common
         if left_line_x2 > left_line_x1:
-            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(110, 170, 255, 200), width=1)
+            draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=(110, 170, 255, 220), width=1)
         if right_line_x2 > right_line_x1:
-            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(110, 170, 255, 200), width=1)
+            draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=(110, 170, 255, 220), width=1)
 
     sx = content_x + (content_w - s_tw) // 2
     draw.text((sx, sy), series_name, fill=(230, 235, 245), font=font_series)
 
-    # Character Name (Prominent bold title centered below series name)
+    # Character Name
     char_name = card_data.get("name", card_data.get("character_name", "Citlali"))[:20]
     c_bbox = font_title.getbbox(char_name)
     c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 14

@@ -5,15 +5,12 @@ from utils.renderer import render_cards_image, render_single_card, render_full_a
 import utils.renderer as renderer
 
 async def _mock_fetch(s, u):
-    # Test with unzoomed full character illustration
-    p = "/Users/user/Desktop/coo-coo-bot/furina_portrait_card.png"
+    # Test with pure raw illustration file (Dan Heng / Imbibitor Lunae)
+    p = "/Users/user/Desktop/coo-coo-bot/test_lc_il.webp"
     if os.path.exists(p):
-        img = Image.open(p).convert("RGBA")
-        # Extract pure raw character image
-        return img.crop((35, 65, img.width - 35, 340))
+        return Image.open(p).convert("RGBA")
     
     img = Image.new("RGBA", (400, 600), (45, 55, 75, 255))
-    d = ImageDraw.Draw(img)
     return img
 
 renderer.fetch_image = _mock_fetch
@@ -31,7 +28,7 @@ async def main():
     with open("/Users/user/Desktop/coo-coo-bot/preview_drop.png", "wb") as f:
         f.write(buf.read())
 
-    # Single Mythic Card Preview
+    # Single Mythic Card Preview with Raw Artwork
     single_mythic = {
         "character_name": "Citlali", "series_name": "Genshin Impact", "rarity": "Mythic",
         "image_url": "citlali", "mint_number": 912, "edition": 2,
