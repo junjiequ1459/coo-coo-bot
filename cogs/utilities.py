@@ -110,16 +110,37 @@ class UtilitiesCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        channel = discord.utils.find(
-            lambda candidate: (
-                candidate.name.lower() == "welcome"
-                and candidate.category is not None
-                and candidate.category.name.lower() == "information"
+        welcome_channels = [
+            channel
+            for channel in member.guild.text_channels
+            if "welcome" in channel.name.casefold()
+        ]
+        channel = next(
+            (
+                candidate
+                for candidate in welcome_channels
+                if candidate.category is not None
+                and "information" in candidate.category.name.casefold()
             ),
-            member.guild.text_channels,
+            welcome_channels[0] if welcome_channels else None,
         )
-        if channel:
+
+        if channel is None:
+            print(
+                f"⚠️ Could not welcome {member}: no channel containing "
+                f"'welcome' was found in {member.guild.name}."
+            )
+            return
+
+        try:
             await channel.send(f"Welcome to Yukisfriends {member.mention}")
+        except discord.Forbidden:
+            print(
+                f"⚠️ Could not welcome {member}: missing View Channel or "
+                f"Send Messages permission in #{channel.name}."
+            )
+        except discord.HTTPException as error:
+            print(f"⚠️ Could not welcome {member} in #{channel.name}: {error}")
 
     async def send_help_menu(self, ctx_or_interaction):
         embed = discord.Embed(
