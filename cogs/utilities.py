@@ -132,12 +132,43 @@ class UtilitiesCog(commands.Cog):
             )
             return
 
+        profile = None
         try:
-            await channel.send(f"Welcome to Yukisfriends {member.mention}")
+            profile = await self.bot.fetch_user(member.id)
+        except discord.HTTPException as error:
+            print(f"⚠️ Could not fetch {member}'s profile banner: {error}")
+
+        accent_color = (
+            profile.accent_color
+            if profile is not None and profile.accent_color is not None
+            else discord.Color.from_rgb(247, 193, 64)
+        )
+        embed = discord.Embed(
+            title=f"Welcome, {member.display_name}!",
+            color=accent_color,
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        banner = profile.banner if profile is not None else None
+        banner = banner or member.guild.banner or member.guild.splash
+        if banner is not None:
+            embed.set_image(url=banner.url)
+
+        member_number = member.guild.member_count or len(member.guild.members)
+        embed.set_footer(
+            text=f"Member #{member_number:,} • Coo Coo is happy you're here 🐦"
+        )
+
+        try:
+            await channel.send(
+                content=f"Welcome to Yukisfriends {member.mention}",
+                embed=embed,
+            )
         except discord.Forbidden:
             print(
                 f"⚠️ Could not welcome {member}: missing View Channel or "
-                f"Send Messages permission in #{channel.name}."
+                f"Send Messages/Embed Links permission in #{channel.name}."
             )
         except discord.HTTPException as error:
             print(f"⚠️ Could not welcome {member} in #{channel.name}: {error}")
