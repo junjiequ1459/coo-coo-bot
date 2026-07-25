@@ -1,8 +1,38 @@
 import io
+import os
 import asyncio
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from config import RARITY_COLORS
+
+# ==========================================
+# 🔤 FONT LOADING
+# ==========================================
+def _load_font(size):
+    """Try to load a good system font, fall back to default."""
+    font_paths = [
+        "/System/Library/Fonts/HelveticaNeue.ttc",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/SFNSRounded.ttf",
+        "/System/Library/Fonts/SFNS.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for fp in font_paths:
+        if os.path.exists(fp):
+            try:
+                return ImageFont.truetype(fp, size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
+
+# Pre-load fonts at various sizes for drop cards and single cards
+FONT_DROP_TITLE = _load_font(16)      # Character name on drop cards
+FONT_DROP_SUBTITLE = _load_font(13)   # Series name / ID on drop cards
+FONT_DROP_BADGE = _load_font(14)      # ED 1 | #mint on drop cards
+FONT_SINGLE_TITLE = _load_font(20)    # Character name on single card
+FONT_SINGLE_SUBTITLE = _load_font(15) # Series name / ID on single card
+FONT_SINGLE_BADGE = _load_font(17)    # ED 1 | #mint on single card
 
 # Shared aiohttp session — reused across all renders to avoid SSL handshake overhead
 _http_session = None
@@ -175,28 +205,35 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
             canvas.paste(filtered_img, (x + 7, y + 7))
             apply_quality_effects_on_artwork(draw, x + 7, y + 7, img_w, img_h, q_val)
         else:
-            # Hide quality before grab — show clean card with ? badge
+            # Hide quality before grab — show clean card with no badge
             canvas.paste(resized_img, (x + 7, y + 7))
-            badge_x1, badge_y1 = x + 7 + 8, y + 7 + 8
-            badge_w = 12 + (1 * 7)
-            badge_h = 18
-            draw.rectangle([badge_x1, badge_y1, badge_x1 + badge_w, badge_y1 + badge_h], fill=(100, 105, 115, 230))
-            draw.text((badge_x1 + 6, badge_y1 + 2), "?", fill=(255, 255, 255))
 
-        box_y1 = y + card_h - 60
+        box_y1 = y + card_h - 70
         box_y2 = y + card_h - 6
-        draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=(12, 13, 15, 245))
-        draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=rc, width=3)
+        # Use rarity color with high opacity for the info box background
+        rarity_bg = (rc[0], rc[1], rc[2], 220)
+        draw.rectangle([x + 6, box_y1, x + card_w - 6, box_y2], fill=rarity_bg)
+        # Bright accent bar on the left edge
+        draw.line([x + 10, box_y1 + 8, x + 10, box_y2 - 8], fill=(255, 255, 255, 200), width=3)
         
-        draw.text((x + 18, box_y1 + 6), f"ED 1 | #{card['temp_mint']}", fill=(255, 215, 0))
-        draw.text((x + 18, box_y1 + 30), f"ID: {card['code']}", fill=(180, 190, 200))
+        # Use larger fonts for text
+        edition_text = f"ED 1 | #{card['temp_mint']}"
+        id_text = f"ID: {card['code']}"
+        char_disp = card['name'][:22]
+        series_disp = card['series'][:22]
 
-        char_disp = card['name'][:24]
-        series_disp = card['series'][:24]
-        cw = len(char_disp) * 6
-        sw = len(series_disp) * 6
-        draw.text((max(x + 18, x + card_w - 14 - cw), box_y1 + 6), char_disp, fill=(255, 255, 255))
-        draw.text((max(x + 18, x + card_w - 14 - sw), box_y1 + 30), series_disp, fill=(150, 165, 180))
+        # Measure text widths for right-alignment
+        char_bbox = FONT_DROP_TITLE.getbbox(char_disp)
+        char_tw = char_bbox[2] - char_bbox[0] if char_bbox else len(char_disp) * 9
+        series_bbox = FONT_DROP_SUBTITLE.getbbox(series_disp)
+        series_tw = series_bbox[2] - series_bbox[0] if series_bbox else len(series_disp) * 7
+
+        # Top row: edition badge left, character name right
+        draw.text((x + 18, box_y1 + 8), edition_text, fill=(255, 255, 255), font=FONT_DROP_BADGE)
+        draw.text((max(x + 18, x + card_w - 14 - char_tw), box_y1 + 8), char_disp, fill=(255, 255, 255), font=FONT_DROP_TITLE)
+        # Bottom row: card ID left, series name right
+        draw.text((x + 18, box_y1 + 34), id_text, fill=(255, 255, 255, 220), font=FONT_DROP_SUBTITLE)
+        draw.text((max(x + 18, x + card_w - 14 - series_tw), box_y1 + 34), series_disp, fill=(255, 255, 255, 200), font=FONT_DROP_SUBTITLE)
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -230,20 +267,31 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     # Apply Quality overlay effects, wear scratches & badges on artwork
     apply_quality_effects_on_artwork(draw, 9, 9, img_w, img_h, q_val)
 
-    box_y1 = card_h - 72
+    box_y1 = card_h - 85
     box_y2 = card_h - 8
-    draw.rectangle([8, box_y1, card_w - 8, box_y2], fill=(12, 13, 15, 245))
-    draw.line([14, box_y1 + 10, 14, box_y2 - 10], fill=border_col, width=4)
+    # Use rarity color with high opacity for the info box background
+    rarity_bg = (rc[0], rc[1], rc[2], 220)
+    draw.rectangle([8, box_y1, card_w - 8, box_y2], fill=rarity_bg)
+    # Bright accent bar on the left edge
+    draw.line([14, box_y1 + 10, 14, box_y2 - 10], fill=(255, 255, 255, 200), width=4)
 
-    draw.text((24, box_y1 + 10), f"ED {card_data.get('edition', 1)} | #{card_data['mint_number']}", fill=(255, 215, 0))
-    draw.text((24, box_y1 + 34), f"ID: {card_data['code'].upper()}", fill=(240, 240, 240))
+    edition_text = f"ED {card_data.get('edition', 1)} | #{card_data['mint_number']}"
+    id_text = f"ID: {card_data['code'].upper()}"
+    char_disp = card_data['character_name'][:22]
+    series_disp = card_data['series_name'][:22]
 
-    char_disp = card_data['character_name'][:24]
-    series_disp = card_data['series_name'][:24]
-    cw = len(char_disp) * 6
-    sw = len(series_disp) * 6
-    draw.text((max(24, card_w - 18 - cw), box_y1 + 10), char_disp, fill=(255, 255, 255))
-    draw.text((max(24, card_w - 18 - sw), box_y1 + 34), series_disp, fill=(160, 175, 190))
+    # Measure text widths for right-alignment
+    char_bbox = FONT_SINGLE_TITLE.getbbox(char_disp)
+    char_tw = char_bbox[2] - char_bbox[0] if char_bbox else len(char_disp) * 11
+    series_bbox = FONT_SINGLE_SUBTITLE.getbbox(series_disp)
+    series_tw = series_bbox[2] - series_bbox[0] if series_bbox else len(series_disp) * 9
+
+    # Top row: edition badge left, character name right
+    draw.text((24, box_y1 + 12), edition_text, fill=(255, 255, 255), font=FONT_SINGLE_BADGE)
+    draw.text((max(24, card_w - 18 - char_tw), box_y1 + 12), char_disp, fill=(255, 255, 255), font=FONT_SINGLE_TITLE)
+    # Bottom row: card ID left, series name right
+    draw.text((24, box_y1 + 42), id_text, fill=(255, 255, 255, 220), font=FONT_SINGLE_SUBTITLE)
+    draw.text((max(24, card_w - 18 - series_tw), box_y1 + 42), series_disp, fill=(255, 255, 255, 200), font=FONT_SINGLE_SUBTITLE)
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")

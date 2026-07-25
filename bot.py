@@ -60,6 +60,23 @@ async def on_ready():
     bot.add_view(ColorPickerView())
 
 @bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    ctx = await bot.get_context(message)
+    if ctx.command is not None:
+        # If the command was triggered without a prefix (i.e. empty string)
+        if ctx.prefix == "":
+            clean_content = message.content.strip().lower()
+            invoked_with = ctx.invoked_with.lower()
+            if clean_content != invoked_with:
+                # Do not run the command because they wrote other things in the sentence
+                return
+
+    await bot.process_commands(message)
+
+@bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
