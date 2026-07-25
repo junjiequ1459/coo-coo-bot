@@ -380,8 +380,13 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     canvas.paste(bot_overlay, (content_x, bot_y), bot_overlay)
 
-    # 4. Wrapped series and character names
-    sy = bot_y + 7
+    # 4. Wrapped series and character names, centered in the space above badges
+    text_group_h = series_block_h + 2 + title_block_h
+    badge_row_top = content_y + content_h - max(badge_ph, ed_ph) - 4
+    text_area_top = bot_y + 4
+    text_area_bottom = badge_row_top - 5
+    text_area_h = max(text_group_h, text_area_bottom - text_area_top)
+    sy = text_area_top + max(0, (text_area_h - text_group_h) // 2)
     series_max_w = max(_text_width(font_series, line) for line in series_lines)
     line_y = sy + series_block_h // 2
     margin = 14
