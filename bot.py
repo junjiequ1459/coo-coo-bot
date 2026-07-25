@@ -66,12 +66,10 @@ async def on_message(message):
 
     ctx = await bot.get_context(message)
     if ctx.command is not None:
-        # If the command was triggered without a prefix (i.e. empty string)
-        if ctx.prefix == "":
-            clean_content = message.content.strip().lower()
-            invoked_with = ctx.invoked_with.lower()
-            if clean_content != invoked_with:
-                # Do not run the command because they wrote other things in the sentence
+        # Block "i" from triggering inventory when it's part of a sentence
+        # e.g. "i want to play" should NOT open inventory
+        if ctx.prefix == "" and ctx.invoked_with.lower() == "i":
+            if message.content.strip().lower() != "i":
                 return
 
     await bot.process_commands(message)

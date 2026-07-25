@@ -112,20 +112,136 @@ class LookupCog(commands.Cog):
     async def process_character_lookup(self, ctx_or_interaction, query: str):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
         if not query:
-            msg = "Coo coo! ⚠️ Please specify a character name or print number! e.g. `!lu Yor Forger` or `!lu Gojo 1`"
+            msg = "Coo coo! ⚠️ Please specify a character name, card code, or print number! e.g. `!lu Yor Forger`, `!lu Firefly #1`, or `!lu c0001`"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg)
             else:
                 await ctx_or_interaction.send(msg)
             return
 
-        parts = query.strip().split()
+        cleaned_q = query.strip()
+
+        # Check if query is a direct card code (e.g. c0001, c1) or numeric inventory ID
+        code_search = cleaned_q.lower()
+        if (code_search.startswith('c') and code_search[1:].isdigit()) or code_search.isdigit():
+            conn = get_connection()
+            cursor = conn.cursor()
+            query_id_str = code_search[1:] if code_search.startswith('c') else code_search
+            cursor.execute("""
+            SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at 
+            FROM inventory 
+            WHERE LOWER(code) = %s OR CAST(id AS TEXT) = %s
+            """, (code_search, query_id_str))
+            inv_row = cursor.fetchone()
+            release_connection(conn)
+
+            if inv_row:
+                cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
+                card_data = {
+                    "id": cid,
+                    "code": code if code else f"c{cid:04d}",
+                    "character_name": cname,
+                    "series_name": sname,
+                    "rarity": rval,
+                    "mint_number": mnum,
+                    "edition": edval if edval else 1,
+                    "quality": qval if qval else "Good ⭐⭐",
+                    "image_url": iurl
+                }
+
+                buf = await render_single_card(card_data)
+                file = discord.File(fp=buf, filename="card.png")
+                owner = self.bot.get_user(uid)
+                owner_mention = owner.mention if owner else f"<@{uid}>"
+
+                embed = discord.Embed(
+                    title=f"🎴 {cname} · Print #{mnum}",
+                    description=(
+                        f"📺 **Series:** {sname}\n"
+                        f"✨ **Rarity:** {rval}\n"
+                        f"🌟 **Quality:** {card_data['quality']}\n"
+                        f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
+                        f"👤 **Owner:** {owner_mention}"
+                    ),
+                    color=discord.Color.purple()
+                )
+                embed.set_image(url="attachment://card.png")
+
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(embed=embed, file=file)
+                else:
+                    await ctx_or_interaction.send(embed=embed, file=file)
+                return
+
+        # Parse character search query and optional print number target (e.g. "Firefly #1" or "goku 1")
+        parts = cleaned_q.split()
         print_num_target = None
-        if len(parts) > 1 and parts[-1].isdigit():
-            print_num_target = int(parts[-1])
+        
+        if len(parts) > 1 and parts[-1].lstrip('#').isdigit():
+            print_num_target = int(parts[-1].lstrip('#'))
             char_search = " ".join(parts[:-1])
         else:
             char_search = " ".join(parts)
+
+        # If a specific print number was requested (e.g. !lu goku 1 or !lu Firefly 1)
+        if print_num_target is not None:
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            # 1. Check if a claimed card exists in inventory matching char_search and mint_number
+            tokens = [t.strip().lower() for t in char_search.split() if t.strip()]
+            clauses = ["REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(character_name), 'ō', 'o'), 'ū', 'u'), 'ā', 'a'), 'ē', 'e'), 'ī', 'i') ILIKE %s" for _ in tokens]
+            params = [f"%{t}%" for t in tokens]
+            params.append(print_num_target)
+
+            inv_sql = f"""
+            SELECT id, code, user_id, character_name, series_name, rarity, mint_number, edition, image_url, tag, quality, grabbed_at
+            FROM inventory
+            WHERE {' AND '.join(clauses)} AND mint_number = %s
+            ORDER BY length(character_name) ASC
+            LIMIT 1
+            """
+            cursor.execute(inv_sql, tuple(params))
+            inv_row = cursor.fetchone()
+            release_connection(conn)
+
+            if inv_row:
+                cid, code, uid, cname, sname, rval, mnum, edval, iurl, tval, qval, grabbed_at = inv_row
+                card_data = {
+                    "id": cid,
+                    "code": code if code else f"c{cid:04d}",
+                    "character_name": cname,
+                    "series_name": sname,
+                    "rarity": rval,
+                    "mint_number": mnum,
+                    "edition": edval if edval else 1,
+                    "quality": qval if qval else "Good ⭐⭐",
+                    "image_url": iurl
+                }
+
+                buf = await render_single_card(card_data)
+                file = discord.File(fp=buf, filename="card.png")
+                owner = self.bot.get_user(uid)
+                owner_mention = owner.mention if owner else f"<@{uid}>"
+
+                embed = discord.Embed(
+                    title=f"🎴 {cname} · Print #{mnum}",
+                    description=(
+                        f"📺 **Series:** {sname}\n"
+                        f"✨ **Rarity:** {rval}\n"
+                        f"🌟 **Quality:** {card_data['quality']}\n"
+                        f"🆔 **Card ID:** `{card_data['code'].upper()}`\n"
+                        f"👤 **Owner:** {owner_mention}"
+                    ),
+                    color=discord.Color.purple()
+                )
+                embed.set_image(url="attachment://card.png")
+
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(embed=embed, file=file)
+                else:
+                    await ctx_or_interaction.send(embed=embed, file=file)
+                return
 
         paginator = CharacterSearchPaginatorView(self.bot, user, char_search, print_num_target)
         if paginator.total_matches == 0:
@@ -136,10 +252,21 @@ class LookupCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        if paginator.total_matches == 1:
-            # Single exact match: display character overview directly!
+        # If a single match, or if a print_num_target was specified, display top match directly!
+        if paginator.total_matches == 1 or print_num_target is not None:
             match = paginator.current_matches[0]
             await self.display_single_character_lookup(ctx_or_interaction, match[0], match[1], match[2], match[3], print_num_target)
+            return
+
+        # Check for exact character name match among current matches
+        exact_match = None
+        for m in paginator.current_matches:
+            if m[0].lower() == char_search.lower():
+                exact_match = m
+                break
+        
+        if exact_match:
+            await self.display_single_character_lookup(ctx_or_interaction, exact_match[0], exact_match[1], exact_match[2], exact_match[3], print_num_target)
             return
 
         # Multiple matches: render interactive paginated selection list!
