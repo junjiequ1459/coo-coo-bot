@@ -142,21 +142,27 @@ def apply_quality_effects_on_artwork(draw: ImageDraw.ImageDraw, x: int, y: int, 
         draw.line([br_x, br_y, br_x - 45, br_y - 30], fill=crack_col, width=2)
         draw.line([br_x - 45, br_y - 30, br_x - 70, br_y - 20], fill=crack_col, width=1)
 
-def fit_and_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Center-crops and scales an image to fill target dimensions (object-fit: cover)."""
+def fit_top_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Scales image to fill target width/height and crops from TOP center so character head is never cut off."""
     orig_w, orig_h = img.size
     if orig_w == 0 or orig_h == 0:
         return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+    
     scale = max(target_w / orig_w, target_h / orig_h)
     new_w = max(target_w, int(orig_w * scale))
     new_h = max(target_h, int(orig_h * scale))
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    
     left = (new_w - target_w) // 2
-    top = (new_h - target_h) // 2
+    top = 0  # Align top so head/face is completely preserved
     return resized.crop((left, top, left + target_w, top + target_h))
 
+def fit_and_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Alias pointing to fit_top_crop_image."""
+    return fit_top_crop_image(img, target_w, target_h)
+
 # ==========================================
-# 👑 GOLD BANNER GENERATOR (TALLER VERTICAL)
+# 👑 GOLD BANNER GENERATOR
 # ==========================================
 def _create_gold_banner(w: int, h: int, arch_type: str = "top") -> Image.Image:
     """Generates a smooth golden gradient banner with a curved arch notch edge."""
@@ -231,7 +237,7 @@ def _draw_karuta_frame_structure(draw: ImageDraw.ImageDraw, x: int, y: int, w: i
     """Draws full metallic frame extending all the way to outer edges without chamfer corner cutouts."""
     t_frame = 14
 
-    # Layer 1: Frame Outer Rectangular Fill (Extends all the way to corners)
+    # Layer 1: Frame Outer Rectangular Fill
     draw.rectangle([x, y, x + w, y + h], fill=(168, 173, 183))
 
     # Inner Viewport Box
@@ -242,7 +248,7 @@ def _draw_karuta_frame_structure(draw: ImageDraw.ImageDraw, x: int, y: int, w: i
     # Layer 2: Outer Dark Rectangular Bevel Outline
     draw.rectangle([x, y, x + w, y + h], outline=(42, 45, 52), width=2)
 
-    # Layer 3: Metallic Bevel Highlights (Full Edge Alignment)
+    # Layer 3: Metallic Bevel Highlights
     draw.line([(x + 2, y + 2), (x + w - 2, y + 2)], fill=(240, 245, 255), width=2)
     draw.line([(x + 2, y + 2), (x + 2, y + h - 2)], fill=(235, 240, 250), width=2)
 
@@ -254,13 +260,9 @@ def _draw_karuta_frame_structure(draw: ImageDraw.ImageDraw, x: int, y: int, w: i
                    outline=(50, 53, 60), width=2)
 
     # Corner Metal Plate Accents & Rivets
-    # Top-Left
     draw.ellipse([x + 10, y + 10, x + 14, y + 14], fill=(220, 225, 235), outline=(60, 65, 75))
-    # Top-Right
     draw.ellipse([x + w - 14, y + 10, x + w - 10, y + 14], fill=(220, 225, 235), outline=(60, 65, 75))
-    # Bottom-Left
     draw.ellipse([x + 10, y + h - 14, x + 14, y + h - 10], fill=(220, 225, 235), outline=(60, 65, 75))
-    # Bottom-Right
     draw.ellipse([x + w - 14, y + h - 14, x + w - 10, y + h - 10], fill=(220, 225, 235), outline=(60, 65, 75))
 
     # Side Recessed Notches with Silver Rivets
@@ -329,7 +331,7 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
     """Renders 3 authentic Karuta cards side-by-side for /drop."""
     card_w, card_h = 280, 450
     t_frame = 14
-    banner_h = 100       # Increased vertical height of name & series banners to show less image
+    banner_h = 100
     gap = 20
     pad = 24
 
@@ -355,29 +357,35 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
         q_val = card.get("quality", "Good ⭐⭐")
         mint_str = f"{card['temp_mint']} · {card.get('edition', 1)}"
 
-        # 1. Draw Full Rectangular Frame Base
+        # 1. Draw Frame Structure
         _draw_karuta_frame_structure(draw, cx, cy, card_w, card_h)
 
-        # 2. Artwork Viewport
+        # 2. Viewport bounds & Artwork positioning (starts from name banner)
         content_x = cx + t_frame
         content_y = cy + t_frame
         content_w = card_w - t_frame * 2
         content_h = card_h - t_frame * 2
 
-        fitted_art = fit_and_crop_image(raw_images[i], content_w, content_h)
+        # Artwork starts right under top name banner and spans to bottom series banner
+        art_x = content_x
+        art_y = content_y + banner_h - 12
+        art_w = content_w
+        art_h = content_h - (banner_h - 12) * 2
+
+        fitted_art = fit_top_crop_image(raw_images[i], art_w, art_h)
         if show_quality:
             fitted_art = apply_quality_filter_to_image(fitted_art, q_val)
 
-        canvas.paste(fitted_art, (content_x, content_y))
+        canvas.paste(fitted_art, (art_x, art_y))
 
         if show_quality:
-            apply_quality_effects_on_artwork(draw, content_x, content_y, content_w, content_h, q_val)
+            apply_quality_effects_on_artwork(draw, art_x, art_y, art_w, art_h, q_val)
 
-        # 3. Taller Gold Banners
+        # 3. Gold Banners
         canvas.paste(top_banner_img, (content_x, content_y), top_banner_img)
         canvas.paste(bot_banner_img, (content_x, content_y + content_h - banner_h), bot_banner_img)
 
-        # 4. Character Name (Top Banner — Prominent & Centered in Taller Banner)
+        # 4. Character Name (Top Banner)
         char_name = card["name"][:20]
         c_bbox = FONT_TITLE_DROP.getbbox(char_name)
         c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 15
@@ -387,7 +395,7 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
         draw.text((nx + 1, ny + 1), char_name, fill=(240, 210, 110), font=FONT_TITLE_DROP)
         draw.text((nx, ny), char_name, fill=(35, 30, 20), font=FONT_TITLE_DROP)
 
-        # 5. Series Name (Bottom Banner — Prominent & Centered in Taller Banner)
+        # 5. Series Name (Bottom Banner)
         series_name = card["series"][:22]
         s_bbox = FONT_SERIES_DROP.getbbox(series_name)
         s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 12
@@ -412,7 +420,7 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     """Renders a single authentic Karuta card for /card."""
     card_w, card_h = 320, 500
     t_frame = 16
-    banner_h = 112       # Increased vertical height of name & series banners to show less image
+    banner_h = 112
     pad = 20
 
     canvas_w = card_w + pad * 2
@@ -435,10 +443,15 @@ async def render_single_card(card_data: dict) -> io.BytesIO:
     content_w = card_w - t_frame * 2
     content_h = card_h - t_frame * 2
 
-    fitted_art = fit_and_crop_image(raw_img, content_w, content_h)
+    art_x = content_x
+    art_y = content_y + banner_h - 12
+    art_w = content_w
+    art_h = content_h - (banner_h - 12) * 2
+
+    fitted_art = fit_top_crop_image(raw_img, art_w, art_h)
     filtered_art = apply_quality_filter_to_image(fitted_art, q_val)
-    canvas.paste(filtered_art, (content_x, content_y))
-    apply_quality_effects_on_artwork(draw, content_x, content_y, content_w, content_h, q_val)
+    canvas.paste(filtered_art, (art_x, art_y))
+    apply_quality_effects_on_artwork(draw, art_x, art_y, art_w, art_h, q_val)
 
     top_banner_img = _create_gold_banner(content_w, banner_h, arch_type="top")
     bot_banner_img = _create_gold_banner(content_w, banner_h, arch_type="bottom")
