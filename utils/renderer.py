@@ -280,16 +280,24 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     code_pill = Image.new("RGBA", (badge_pw, badge_ph), (0, 0, 0, 0))
     cp_draw = ImageDraw.Draw(code_pill)
-    cp_draw.rounded_rectangle([0, 0, badge_pw - 1, badge_ph - 1], radius=6, fill=(32, 35, 42), outline=(55, 60, 72), width=1)
-    cp_draw.text(((badge_pw - code_tw) // 2, (badge_ph - code_th) // 2 - 1), card_code, fill=(220, 225, 235), font=font_badge)
+    cp_draw.rounded_rectangle([0, 0, badge_pw - 1, badge_ph - 1], radius=6, fill=(0, 0, 0, 240), outline=(40, 40, 40), width=1)
+    cp_draw.text(((badge_pw - code_tw) // 2, (badge_ph - code_th) // 2 - 1), card_code, fill=(255, 215, 0), font=font_badge)
     canvas.paste(code_pill, (badge_px, badge_py), code_pill)
 
     ed_bbox = font_badge.getbbox(edition_str)
     ed_tw = ed_bbox[2] - ed_bbox[0] if ed_bbox else len(edition_str) * 7
     ed_th = ed_bbox[3] - ed_bbox[1] if ed_bbox else 12
-    ed_px = content_x + content_w - ed_tw - 12
-    ed_py = badge_py + (badge_ph - ed_th) // 2
-    draw.text((ed_px, ed_py), edition_str, fill=(170, 175, 190), font=font_badge)
+
+    ed_pw = ed_tw + 16
+    ed_ph = ed_th + 6
+    ed_px = content_x + content_w - ed_pw - 12
+    ed_py = badge_py
+
+    ed_pill = Image.new("RGBA", (ed_pw, ed_ph), (0, 0, 0, 0))
+    ep_draw = ImageDraw.Draw(ed_pill)
+    ep_draw.rounded_rectangle([0, 0, ed_pw - 1, ed_ph - 1], radius=6, fill=(0, 0, 0, 240), outline=(40, 40, 40), width=1)
+    ep_draw.text(((ed_pw - ed_tw) // 2, (ed_ph - ed_th) // 2 - 1), edition_str, fill=(255, 215, 0), font=font_badge)
+    canvas.paste(ed_pill, (ed_px, ed_py), ed_pill)
 
 # ==========================================
 # 🃏 RENDER DROP CARDS (3 side-by-side)
