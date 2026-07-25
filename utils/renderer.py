@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 # 🔤 FONT LOADING
 # ==========================================
 def _load_font(size, bold=True):
-    """Load clean bold fonts for card title and series text."""
+    """Load a scalable font while preserving the requested pixel size."""
     if bold:
         font_paths = [
             "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
@@ -18,6 +18,8 @@ def _load_font(size, bold=True):
             "/System/Library/Fonts/Avenir Next.ttc",
             "/System/Library/Fonts/Supplemental/Futura.ttc",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         ]
     else:
         font_paths = [
@@ -26,6 +28,8 @@ def _load_font(size, bold=True):
             "/System/Library/Fonts/Avenir Next.ttc",
             "/System/Library/Fonts/Supplemental/Futura.ttc",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         ]
     for fp in font_paths:
         if os.path.exists(fp):
@@ -33,7 +37,12 @@ def _load_font(size, bold=True):
                 return ImageFont.truetype(fp, size)
             except Exception:
                 continue
-    return ImageFont.load_default()
+    # Pillow's scalable bundled font keeps text at the intended size even on
+    # minimal hosts (such as Railway images) that contain no system fonts.
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 def _load_monospace_font(size):
     """Load clean monospace font for Card Code and Edition numbers."""
@@ -43,6 +52,8 @@ def _load_monospace_font(size):
         "/System/Library/Fonts/Supplemental/Menlo.ttc",
         "/System/Library/Fonts/Supplemental/Monaco.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationMono-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
     ]
     for fp in mono_paths:
         if os.path.exists(fp):
@@ -52,14 +63,28 @@ def _load_monospace_font(size):
                 continue
     return _load_font(size, bold=True)
 
-# Pre-load clean fonts
-FONT_TITLE_DROP = _load_font(58, bold=True)
-FONT_SERIES_DROP = _load_font(28, bold=False)
-FONT_BADGE_DROP = _load_monospace_font(18)
+# Pre-load clean fonts at sizes that match the card proportions.
+FONT_TITLE_DROP = _load_font(34, bold=True)
+FONT_SERIES_DROP = _load_font(18, bold=True)
+FONT_BADGE_DROP = _load_monospace_font(15)
 
-FONT_TITLE_SINGLE = _load_font(60, bold=True)
-FONT_SERIES_SINGLE = _load_font(30, bold=False)
-FONT_BADGE_SINGLE = _load_monospace_font(20)
+FONT_TITLE_SINGLE = _load_font(40, bold=True)
+FONT_SERIES_SINGLE = _load_font(21, bold=True)
+FONT_BADGE_SINGLE = _load_monospace_font(17)
+
+
+def _fit_font_to_width(font, text: str, max_width: int, min_size: int):
+    """Shrink a scalable font only when a long name would clip the card."""
+    bbox = font.getbbox(text)
+    if not bbox or bbox[2] - bbox[0] <= max_width:
+        return font
+
+    current_size = getattr(font, "size", min_size)
+    target_size = max(min_size, int(current_size * max_width / (bbox[2] - bbox[0])))
+    try:
+        return font.font_variant(size=target_size)
+    except (AttributeError, OSError):
+        return font
 
 # Shared aiohttp session
 _http_session = None
@@ -155,26 +180,52 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     draw = ImageDraw.Draw(canvas)
     rarity_str = str(card_data.get("rarity", "Legendary")).lower()
 
-    # 1. Sleek 3D Silver-Gray Metallic Outer Frame
-    frame_r = 18
+    # 1. Thick 3D Silver-Gray Metallic Outer Frame
+    frame_width = max(18, round(card_w * 0.06))
+    frame_r = max(20, round(card_w * 0.075))
     frame_img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     f_draw = ImageDraw.Draw(frame_img)
 
-    # Silver metallic outer gradient layers
-    f_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=frame_r, fill=(185, 192, 205), outline=(240, 245, 255), width=2)
-    f_draw.rounded_rectangle([2, 2, card_w - 3, card_h - 3], radius=frame_r - 2, fill=(130, 138, 150), outline=(215, 222, 235), width=2)
-    f_draw.rounded_rectangle([4, 4, card_w - 5, card_h - 5], radius=frame_r - 4, fill=(65, 72, 82), outline=(155, 162, 175), width=2)
-    f_draw.rounded_rectangle([6, 6, card_w - 7, card_h - 7], radius=frame_r - 6, fill=(24, 26, 32), outline=(40, 43, 50), width=2)
+    # Broad gray bands with bright bevels create the heavy frame from the
+    # reference card without washing the border out to white.
+    f_draw.rounded_rectangle(
+        [0, 0, card_w - 1, card_h - 1],
+        radius=frame_r,
+        fill=(54, 58, 65),
+        outline=(16, 17, 20),
+        width=2,
+    )
+    f_draw.rounded_rectangle(
+        [2, 2, card_w - 3, card_h - 3],
+        radius=frame_r - 2,
+        fill=(174, 180, 190),
+        outline=(224, 228, 235),
+        width=2,
+    )
+    f_draw.rounded_rectangle(
+        [6, 6, card_w - 7, card_h - 7],
+        radius=frame_r - 6,
+        fill=(116, 122, 132),
+        outline=(92, 97, 106),
+        width=2,
+    )
+    f_draw.rounded_rectangle(
+        [10, 10, card_w - 11, card_h - 11],
+        radius=frame_r - 10,
+        fill=(48, 52, 60),
+        outline=(202, 207, 216),
+        width=2,
+    )
 
-    pad = 12
+    pad = frame_width
     view_x, view_y = pad, pad
     view_w, view_h = card_w - pad * 2, card_h - pad * 2
 
     # Inner Viewport Box Fill (Neutral dark border, no colored accent)
-    f_draw.rounded_rectangle([view_x - 2, view_y - 2, view_x + view_w + 1, view_y + view_h + 1],
-                             radius=10, fill=(50, 54, 62), outline=(70, 75, 85), width=1)
+    f_draw.rounded_rectangle([view_x - 3, view_y - 3, view_x + view_w + 2, view_y + view_h + 2],
+                             radius=11, fill=(28, 30, 35), outline=(8, 9, 11), width=2)
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
-                             radius=8, fill=(18, 19, 22))
+                             radius=8, fill=(18, 19, 22), outline=(73, 78, 87), width=1)
 
     canvas.paste(frame_img, (x, y), frame_img)
 
@@ -207,6 +258,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     # 4. Series Name & Rarity Accent Line (Only the series lines take rarity color)
     series_name = card_data.get("series", card_data.get("series_name", "Genshin Impact"))[:24]
+    font_series = _fit_font_to_width(font_series, series_name, content_w - 48, 14)
     s_bbox = font_series.getbbox(series_name)
     s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 8
     s_th = s_bbox[3] - s_bbox[1] if s_bbox else 14
@@ -255,13 +307,20 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     # Character Name
     char_name = card_data.get("name", card_data.get("character_name", "Citlali"))[:20]
+    font_title = _fit_font_to_width(font_title, char_name, content_w - 24, 22)
     c_bbox = font_title.getbbox(char_name)
     c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 14
     c_th = c_bbox[3] - c_bbox[1] if c_bbox else 24
     nx = content_x + (content_w - c_tw) // 2
     ny = sy + s_th + 4
-    draw.text((nx + 1, ny + 1), char_name, fill=(0, 0, 0, 180), font=font_title)
-    draw.text((nx, ny), char_name, fill=(255, 255, 255), font=font_title)
+    draw.text(
+        (nx, ny),
+        char_name,
+        fill=(248, 249, 252),
+        font=font_title,
+        stroke_width=2,
+        stroke_fill=(6, 7, 9, 230),
+    )
 
     # 5. Bottom Row: Left Pill Code Badge & Right Print/Edition Text
     card_code = str(card_data.get("code", "VL9BSJ3")).upper()
