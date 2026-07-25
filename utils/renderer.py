@@ -10,7 +10,7 @@ from config import RARITY_COLORS
 # 🔤 FONT LOADING
 # ==========================================
 def _load_font(size, bold=True):
-    """Try to load a clean, bold font for authentic Karuta card text."""
+    """Load clean bold fonts for card text."""
     if bold:
         font_paths = [
             "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
@@ -37,7 +37,7 @@ def _load_font(size, bold=True):
     return ImageFont.load_default()
 
 def _load_monospace_font(size):
-    """Load a clean monospace font for top/bottom badges (Card Code & Print Numbers)."""
+    """Load clean monospace font for Card Code and Edition numbers."""
     mono_paths = [
         "/System/Library/Fonts/Supplemental/Courier New Bold.ttf",
         "/System/Library/Fonts/Supplemental/Andale Mono.ttf",
@@ -53,14 +53,14 @@ def _load_monospace_font(size):
                 continue
     return _load_font(size, bold=True)
 
-# Pre-load fonts with prominent sizes
-FONT_TITLE_DROP = _load_font(30, bold=True)
-FONT_SERIES_DROP = _load_font(18, bold=True)
-FONT_BADGE_DROP = _load_monospace_font(13)
+# Pre-load clean fonts matching the user's design screenshot
+FONT_TITLE_DROP = _load_font(26, bold=True)
+FONT_SERIES_DROP = _load_font(13, bold=True)
+FONT_BADGE_DROP = _load_monospace_font(11)
 
-FONT_TITLE_SINGLE = _load_font(34, bold=True)
-FONT_SERIES_SINGLE = _load_font(21, bold=True)
-FONT_BADGE_SINGLE = _load_monospace_font(15)
+FONT_TITLE_SINGLE = _load_font(32, bold=True)
+FONT_SERIES_SINGLE = _load_font(15, bold=True)
+FONT_BADGE_SINGLE = _load_monospace_font(13)
 
 # Shared aiohttp session
 _http_session = None
@@ -89,77 +89,31 @@ async def fetch_image(session, url):
     draw.text((40, 200), "Image Unavailable", fill=(160, 175, 190))
     return img
 
-# ==========================================
-# 📷 QUALITY FILTERS & EFFECTS
-# ==========================================
-def apply_quality_filter_to_image(img: Image.Image, quality_str: str) -> Image.Image:
-    """Applies visual quality wear filters scaled by tier."""
-    q_clean = str(quality_str).lower()
-
-    if "mint" in q_clean or "⭐⭐⭐⭐" in q_clean:
-        return img
-    elif "excellent" in q_clean or "⭐⭐⭐" in q_clean:
-        enhancer = ImageEnhance.Color(img)
-        return enhancer.enhance(0.85)
-    elif "good" in q_clean or "⭐⭐" in q_clean:
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.70)
-        enhancer_b = ImageEnhance.Brightness(img)
-        return enhancer_b.enhance(0.95)
-    elif "poor" in q_clean or (q_clean.startswith("poor") and "⭐⭐" not in q_clean):
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.35)
-        enhancer_b = ImageEnhance.Brightness(img)
-        img = enhancer_b.enhance(0.82)
-        enhancer_c = ImageEnhance.Contrast(img)
-        img = enhancer_c.enhance(1.20)
-        overlay = Image.new("RGBA", img.size, (130, 95, 60, 60))
-        return Image.alpha_composite(img.convert("RGBA"), overlay)
-    elif "damaged" in q_clean or "❌" in q_clean:
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(0.20)
-        enhancer_b = ImageEnhance.Brightness(img)
-        return enhancer_b.enhance(0.75)
-
-    return img
-
-def apply_quality_effects_on_artwork(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, quality_str: str):
-    """Draws physical scratches and shattered glass corner cracks on artwork."""
-    q_clean = str(quality_str).lower()
-
-    if "poor" in q_clean or "damaged" in q_clean or "❌" in q_clean:
-        scratch_col = (200, 200, 200, 110)
-        draw.line([x + 12, y + 25, x + 65, y + 70], fill=scratch_col, width=1)
-        draw.line([x + w - 40, y + h - 90, x + w - 15, y + h - 35], fill=scratch_col, width=1)
-        draw.line([x + 30, y + h - 50, x + 90, y + h - 20], fill=scratch_col, width=1)
-
-    if "damaged" in q_clean or "❌" in q_clean:
-        crack_col = (235, 235, 245, 170)
-        tl_x, tl_y = x + 4, y + 4
-        draw.line([tl_x, tl_y, tl_x + 35, tl_y + 25], fill=crack_col, width=2)
-        draw.line([tl_x + 35, tl_y + 25, tl_x + 55, tl_y + 15], fill=crack_col, width=1)
-        br_x, br_y = x + w - 4, y + h - 4
-        draw.line([br_x, br_y, br_x - 45, br_y - 30], fill=crack_col, width=2)
-        draw.line([br_x - 45, br_y - 30, br_x - 70, br_y - 20], fill=crack_col, width=1)
-
-def fit_top_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Scales image to fill full target dimensions, top-aligned to preserve character head/face."""
+def fit_artwork_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Scales character image proportionally without zooming in or cropping out character details."""
     orig_w, orig_h = img.size
     if orig_w == 0 or orig_h == 0:
         return img.resize((target_w, target_h), Image.Resampling.LANCZOS)
     
-    scale = max(target_w / orig_w, target_h / orig_h)
-    new_w = max(target_w, int(orig_w * scale))
-    new_h = max(target_h, int(orig_h * scale))
+    scale_w = target_w / orig_w
+    scale_h = target_h / orig_h
+    scale = min(scale_w, scale_h)
+    
+    new_w = max(1, int(orig_w * scale))
+    new_h = max(1, int(orig_h * scale))
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
-    left = (new_w - target_w) // 2
-    top = 0
-    return resized.crop((left, top, left + target_w, top + target_h))
+    canvas = Image.new("RGBA", (target_w, target_h), (22, 24, 28, 255))
+    left = (target_w - new_w) // 2
+    top = (target_h - new_h) // 2
+    canvas.paste(resized, (left, top))
+    return canvas
+
+def fit_top_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    return fit_artwork_image(img, target_w, target_h)
 
 def fit_and_crop_image(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Alias for fit_top_crop_image."""
-    return fit_top_crop_image(img, target_w, target_h)
+    return fit_artwork_image(img, target_w, target_h)
 
 def _round_corners(img: Image.Image, radius: int) -> Image.Image:
     """Apply rounded corners to an RGBA image using an alpha mask."""
@@ -171,246 +125,161 @@ def _round_corners(img: Image.Image, radius: int) -> Image.Image:
     return out
 
 # ==========================================
-# 👑 GOLD BANNER GENERATOR
+# 🖼️ DRAW SINGLE CARD (Matching Redesign)
 # ==========================================
-def _create_gold_banner(w: int, h: int, arch_type: str = "top") -> Image.Image:
-    """Generates a smooth golden gradient banner with a curved arch notch edge."""
-    banner = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    bg = Image.new("RGBA", (w, h))
-    bg_draw = ImageDraw.Draw(bg)
+def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h: int,
+                        raw_img: Image.Image, card_data: dict, font_title, font_series, font_badge):
+    """Draws a card matching the user's exact redesign screenshot without top-right rarity pill."""
+    draw = ImageDraw.Draw(canvas)
+    rarity_str = str(card_data.get("rarity", "Legendary")).lower()
+    
+    # 1. Outer Metallic Frame with Rarity Accent Border
+    frame_r = 16
+    frame_img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    f_draw = ImageDraw.Draw(frame_img)
+    
+    # Outer Metallic Fill
+    f_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=frame_r, fill=(28, 30, 36), outline=(90, 95, 110), width=2)
+    f_draw.rounded_rectangle([2, 2, card_w - 3, card_h - 3], radius=frame_r - 2, fill=(22, 24, 28), outline=(180, 185, 200), width=2)
 
-    # Smooth Golden yellow gradient background
-    for row in range(h):
-        t = row / max(h - 1, 1)
-        r = int(255 + (245 - 255) * t)
-        g = int(235 + (190 - 235) * t)
-        b = int(125 + (75 - 125) * t)
-        bg_draw.line([(0, row), (w, row)], fill=(r, g, b, 255))
-
-    # Arch mask logic:
-    mask = Image.new("L", (w, h), 255)
-    mask_draw = ImageDraw.Draw(mask)
-
-    arch_w = int(w * 0.62)
-    arch_x1 = (w - arch_w) // 2
-    arch_x2 = arch_x1 + arch_w
-    notch_depth = 14
-
-    if arch_type == "top":
-        cut_poly = [
-            (0, h), (w, h),
-            (w, h - 6),
-            (arch_x2 + 10, h - 6),
-            (arch_x2 - 10, h - notch_depth),
-            (arch_x1 + 10, h - notch_depth),
-            (arch_x1 - 10, h - 6),
-            (0, h - 6)
-        ]
-        mask_draw.polygon(cut_poly, fill=0)
-
-    elif arch_type == "bottom":
-        cut_poly = [
-            (0, 0), (w, 0),
-            (w, 6),
-            (arch_x2 + 10, 6),
-            (arch_x2 - 10, notch_depth),
-            (arch_x1 + 10, notch_depth),
-            (arch_x1 - 10, 6),
-            (0, 6)
-        ]
-        mask_draw.polygon(cut_poly, fill=0)
-
-    banner.paste(bg, (0, 0), mask)
-    b_draw = ImageDraw.Draw(banner)
-
-    # 3D Golden Bevel Border framing the cutout curve
-    if arch_type == "top":
-        b_draw.line([(0, h - 6), (arch_x1 - 10, h - 6)], fill=(195, 145, 30), width=3)
-        b_draw.line([(arch_x1 - 10, h - 6), (arch_x1 + 10, h - notch_depth)], fill=(195, 145, 30), width=3)
-        b_draw.line([(arch_x1 + 10, h - notch_depth), (arch_x2 - 10, h - notch_depth)], fill=(255, 245, 175), width=3)
-        b_draw.line([(arch_x2 - 10, h - notch_depth), (arch_x2 + 10, h - 6)], fill=(195, 145, 30), width=3)
-        b_draw.line([(arch_x2 + 10, h - 6), (w, h - 6)], fill=(195, 145, 30), width=3)
+    # 2. Inner Viewport Box Accent Colors based on Rarity (Mythic = Red/Crimson Glow, Legendary = Gold)
+    if "mythic" in rarity_str:
+        accent_outer = (245, 65, 85)
+        accent_inner = (255, 110, 130)
+        accent_line = (235, 75, 95, 200)
+    elif "legendary" in rarity_str or "legend" in rarity_str:
+        accent_outer = (200, 160, 40)
+        accent_inner = (255, 220, 100)
+        accent_line = (180, 150, 60, 180)
+    elif "epic" in rarity_str:
+        accent_outer = (150, 70, 220)
+        accent_inner = (190, 120, 255)
+        accent_line = (160, 80, 230, 180)
     else:
-        b_draw.line([(0, 6), (arch_x1 - 10, 6)], fill=(255, 245, 175), width=3)
-        b_draw.line([(arch_x1 - 10, 6), (arch_x1 + 10, notch_depth)], fill=(255, 245, 175), width=3)
-        b_draw.line([(arch_x1 + 10, notch_depth), (arch_x2 - 10, notch_depth)], fill=(195, 145, 30), width=3)
-        b_draw.line([(arch_x2 - 10, notch_depth), (arch_x2 + 10, 6)], fill=(255, 245, 175), width=3)
-        b_draw.line([(arch_x2 + 10, 6), (w, 6)], fill=(255, 245, 175), width=3)
+        accent_outer = (70, 130, 220)
+        accent_inner = (110, 170, 255)
+        accent_line = (80, 140, 230, 180)
 
-    return banner
+    pad = 12
+    view_x, view_y = pad, pad
+    view_w, view_h = card_w - pad * 2, card_h - pad * 2
+    
+    # Inner Viewport Accent Border
+    f_draw.rounded_rectangle([view_x - 2, view_y - 2, view_x + view_w + 1, view_y + view_h + 1],
+                             radius=10, fill=accent_outer, outline=accent_inner, width=1)
+    f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
+                             radius=8, fill=(18, 19, 22))
 
-# ==========================================
-# 🛡️ KARUTA FULL RECTANGULAR METALLIC FRAME
-# ==========================================
-def _draw_karuta_frame_structure(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int):
-    """Draws full metallic frame extending all the way to outer edges without chamfer corner cutouts."""
-    t_frame = 14
+    canvas.paste(frame_img, (x, y), frame_img)
+    
+    # Absolute Inner Content Coordinates
+    content_x = x + view_x
+    content_y = y + view_y
+    content_w = view_w
+    content_h = view_h
 
-    # Layer 1: Frame Outer Rectangular Fill
-    draw.rectangle([x, y, x + w, y + h], fill=(168, 173, 183))
+    # 3. Artwork Section (Occupies Top ~75% of viewport)
+    art_h = int(content_h * 0.75)
+    fitted_art = fit_artwork_image(raw_img, content_w, art_h)
+    
+    # Apply Top Rounded Corners to Artwork
+    art_mask = Image.new("L", (content_w, art_h), 255)
+    art_mask_draw = ImageDraw.Draw(art_mask)
+    art_mask_draw.rectangle([0, 8, content_w, art_h], fill=255)
+    art_mask_draw.rounded_rectangle([0, 0, content_w - 1, art_h - 1], radius=8, fill=255)
+    
+    canvas.paste(fitted_art, (content_x, content_y), art_mask)
 
-    # Inner Viewport Box
-    inner_x, inner_y = x + t_frame, y + t_frame
-    inner_w, inner_h = w - t_frame * 2, h - t_frame * 2
-    draw.rectangle([inner_x, inner_y, inner_x + inner_w, inner_y + inner_h], fill=(22, 24, 28))
+    # 4. Bottom Dark Container Section
+    bot_y = content_y + art_h
 
-    # Layer 2: Outer Dark Rectangular Bevel Outline
-    draw.rectangle([x, y, x + w, y + h], outline=(42, 45, 52), width=2)
+    # Accent Line with Series Name Centered Over It
+    series_name = card_data.get("series", card_data.get("series_name", "Genshin Impact"))[:24]
+    s_bbox = font_series.getbbox(series_name)
+    s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 8
+    s_th = s_bbox[3] - s_bbox[1] if s_bbox else 14
 
-    # Layer 3: Metallic Bevel Highlights
-    draw.line([(x + 2, y + 2), (x + w - 2, y + 2)], fill=(240, 245, 255), width=2)
-    draw.line([(x + 2, y + 2), (x + 2, y + h - 2)], fill=(235, 240, 250), width=2)
+    sy = bot_y + 14
+    # Horizontal accent lines flanking the series name
+    line_y = sy + s_th // 2
+    margin = 12
+    left_line_x1 = content_x + margin
+    left_line_x2 = content_x + (content_w - s_tw) // 2 - 8
+    right_line_x1 = content_x + (content_w + s_tw) // 2 + 8
+    right_line_x2 = content_x + content_w - margin
 
-    draw.line([(x + 2, y + h - 2), (x + w - 2, y + h - 2)], fill=(85, 88, 96), width=2)
-    draw.line([(x + w - 2, y + 2), (x + w - 2, y + h - 2)], fill=(85, 88, 96), width=2)
+    if left_line_x2 > left_line_x1:
+        draw.line([(left_line_x1, line_y), (left_line_x2, line_y)], fill=accent_line, width=1)
+    if right_line_x2 > right_line_x1:
+        draw.line([(right_line_x1, line_y), (right_line_x2, line_y)], fill=accent_line, width=1)
 
-    # Inner Inset Border
-    draw.rectangle([inner_x, inner_y, inner_x + inner_w, inner_y + inner_h],
-                   outline=(50, 53, 60), width=2)
+    sx = content_x + (content_w - s_tw) // 2
+    draw.text((sx, sy), series_name, fill=(230, 235, 245), font=font_series)
 
-    # Corner Metal Plate Accents & Rivets
-    draw.ellipse([x + 10, y + 10, x + 14, y + 14], fill=(220, 225, 235), outline=(60, 65, 75))
-    draw.ellipse([x + w - 14, y + 10, x + w - 10, y + 14], fill=(220, 225, 235), outline=(60, 65, 75))
-    draw.ellipse([x + 10, y + h - 14, x + 14, y + h - 10], fill=(220, 225, 235), outline=(60, 65, 75))
-    draw.ellipse([x + w - 14, y + h - 14, x + w - 10, y + h - 10], fill=(220, 225, 235), outline=(60, 65, 75))
+    # Character Name (Large Bold Title Centered Below Series)
+    char_name = card_data.get("name", card_data.get("character_name", "Citlali"))[:20]
+    c_bbox = font_title.getbbox(char_name)
+    c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 14
+    c_th = c_bbox[3] - c_bbox[1] if c_bbox else 24
+    nx = content_x + (content_w - c_tw) // 2
+    ny = sy + s_th + 4
+    draw.text((nx + 1, ny + 1), char_name, fill=(0, 0, 0, 180), font=font_title)
+    draw.text((nx, ny), char_name, fill=(255, 255, 255), font=font_title)
 
-    # Side Recessed Notches with Silver Rivets
-    notch_cy = y + h // 2
-    notch_h = 32
-    notch_w = 6
-    draw.rectangle([x, notch_cy - notch_h // 2, x + notch_w, notch_cy + notch_h // 2],
-                   fill=(55, 58, 65), outline=(35, 38, 45), width=1)
-    draw.ellipse([x + 1, notch_cy - 10, x + 5, notch_cy - 6], fill=(210, 215, 225))
-    draw.ellipse([x + 1, notch_cy + 6, x + 5, notch_cy + 10], fill=(210, 215, 225))
+    # 5. Bottom Row Badges: Left Pill Code Badge, Right Print/Edition Text
+    card_code = str(card_data.get("code", "VL9BSJ3")).upper()
+    mint_val = card_data.get("temp_mint", card_data.get("mint_number", 912))
+    ed_val = card_data.get("edition", 2)
+    edition_str = f"#{mint_val} · ED {ed_val}"
 
-    draw.rectangle([x + w - notch_w, notch_cy - notch_h // 2, x + w, notch_cy + notch_h // 2],
-                   fill=(55, 58, 65), outline=(35, 38, 45), width=1)
-    draw.ellipse([x + w - 5, notch_cy - 10, x + w - 1, notch_cy - 6], fill=(210, 215, 225))
-    draw.ellipse([x + w - 5, notch_cy + 6, x + w - 1, notch_cy + 10], fill=(210, 215, 225))
+    code_bbox = font_badge.getbbox(card_code)
+    code_tw = code_bbox[2] - code_bbox[0] if code_bbox else len(card_code) * 7
+    code_th = code_bbox[3] - code_bbox[1] if code_bbox else 12
 
+    badge_pw = code_tw + 16
+    badge_ph = code_th + 6
+    badge_px = content_x + 12
+    badge_py = content_y + content_h - badge_ph - 10
 
-def _draw_karuta_badges(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int,
-                        card_code: str, mint_text: str, font_badge):
-    """Draws top header badge (Card Code) and bottom footer badge (Print & Edition)."""
-    # Top Code Badge
-    bw, bh = 116, 22
-    bx = x + (w - bw) // 2
-    by = y + 1
-    badge_poly = [
-        (bx + 8, by),
-        (bx + bw - 8, by),
-        (bx + bw, by + 8),
-        (bx + bw - 4, by + bh),
-        (bx + 4, by + bh),
-        (bx, by + 8)
-    ]
-    draw.polygon(badge_poly, fill=(18, 19, 22), outline=(75, 80, 90), width=1)
+    # Left Code Pill Badge
+    code_pill = Image.new("RGBA", (badge_pw, badge_ph), (0, 0, 0, 0))
+    cp_draw = ImageDraw.Draw(code_pill)
+    cp_draw.rounded_rectangle([0, 0, badge_pw - 1, badge_ph - 1], radius=6, fill=(32, 35, 42), outline=(55, 60, 72), width=1)
+    cp_draw.text(((badge_pw - code_tw) // 2, (badge_ph - code_th) // 2 - 1), card_code, fill=(220, 225, 235), font=font_badge)
+    canvas.paste(code_pill, (badge_px, badge_py), code_pill)
 
-    code_str = str(card_code).upper()
-    c_bbox = font_badge.getbbox(code_str)
-    c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(code_str) * 8
-    c_th = c_bbox[3] - c_bbox[1] if c_bbox else 12
-    draw.text((bx + (bw - c_tw) // 2, by + (bh - c_th) // 2 - 1),
-              code_str, fill=(255, 215, 75), font=font_badge)
-
-    # Bottom Print/Edition Badge
-    bw_b, bh_b = 104, 22
-    bx_b = x + (w - bw_b) // 2
-    by_b = y + h - bh_b - 1
-    badge_poly_b = [
-        (bx_b + 4, by_b),
-        (bx_b + bw_b - 4, by_b),
-        (bx_b + bw_b, by_b + bh_b - 8),
-        (bx_b + bw_b - 8, by_b + bh_b),
-        (bx_b + 8, by_b + bh_b),
-        (bx_b, by_b + bh_b - 8)
-    ]
-    draw.polygon(badge_poly_b, fill=(18, 19, 22), outline=(75, 80, 90), width=1)
-
-    m_bbox = font_badge.getbbox(mint_text)
-    m_tw = m_bbox[2] - m_bbox[0] if m_bbox else len(mint_text) * 8
-    m_th = m_bbox[3] - m_bbox[1] if m_bbox else 12
-    draw.text((bx_b + (bw_b - m_tw) // 2, by_b + (bh_b - m_th) // 2),
-              mint_text, fill=(255, 215, 75), font=font_badge)
+    # Right Print & Edition Text
+    ed_bbox = font_badge.getbbox(edition_str)
+    ed_tw = ed_bbox[2] - ed_bbox[0] if ed_bbox else len(edition_str) * 7
+    ed_th = ed_bbox[3] - ed_bbox[1] if ed_bbox else 12
+    ed_px = content_x + content_w - ed_tw - 12
+    ed_py = badge_py + (badge_ph - ed_th) // 2
+    draw.text((ed_px, ed_py), edition_str, fill=(170, 175, 190), font=font_badge)
 
 # ==========================================
 # 🃏 RENDER DROP CARDS (3 side-by-side)
 # ==========================================
 async def render_cards_image(cards: list, show_quality: bool = False) -> io.BytesIO:
-    """Renders 3 authentic Karuta cards side-by-side for /drop."""
+    """Renders 3 cards side-by-side for /drop."""
     card_w, card_h = 280, 450
-    t_frame = 14
-    top_banner_h = 52    # Compact top banner for Series Name so top of artwork is open & free!
-    bot_banner_h = 95    # Prominent bottom banner for Character Name
-    gap = 20
-    pad = 24
+    gap = 18
+    pad = 20
 
     canvas_w = (card_w * 3) + (gap * 2) + (pad * 2)
     canvas_h = card_h + (pad * 2)
 
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (14, 15, 18, 255))
-    draw = ImageDraw.Draw(canvas)
 
     session = await get_http_session()
     medium_urls = [card["image"].replace("/large/", "/medium/") if card.get("image") else card.get("image") for card in cards]
     tasks = [fetch_image(session, url) for url in medium_urls]
     raw_images = await asyncio.gather(*tasks)
 
-    banner_w = card_w - t_frame * 2
-    top_banner_img = _create_gold_banner(banner_w, top_banner_h, arch_type="top")
-    bot_banner_img = _create_gold_banner(banner_w, bot_banner_h, arch_type="bottom")
-
     for i, card in enumerate(cards):
         cx = pad + i * (card_w + gap)
         cy = pad
-
-        q_val = card.get("quality", "Good ⭐⭐")
-        mint_str = f"{card['temp_mint']} · {card.get('edition', 1)}"
-
-        # 1. Draw Frame Structure
-        _draw_karuta_frame_structure(draw, cx, cy, card_w, card_h)
-
-        # 2. Viewport bounds & Artwork positioning
-        content_x = cx + t_frame
-        content_y = cy + t_frame
-        content_w = card_w - t_frame * 2
-        content_h = card_h - t_frame * 2
-
-        fitted_art = fit_top_crop_image(raw_images[i], content_w, content_h)
-        if show_quality:
-            fitted_art = apply_quality_filter_to_image(fitted_art, q_val)
-
-        canvas.paste(fitted_art, (content_x, content_y))
-
-        if show_quality:
-            apply_quality_effects_on_artwork(draw, content_x, content_y, content_w, content_h, q_val)
-
-        # 3. Gold Banners over Artwork
-        canvas.paste(top_banner_img, (content_x, content_y), top_banner_img)
-        canvas.paste(bot_banner_img, (content_x, content_y + content_h - bot_banner_h), bot_banner_img)
-
-        # 4. Series Name on Top Banner (Compact Header)
-        series_name = card["series"][:22]
-        s_bbox = FONT_SERIES_DROP.getbbox(series_name)
-        s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 10
-        s_th = s_bbox[3] - s_bbox[1] if s_bbox else 16
-        sx = content_x + (content_w - s_tw) // 2
-        sy = content_y + (top_banner_h - 10 - s_th) // 2 + 10
-        draw.text((sx + 1, sy + 1), series_name, fill=(240, 210, 110), font=FONT_SERIES_DROP)
-        draw.text((sx, sy), series_name, fill=(35, 30, 20), font=FONT_SERIES_DROP)
-
-        # 5. Character Name on Bottom Banner (Prominent Footer)
-        char_name = card["name"][:20]
-        c_bbox = FONT_TITLE_DROP.getbbox(char_name)
-        c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 15
-        c_th = c_bbox[3] - c_bbox[1] if c_bbox else 26
-        nx = content_x + (content_w - c_tw) // 2
-        ny = content_y + content_h - bot_banner_h + (bot_banner_h + 10 - c_th) // 2 - 4
-        draw.text((nx + 1, ny + 1), char_name, fill=(240, 210, 110), font=FONT_TITLE_DROP)
-        draw.text((nx, ny), char_name, fill=(35, 30, 20), font=FONT_TITLE_DROP)
-
-        # 6. Badges
-        _draw_karuta_badges(draw, cx, cy, card_w, card_h, card["code"], mint_str, FONT_BADGE_DROP)
+        draw_card_on_canvas(canvas, cx, cy, card_w, card_h, raw_images[i], card,
+                            FONT_TITLE_DROP, FONT_SERIES_DROP, FONT_BADGE_DROP)
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -421,64 +290,20 @@ async def render_cards_image(cards: list, show_quality: bool = False) -> io.Byte
 # 🃏 RENDER SINGLE CARD (view/lookup)
 # ==========================================
 async def render_single_card(card_data: dict) -> io.BytesIO:
-    """Renders a single authentic Karuta card for /card."""
+    """Renders a single card for /card."""
     card_w, card_h = 320, 500
-    t_frame = 16
-    top_banner_h = 58
-    bot_banner_h = 108
     pad = 20
 
     canvas_w = card_w + pad * 2
     canvas_h = card_h + pad * 2
 
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (14, 15, 18, 0))
-    draw = ImageDraw.Draw(canvas)
 
     session = await get_http_session()
     raw_img = await fetch_image(session, card_data["image_url"])
 
-    q_val = card_data.get("quality", "Good ⭐⭐")
-    mint_str = f"{card_data['mint_number']} · {card_data.get('edition', 1)}"
-
-    cx, cy = pad, pad
-    _draw_karuta_frame_structure(draw, cx, cy, card_w, card_h)
-
-    content_x = cx + t_frame
-    content_y = cy + t_frame
-    content_w = card_w - t_frame * 2
-    content_h = card_h - t_frame * 2
-
-    fitted_art = fit_top_crop_image(raw_img, content_w, content_h)
-    filtered_art = apply_quality_filter_to_image(fitted_art, q_val)
-    canvas.paste(filtered_art, (content_x, content_y))
-    apply_quality_effects_on_artwork(draw, content_x, content_y, content_w, content_h, q_val)
-
-    top_banner_img = _create_gold_banner(content_w, top_banner_h, arch_type="top")
-    bot_banner_img = _create_gold_banner(content_w, bot_banner_h, arch_type="bottom")
-    canvas.paste(top_banner_img, (content_x, content_y), top_banner_img)
-    canvas.paste(bot_banner_img, (content_x, content_y + content_h - bot_banner_h), bot_banner_img)
-
-    # Series Name on Top Banner
-    series_name = card_data["series_name"][:24]
-    s_bbox = FONT_SERIES_SINGLE.getbbox(series_name)
-    s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 13
-    s_th = s_bbox[3] - s_bbox[1] if s_bbox else 22
-    sx = content_x + (content_w - s_tw) // 2
-    sy = content_y + (top_banner_h - 10 - s_th) // 2 + 10
-    draw.text((sx + 1, sy + 1), series_name, fill=(240, 210, 110), font=FONT_SERIES_SINGLE)
-    draw.text((sx, sy), series_name, fill=(35, 30, 20), font=FONT_SERIES_SINGLE)
-
-    # Character Name on Bottom Banner
-    char_name = card_data["character_name"][:22]
-    c_bbox = FONT_TITLE_SINGLE.getbbox(char_name)
-    c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 16
-    c_th = c_bbox[3] - c_bbox[1] if c_bbox else 30
-    nx = content_x + (content_w - c_tw) // 2
-    ny = content_y + content_h - bot_banner_h + (bot_banner_h + 10 - c_th) // 2 - 4
-    draw.text((nx + 1, ny + 1), char_name, fill=(240, 210, 110), font=FONT_TITLE_SINGLE)
-    draw.text((nx, ny), char_name, fill=(35, 30, 20), font=FONT_TITLE_SINGLE)
-
-    _draw_karuta_badges(draw, cx, cy, card_w, card_h, card_data["code"], mint_str, FONT_BADGE_SINGLE)
+    draw_card_on_canvas(canvas, pad, pad, card_w, card_h, raw_img, card_data,
+                        FONT_TITLE_SINGLE, FONT_SERIES_SINGLE, FONT_BADGE_SINGLE)
 
     buf = io.BytesIO()
     canvas.save(buf, format="PNG")
@@ -498,55 +323,45 @@ async def render_full_art_card(card_data: dict, custom_frame: Image.Image = None
 
     session = await get_http_session()
     raw_img = await fetch_image(session, card_data["image_url"])
-    q_val = card_data.get("quality", "Good ⭐⭐")
-    mint_str = f"{card_data['mint_number']} · {card_data.get('edition', 1)}"
 
     # 1. Artwork fills 100% of card canvas
-    fitted_art = fit_top_crop_image(raw_img, card_w, card_h)
-    filtered_art = apply_quality_filter_to_image(fitted_art, q_val)
-    canvas.paste(filtered_art, (0, 0))
-    apply_quality_effects_on_artwork(draw, 0, 0, card_w, card_h, q_val)
+    fitted_art = fit_artwork_image(raw_img, card_w, card_h)
+    canvas.paste(fitted_art, (0, 0))
 
-    # 2. Top & Bottom Dark Gradient Vignettes
+    # 2. Bottom Dark Gradient Vignette
     vignette = Image.new("RGBA", (card_w, card_h))
     v_draw = ImageDraw.Draw(vignette)
-    for y in range(70):
-        alpha = int(140 * (1 - y / 70))
-        v_draw.line([(0, y), (card_w, y)], fill=(0, 0, 0, alpha))
-    for y in range(card_h - 70, card_h):
-        t = (y - (card_h - 70)) / 70
-        alpha = int(140 * t)
+    for y in range(card_h - 110, card_h):
+        t = (y - (card_h - 110)) / 110
+        alpha = int(180 * t)
         v_draw.line([(0, y), (card_w, y)], fill=(0, 0, 0, alpha))
 
     canvas.paste(vignette, (0, 0), vignette)
 
     if custom_frame:
-        resized_frame = fit_and_crop_image(custom_frame, card_w, card_h)
+        resized_frame = fit_artwork_image(custom_frame, card_w, card_h)
         canvas.paste(resized_frame, (0, 0), resized_frame)
 
-    # 3. Floating Text (Series Name at top, Character Name at bottom)
-    series_name = card_data["series_name"][:24]
+    # 3. Series Name & Character Name at Bottom
+    series_name = card_data.get("series_name", card_data.get("series", "Genshin Impact"))[:24]
     s_bbox = FONT_SERIES_SINGLE.getbbox(series_name)
     s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 13
     s_th = s_bbox[3] - s_bbox[1] if s_bbox else 22
     sx = (card_w - s_tw) // 2
-    sy = 28
+    sy = card_h - 85
     draw.text((sx + 2, sy + 2), series_name, fill=(0, 0, 0, 220), font=FONT_SERIES_SINGLE)
     draw.text((sx, sy), series_name, fill=(255, 235, 170), font=FONT_SERIES_SINGLE)
 
-    char_name = card_data["character_name"][:22]
+    char_name = card_data.get("character_name", card_data.get("name", "Citlali"))[:22]
     c_bbox = FONT_TITLE_SINGLE.getbbox(char_name)
     c_tw = c_bbox[2] - c_bbox[0] if c_bbox else len(char_name) * 16
     c_th = c_bbox[3] - c_bbox[1] if c_bbox else 30
     nx = (card_w - c_tw) // 2
-    ny = card_h - 58
+    ny = sy + s_th + 4
     draw.text((nx + 2, ny + 2), char_name, fill=(0, 0, 0, 220), font=FONT_TITLE_SINGLE)
     draw.text((nx, ny), char_name, fill=(255, 255, 255), font=FONT_TITLE_SINGLE)
 
-    # 4. Sleek Badges
-    _draw_karuta_badges(draw, 0, 0, card_w, card_h, card_data["code"], mint_str, FONT_BADGE_SINGLE)
-
-    # 5. Apply Rounded Corner Mask
+    # 4. Apply Rounded Corner Mask
     canvas = _round_corners(canvas, corner_r)
 
     buf = io.BytesIO()
