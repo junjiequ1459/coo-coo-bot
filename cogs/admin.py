@@ -1,4 +1,5 @@
 import time
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -326,6 +327,40 @@ class AdminCog(commands.Cog):
             color=discord.Color.gold()
         )
         await ctx.send(embed=embed)
+
+    @commands.command(name="purge", aliases=["clear", "clean"])
+    async def purge_prefix(self, ctx, amount: int = 100):
+        """Bulk deletes previous messages in the channel (Admin/Mod only)."""
+        if not (ctx.author.guild_permissions.manage_messages or ctx.author.guild_permissions.administrator or ctx.author.id in BOT_OWNER_IDS):
+            await ctx.send("Coo coo! ⚠️ Only Admins/Mods with 'Manage Messages' permission can use `!purge`!")
+            return
+        
+        try:
+            deleted = await ctx.channel.purge(limit=amount + 1)
+            msg = await ctx.send(f"🧹 Coo Coo cleaned up **{len(deleted) - 1}** messages!")
+            await asyncio.sleep(4)
+            await msg.delete()
+        except discord.Forbidden:
+            await ctx.send("Coo coo! ⚠️ I don't have 'Manage Messages' permission in this channel!")
+        except Exception as e:
+            await ctx.send(f"Coo coo! ⚠️ Error purging messages: {e}")
+
+    @app_commands.command(name="purge", description="Bulk deletes previous messages in the channel (Admin/Mod Only)")
+    @app_commands.describe(amount="Number of messages to delete (1 to 100)")
+    @app_commands.default_permissions(manage_messages=True)
+    async def purge_slash(self, interaction: discord.Interaction, amount: int = 100):
+        if not (interaction.user.guild_permissions.manage_messages or interaction.user.guild_permissions.administrator or interaction.user.id in BOT_OWNER_IDS):
+            await interaction.response.send_message("Coo coo! ⚠️ Only Admins/Mods can use `/purge`!", ephemeral=True)
+            return
+
+        try:
+            await interaction.response.defer(ephemeral=True)
+            deleted = await interaction.channel.purge(limit=amount)
+            await interaction.followup.send(f"🧹 Coo Coo cleaned up **{len(deleted)}** messages!", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("Coo coo! ⚠️ I don't have 'Manage Messages' permission!", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Coo coo! ⚠️ Error purging messages: {e}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))
