@@ -226,6 +226,7 @@ class AdminCog(commands.Cog):
 
     # --- UNIFIED SLASH COMMAND ---
     @app_commands.command(name="give", description="[Owner Only] Grant Gems, Dust, Tickets, Premium, or Cards to any user")
+    @app_commands.default_permissions(administrator=True)
     @app_commands.choices(item=[
         app_commands.Choice(name="💎 Gems", value="gems"),
         app_commands.Choice(name="🧪 Dust", value="dust"),
