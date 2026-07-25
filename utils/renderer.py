@@ -53,13 +53,13 @@ def _load_monospace_font(size):
     return _load_font(size, bold=True)
 
 # Pre-load clean fonts
-FONT_TITLE_DROP = _load_font(46, bold=True)
-FONT_SERIES_DROP = _load_font(22, bold=False)
-FONT_BADGE_DROP = _load_monospace_font(15)
+FONT_TITLE_DROP = _load_font(58, bold=True)
+FONT_SERIES_DROP = _load_font(28, bold=False)
+FONT_BADGE_DROP = _load_monospace_font(18)
 
-FONT_TITLE_SINGLE = _load_font(50, bold=True)
-FONT_SERIES_SINGLE = _load_font(24, bold=False)
-FONT_BADGE_SINGLE = _load_monospace_font(16)
+FONT_TITLE_SINGLE = _load_font(60, bold=True)
+FONT_SERIES_SINGLE = _load_font(30, bold=False)
+FONT_BADGE_SINGLE = _load_monospace_font(20)
 
 # Shared aiohttp session
 _http_session = None
@@ -194,7 +194,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     canvas.paste(fitted_art, (content_x, content_y), art_mask)
 
     # 3. Bottom Dark Overlay Container Section
-    bot_h = int(content_h * 0.26)
+    bot_h = int(content_h * 0.34)
     bot_y = content_y + content_h - bot_h
 
     bot_overlay = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
