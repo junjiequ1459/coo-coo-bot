@@ -7,9 +7,8 @@ from db import get_connection, release_connection
 
 class ColorButton(discord.ui.Button):
     def __init__(self, color_info):
-        emoji_str = f"{color_info['emoji']} " if color_info.get("emoji") else ""
         super().__init__(
-            label=f"{emoji_str}{color_info['name']}",
+            label=color_info["name"],
             style=discord.ButtonStyle.secondary,
             custom_id=f"coocoo_color_{color_info['name'].lower().replace(' ', '_')}"
         )
@@ -53,8 +52,10 @@ class ColorButton(discord.ui.Button):
         if target_role not in member.roles:
             try:
                 await member.add_roles(target_role)
+                color_desc = self.color_info.get("color_desc", "")
+                desc_str = f" ({color_desc})" if color_desc else ""
                 await interaction.followup.send(
-                    f"Coo coo! 🐦 {self.color_info['emoji']} Your name color is now **{target_role_name}**!",
+                    f"Coo coo! 🐦 Your name color is now **{target_role_name}**{desc_str}!",
                     ephemeral=True
                 )
             except discord.Forbidden:
@@ -239,7 +240,12 @@ class UtilitiesCog(commands.Cog):
     async def setup_colors_prefix(self, ctx):
         embed = discord.Embed(
             title="🐦 Coo Coo's Color Nest",
-            description="Pick a color below to customize your username color in the server!",
+            description=(
+                "Pick a character color below to customize your username color in the server!\n\n"
+                "• **Ratan** — Yellow (`#FFFACD`)\n"
+                "• **Miin** — Pink (`#FFB6C1`)\n"
+                "• **Coo Coo** — Light Blue (`#87CEEB`)"
+            ),
             color=discord.Color.from_rgb(138, 158, 167)
         )
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")
@@ -253,7 +259,12 @@ class UtilitiesCog(commands.Cog):
             pass
         embed = discord.Embed(
             title="🐦 Coo Coo's Color Nest",
-            description="Pick a color below to customize your username color in the server!",
+            description=(
+                "Pick a character color below to customize your username color in the server!\n\n"
+                "• **Ratan** — Yellow (`#FFFACD`)\n"
+                "• **Miin** — Pink (`#FFB6C1`)\n"
+                "• **Coo Coo** — Light Blue (`#87CEEB`)"
+            ),
             color=discord.Color.from_rgb(138, 158, 167)
         )
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")
