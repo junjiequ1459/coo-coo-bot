@@ -50,6 +50,7 @@ class ColorButton(discord.ui.Button):
                 target_role = await guild.create_role(
                     name=target_role_name,
                     color=discord.Color(self.color_info["hex"]),
+                    hoist=True,
                     reason="Coo Coo Color Role Auto-Creation"
                 )
             except discord.Forbidden:
@@ -57,7 +58,7 @@ class ColorButton(discord.ui.Button):
                 return
         else:
             try:
-                await target_role.edit(color=discord.Color(self.color_info["hex"]))
+                await target_role.edit(color=discord.Color(self.color_info["hex"]), hoist=True)
             except Exception:
                 pass
 
