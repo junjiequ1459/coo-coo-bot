@@ -316,7 +316,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     card_code = str(card_data.get("code", "VL9BSJ3")).upper()
     mint_val = card_data.get("temp_mint", card_data.get("mint_number", 912))
     ed_val = card_data.get("edition", 2)
-    edition_str = f"#{mint_val} · ED {ed_val}"
+    edition_str = f"{mint_val} · {ed_val}"
 
     code_bbox = font_badge.getbbox(card_code)
     code_tw = code_bbox[2] - code_bbox[0] if code_bbox else len(card_code) * 7
