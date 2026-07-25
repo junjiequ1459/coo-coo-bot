@@ -4,7 +4,7 @@ import time
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import COLOR_ROLES, LEGACY_COLOR_ROLES, PIGEON_MESSAGES, DROP_PRIORITY_SEC
+from config import BOT_OWNER_IDS, COLOR_ROLES, LEGACY_COLOR_ROLES, PIGEON_MESSAGES, DROP_PRIORITY_SEC
 from db import get_connection, release_connection
 from utils.color_preview import generate_color_preview
 
@@ -97,6 +97,15 @@ class ColorPickerView(discord.ui.View):
 class UtilitiesCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    def is_admin_or_owner(self, user: discord.User | discord.Member) -> bool:
+        if user.id in BOT_OWNER_IDS:
+            return True
+        if isinstance(user, discord.Member) and hasattr(user, "guild_permissions"):
+            perms = user.guild_permissions
+            if perms.administrator or perms.manage_guild or perms.manage_roles:
+                return True
+        return False
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -258,6 +267,9 @@ class UtilitiesCog(commands.Cog):
 
     @commands.command(name="setup-colors")
     async def setup_colors_prefix(self, ctx):
+        if not self.is_admin_or_owner(ctx.author):
+            await ctx.send("Coo coo! ⚠️ Only Server Administrators can spawn the color setup menu!")
+            return
         if not os.path.exists("color_preview.png"):
             generate_color_preview("color_preview.png")
         file = discord.File("color_preview.png", filename="color_preview.png")
@@ -270,12 +282,16 @@ class UtilitiesCog(commands.Cog):
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")
         await ctx.send(embed=embed, file=file, view=ColorPickerView())
 
-    @app_commands.command(name="setup-colors", description="Spawns the Coo Coo Color Selection Buttons")
+    @app_commands.command(name="setup-colors", description="Spawns the Coo Coo Color Selection Buttons (Admin Only)")
+    @app_commands.default_permissions(administrator=True)
     async def setup_colors_slash(self, interaction: discord.Interaction):
         try:
             await interaction.response.defer()
         except Exception:
             pass
+        if not self.is_admin_or_owner(interaction.user):
+            await interaction.followup.send("Coo coo! ⚠️ Only Server Administrators can spawn the color setup menu!", ephemeral=True)
+            return
         if not os.path.exists("color_preview.png"):
             generate_color_preview("color_preview.png")
         file = discord.File("color_preview.png", filename="color_preview.png")
