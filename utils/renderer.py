@@ -147,31 +147,30 @@ def _draw_rainbow_line(target_img: Image.Image, box: tuple):
     target_img.paste(rainbow, (bx1, by1), rainbow)
 
 # ==========================================
-# 🖼️ DRAW CARD (Exact Match to User Mockup)
+# 🖼️ DRAW CARD (Silver Metallic Border Design)
 # ==========================================
 def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h: int,
                         raw_img: Image.Image, card_data: dict, font_title, font_series, font_badge):
-    """Draws a card where artwork fills 100% of the inner box height and bottom container overlays the bottom portion."""
+    """Draws a card with a sleek 3D silver-gray metallic outer border matching the user's mockup."""
     draw = ImageDraw.Draw(canvas)
     rarity_str = str(card_data.get("rarity", "Legendary")).lower()
 
-    # 1. Metallic Outer Frame
-    frame_r = 16
+    # 1. Sleek 3D Silver-Gray Metallic Outer Frame
+    frame_r = 18
     frame_img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     f_draw = ImageDraw.Draw(frame_img)
 
-    f_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=frame_r, fill=(28, 30, 36), outline=(90, 95, 110), width=2)
-    f_draw.rounded_rectangle([2, 2, card_w - 3, card_h - 3], radius=frame_r - 2, fill=(22, 24, 28), outline=(180, 185, 200), width=2)
+    # Silver metallic outer gradient layers
+    f_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=frame_r, fill=(185, 192, 205), outline=(240, 245, 255), width=2)
+    f_draw.rounded_rectangle([2, 2, card_w - 3, card_h - 3], radius=frame_r - 2, fill=(130, 138, 150), outline=(215, 222, 235), width=2)
+    f_draw.rounded_rectangle([4, 4, card_w - 5, card_h - 5], radius=frame_r - 4, fill=(65, 72, 82), outline=(155, 162, 175), width=2)
+    f_draw.rounded_rectangle([6, 6, card_w - 7, card_h - 7], radius=frame_r - 6, fill=(24, 26, 32), outline=(40, 43, 50), width=2)
 
     pad = 12
     view_x, view_y = pad, pad
     view_w, view_h = card_w - pad * 2, card_h - pad * 2
 
-    # Inner Viewport Box Fill
-    f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
-                             radius=8, fill=(18, 19, 22))
-
-    # Inner Gold Border
+    # Inner Viewport Box Fill & Thin Gold Accent Line
     f_draw.rounded_rectangle([view_x - 2, view_y - 2, view_x + view_w + 1, view_y + view_h + 1],
                              radius=10, fill=(200, 160, 40), outline=(255, 220, 100), width=1)
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
@@ -184,7 +183,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     content_w = view_w
     content_h = view_h
 
-    # 2. Artwork Viewport (Fills 100% of inner content box from top content_y to bottom content_y + content_h)
+    # 2. Artwork Viewport (Fills 100% of inner content box)
     fitted_art = fit_artwork_image(raw_img, content_w, content_h)
 
     # Rounded corners mask for inner content box
@@ -194,20 +193,19 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
 
     canvas.paste(fitted_art, (content_x, content_y), art_mask)
 
-    # 3. Bottom Dark Overlay Container Section (Sits on top of bottom portion of artwork)
+    # 3. Bottom Dark Overlay Container Section
     bot_h = int(content_h * 0.26)
     bot_y = content_y + content_h - bot_h
 
     bot_overlay = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
     bo_draw = ImageDraw.Draw(bot_overlay)
     
-    # Solid dark container background covering the bottom portion of artwork
-    bo_poly = [0, 0, content_w - 1, bot_h - 1]
-    bo_draw.rectangle(bo_poly, fill=(18, 19, 22, 245))
+    # Solid dark container background covering bottom portion of artwork
+    bo_draw.rectangle([0, 0, content_w - 1, bot_h - 1], fill=(18, 19, 22, 245))
 
     canvas.paste(bot_overlay, (content_x, bot_y), bot_overlay)
 
-    # 4. Series Name & Rarity Accent Line (Sits along the top of bottom container)
+    # 4. Series Name & Rarity Accent Line (Only the series lines take rarity color)
     series_name = card_data.get("series", card_data.get("series_name", "Genshin Impact"))[:24]
     s_bbox = font_series.getbbox(series_name)
     s_tw = s_bbox[2] - s_bbox[0] if s_bbox else len(series_name) * 8
