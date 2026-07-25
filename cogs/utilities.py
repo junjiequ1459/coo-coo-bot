@@ -1,3 +1,4 @@
+import os
 import random
 import time
 import discord
@@ -5,6 +6,7 @@ from discord.ext import commands
 from discord import app_commands
 from config import COLOR_ROLES, LEGACY_COLOR_ROLES, PIGEON_MESSAGES, DROP_PRIORITY_SEC
 from db import get_connection, release_connection
+from utils.color_preview import generate_color_preview
 
 COLOR_BUTTON_COOLDOWNS = {}  # {user_id: last_click_timestamp}
 COOLDOWN_DURATION_SEC = 5  # 5-second rate limit per user
@@ -256,13 +258,17 @@ class UtilitiesCog(commands.Cog):
 
     @commands.command(name="setup-colors")
     async def setup_colors_prefix(self, ctx):
+        if not os.path.exists("color_preview.png"):
+            generate_color_preview("color_preview.png")
+        file = discord.File("color_preview.png", filename="color_preview.png")
         embed = discord.Embed(
             title="🐦 Coo Coo's Color Nest",
             description="Pick a character color below to customize your username color in the server!",
             color=discord.Color.from_rgb(138, 158, 167)
         )
+        embed.set_image(url="attachment://color_preview.png")
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")
-        await ctx.send(embed=embed, view=ColorPickerView())
+        await ctx.send(embed=embed, file=file, view=ColorPickerView())
 
     @app_commands.command(name="setup-colors", description="Spawns the Coo Coo Color Selection Buttons")
     async def setup_colors_slash(self, interaction: discord.Interaction):
@@ -270,13 +276,17 @@ class UtilitiesCog(commands.Cog):
             await interaction.response.defer()
         except Exception:
             pass
+        if not os.path.exists("color_preview.png"):
+            generate_color_preview("color_preview.png")
+        file = discord.File("color_preview.png", filename="color_preview.png")
         embed = discord.Embed(
             title="🐦 Coo Coo's Color Nest",
             description="Pick a character color below to customize your username color in the server!",
             color=discord.Color.from_rgb(138, 158, 167)
         )
+        embed.set_image(url="attachment://color_preview.png")
         embed.set_footer(text="Coo Coo • Select your favorite vibe!")
-        await interaction.followup.send(embed=embed, view=ColorPickerView())
+        await interaction.followup.send(embed=embed, file=file, view=ColorPickerView())
 
     @commands.command(name="coo")
     async def coo_prefix(self, ctx):
