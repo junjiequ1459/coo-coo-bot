@@ -44,14 +44,25 @@ class ColorButton(discord.ui.Button):
         color_role_names = [c["name"] for c in COLOR_ROLES] + LEGACY_COLOR_ROLES
         roles_to_remove = [r for r in member.roles if r.name in color_role_names and r.name != target_role_name]
         if roles_to_remove:
-            await member.remove_roles(*roles_to_remove)
+            try:
+                await member.remove_roles(*roles_to_remove)
+            except discord.Forbidden:
+                pass
 
         if target_role not in member.roles:
-            await member.add_roles(target_role)
-            await interaction.followup.send(
-                f"Coo coo! 🐦 {self.color_info['emoji']} Your name color is now **{target_role_name}**!",
-                ephemeral=True
-            )
+            try:
+                await member.add_roles(target_role)
+                await interaction.followup.send(
+                    f"Coo coo! 🐦 {self.color_info['emoji']} Your name color is now **{target_role_name}**!",
+                    ephemeral=True
+                )
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "Coo coo! ⚠️ I cannot assign this role. Please ensure my **Coo Coo Bot** role is dragged **ABOVE** the color roles in Server Settings -> Roles!",
+                    ephemeral=True
+                )
+            except Exception as e:
+                await interaction.followup.send(f"Coo coo! ⚠️ Could not assign role: {e}", ephemeral=True)
         else:
             await interaction.followup.send(f"Coo coo! 🐦 You already have **{target_role_name}**!", ephemeral=True)
 
