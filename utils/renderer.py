@@ -186,39 +186,15 @@ def crop_artwork_to_card(img: Image.Image, target_w: int, target_h: int) -> Imag
     cropped = img.crop(crop_box)
     return cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-def _draw_rainbow_line(target_img: Image.Image, box: tuple):
-    """Draws a smooth rainbow gradient horizontal line."""
-    bx1, by1, bx2, by2 = box
-    w = max(1, bx2 - bx1)
-    h = max(1, by2 - by1)
-    
-    rainbow = Image.new("RGBA", (w, h))
-    rb_draw = ImageDraw.Draw(rainbow)
-    
-    colors = [
-        (255, 60, 60),    # Red
-        (255, 160, 40),   # Orange
-        (255, 230, 50),   # Yellow
-        (60, 230, 110),   # Green
-        (40, 200, 255),   # Cyan
-        (160, 80, 255),   # Violet
-        (255, 90, 200),   # Pink
-    ]
-    num_c = len(colors)
-    
-    for col in range(w):
-        t = col / max(1, w - 1)
-        idx = t * (num_c - 1)
-        i1 = int(idx) % num_c
-        i2 = min(i1 + 1, num_c - 1)
-        frac = idx - int(idx)
-        
-        r = int(colors[i1][0] + (colors[i2][0] - colors[i1][0]) * frac)
-        g = int(colors[i1][1] + (colors[i2][1] - colors[i1][1]) * frac)
-        b = int(colors[i1][2] + (colors[i2][2] - colors[i1][2]) * frac)
-        rb_draw.line([(col, 0), (col, h)], fill=(r, g, b, 255))
-            
-    target_img.paste(rainbow, (bx1, by1), rainbow)
+def _rarity_gem_color(rarity: str) -> tuple[int, int, int]:
+    """Return the solid gem color used to identify a card's rarity."""
+    colors = {
+        "common": (174, 180, 190),
+        "rare": (44, 170, 255),
+        "epic": (167, 116, 255),
+        "legendary": (255, 193, 59),
+    }
+    return colors.get(str(rarity).strip().lower(), colors["common"])
 
 # ==========================================
 # 🖼️ DRAW CARD (Silver Metallic Border Design)
@@ -387,36 +363,6 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     text_area_bottom = badge_row_top - 5
     text_area_h = max(text_group_h, text_area_bottom - text_area_top)
     sy = text_area_top + max(0, (text_area_h - text_group_h) // 2)
-    series_max_w = max(_text_width(font_series, line) for line in series_lines)
-    line_y = sy + series_block_h // 2
-    margin = 14
-    left_line_x1 = content_x + margin
-    left_line_x2 = content_x + (content_w - series_max_w) // 2 - 8
-    right_line_x1 = content_x + (content_w + series_max_w) // 2 + 8
-    right_line_x2 = content_x + content_w - margin
-
-    line_segments = (
-        (left_line_x1, left_line_x2),
-        (right_line_x1, right_line_x2),
-    )
-    if "mythic" in rarity_str:
-        for line_x1, line_x2 in line_segments:
-            if line_x2 > line_x1:
-                _draw_rainbow_line(canvas, (line_x1, line_y, line_x2, line_y + 2))
-    else:
-        line_color = (
-            (255, 193, 59, 230)
-            if "legend" in rarity_str
-            else (167, 116, 255, 230)
-            if "epic" in rarity_str
-            else (44, 207, 255, 230)
-            if "rare" in rarity_str
-            else (143, 157, 176, 220)
-        )
-        for line_x1, line_x2 in line_segments:
-            if line_x2 > line_x1:
-                draw.line([(line_x1, line_y), (line_x2, line_y)], fill=line_color, width=2)
-
     center_x = content_x + content_w // 2
     for line_index, line in enumerate(series_lines):
         draw.text(
@@ -493,6 +439,64 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
         anchor="mm",
     )
     canvas.paste(ed_pill, (ed_px, ed_py), ed_pill)
+
+    # Centered rarity gem between the card ID and print/edition badges.
+    gem_half_w = max(7, round(card_w * 0.027))
+    gem_half_h = max(8, round(card_h * 0.019))
+    gem_center_y = badge_row_top + max(badge_ph, ed_ph) // 2
+
+    gem_points = [
+        (center_x, gem_center_y - gem_half_h),
+        (center_x + gem_half_w, gem_center_y - gem_half_h // 3),
+        (center_x + gem_half_w, gem_center_y + gem_half_h // 3),
+        (center_x, gem_center_y + gem_half_h),
+        (center_x - gem_half_w, gem_center_y + gem_half_h // 3),
+        (center_x - gem_half_w, gem_center_y - gem_half_h // 3),
+    ]
+
+    if "mythic" in rarity_str:
+        rainbow_facets = [
+            (255, 74, 86),
+            (255, 157, 48),
+            (255, 220, 64),
+            (62, 210, 112),
+            (45, 170, 255),
+            (176, 93, 255),
+        ]
+        gem_center = (center_x, gem_center_y)
+        for index, facet_color in enumerate(rainbow_facets):
+            draw.polygon(
+                [
+                    gem_center,
+                    gem_points[index],
+                    gem_points[(index + 1) % len(gem_points)],
+                ],
+                fill=facet_color,
+            )
+    else:
+        gem_color = _rarity_gem_color(rarity_str)
+        gem_highlight = tuple(min(255, channel + 70) for channel in gem_color)
+        gem_shadow = tuple(max(0, round(channel * 0.55)) for channel in gem_color)
+        draw.polygon(gem_points, fill=gem_color)
+        draw.polygon(
+            [
+                gem_points[0],
+                gem_points[1],
+                (center_x, gem_center_y),
+                gem_points[5],
+            ],
+            fill=gem_highlight,
+        )
+        draw.polygon(
+            [
+                (center_x, gem_center_y),
+                gem_points[2],
+                gem_points[3],
+                gem_points[4],
+            ],
+            fill=gem_shadow,
+        )
+    draw.line(gem_points + [gem_points[0]], fill=(35, 31, 28), width=2)
 
 # ==========================================
 # 🃏 RENDER DROP CARDS (3 side-by-side)
