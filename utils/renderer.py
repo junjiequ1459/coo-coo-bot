@@ -1,6 +1,7 @@
 import io
 import os
 import asyncio
+import math
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 
@@ -464,15 +465,30 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
             (176, 93, 255),
         ]
         gem_center = (center_x, gem_center_y)
-        for index, facet_color in enumerate(rainbow_facets):
+        star_radius = max(gem_half_w, gem_half_h)
+        star_scale_x = star_radius / math.cos(math.pi / 6)
+        star_scale_y = star_radius
+        star_points = []
+        for index in range(12):
+            angle = (-math.pi / 2) + (index * math.pi / 6)
+            radius = 1 if index % 2 == 0 else 0.45
+            star_points.append(
+                (
+                    round(center_x + math.cos(angle) * star_scale_x * radius),
+                    round(gem_center_y + math.sin(angle) * star_scale_y * radius),
+                )
+            )
+
+        for index in range(12):
             draw.polygon(
                 [
                     gem_center,
-                    gem_points[index],
-                    gem_points[(index + 1) % len(gem_points)],
+                    star_points[index],
+                    star_points[(index + 1) % len(star_points)],
                 ],
-                fill=facet_color,
+                fill=rainbow_facets[(index // 2) % len(rainbow_facets)],
             )
+        draw.line(star_points + [star_points[0]], fill=(18, 18, 18), width=1)
     else:
         gem_color = _rarity_gem_color(rarity_str)
         gem_highlight = tuple(min(255, channel + 70) for channel in gem_color)
@@ -496,7 +512,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
             ],
             fill=gem_shadow,
         )
-    draw.line(gem_points + [gem_points[0]], fill=(35, 31, 28), width=2)
+        draw.line(gem_points + [gem_points[0]], fill=(18, 18, 18), width=1)
 
 # ==========================================
 # 🃏 RENDER DROP CARDS (3 side-by-side)

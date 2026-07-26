@@ -24,12 +24,24 @@ def init_db():
         rarity TEXT NOT NULL,
         mint_number INTEGER NOT NULL,
         edition INTEGER DEFAULT 1,
+        frame TEXT NOT NULL DEFAULT 'default',
         tag TEXT DEFAULT NULL,
         quality TEXT DEFAULT 'Mint ⭐⭐⭐⭐',
         dropped_by BIGINT DEFAULT NULL,
         grabbed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    # Keep existing Supabase inventories compatible with the frame system.
+    cursor.execute("ALTER TABLE inventory ADD COLUMN IF NOT EXISTS frame TEXT")
+    cursor.execute(
+        "UPDATE inventory SET frame = 'default' "
+        "WHERE frame IS NULL OR BTRIM(frame) = ''"
+    )
+    cursor.execute(
+        "ALTER TABLE inventory ALTER COLUMN frame SET DEFAULT 'default'"
+    )
+    cursor.execute("ALTER TABLE inventory ALTER COLUMN frame SET NOT NULL")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS mints (
@@ -195,16 +207,44 @@ def get_next_mint(character_name: str, edition: int = 1) -> int:
     release_connection(conn)
     return next_mint
 
-def save_card_to_inventory(user_id: int, code: str, character_name: str, series_name: str, image_url: str, rarity: str, mint_number: int, edition: int = 1, quality: str = None, dropped_by: int = None) -> int:
+def save_card_to_inventory(
+    user_id: int,
+    code: str,
+    character_name: str,
+    series_name: str,
+    image_url: str,
+    rarity: str,
+    mint_number: int,
+    edition: int = 1,
+    quality: str = None,
+    dropped_by: int = None,
+    frame: str = "default",
+) -> int:
     conn = get_connection()
     cursor = conn.cursor()
     q_final = quality if quality else "Mint ⭐⭐⭐⭐"
     dropper = dropped_by if dropped_by else user_id
+    frame_name = str(frame or "default").strip().lower() or "default"
     cursor.execute("""
-    INSERT INTO inventory (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, quality, dropped_by)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO inventory (
+        user_id, code, character_name, series_name, image_url, rarity,
+        mint_number, edition, quality, dropped_by, frame
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
-    """, (user_id, code, character_name, series_name, image_url, rarity, mint_number, edition, q_final, dropper))
+    """, (
+        user_id,
+        code,
+        character_name,
+        series_name,
+        image_url,
+        rarity,
+        mint_number,
+        edition,
+        q_final,
+        dropper,
+        frame_name,
+    ))
     inserted_id = cursor.fetchone()[0]
     conn.commit()
     release_connection(conn)
@@ -487,4 +527,3 @@ def get_cards_from_db_pool(count: int = 3):
     release_connection(conn)
 
     return cards
-
