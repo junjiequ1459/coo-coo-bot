@@ -3,84 +3,13 @@ from db import get_connection, release_connection
 import discord
 from discord.ext import commands
 from discord import app_commands
+from cogs.views.inventory import CollectionPaginatorView
 from database import (
     get_user_inventory, get_user_dust, get_user_gems,
     get_user_drop_tickets, get_user_grab_tickets,
     is_user_premium, get_user_premium_until
 )
 from utils.renderer import render_single_card
-from config import display_rarity
-
-class CollectionPaginatorView(discord.ui.View):
-    def __init__(self, user: discord.User, rows: list, tag_filter: str = None):
-        super().__init__(timeout=180.0)
-        self.user = user
-        self.rows = rows
-        self.tag_filter = tag_filter
-        self.current_page = 0
-        self.per_page = 10
-        self.max_pages = max(1, (len(rows) + self.per_page - 1) // self.per_page)
-        self.update_buttons()
-
-    def update_buttons(self):
-        self.prev_button.disabled = (self.current_page == 0)
-        self.next_button.disabled = (self.current_page >= self.max_pages - 1)
-        self.page_indicator.label = f"Page {self.current_page + 1}/{self.max_pages}"
-
-    def build_embed(self) -> discord.Embed:
-        title_suffix = f" (Tag: [{self.tag_filter}])" if self.tag_filter else ""
-        embed = discord.Embed(
-            title=f"🎴 {self.user.display_name}'s Card Collection{title_suffix}",
-            description=f"Total Cards: **{len(self.rows)}**",
-            color=discord.Color.purple()
-        )
-
-        start_idx = self.current_page * self.per_page
-        end_idx = min(start_idx + self.per_page, len(self.rows))
-        page_rows = self.rows[start_idx:end_idx]
-
-        for row in page_rows:
-            if len(row) >= 10:
-                card_id, code, char_name, series, rarity, mint_num, edition, _, tag_val, q_val = row[:10]
-            else:
-                card_id, code, char_name, series, rarity, mint_num, edition, _, tag_val = row
-                q_val = "Good ⭐⭐"
-
-            code_str = code if code else f"c{card_id:04d}"
-            ed_val = edition if edition else 1
-            tag_disp = f" 🏷️ `[{tag_val}]`" if tag_val else ""
-            embed.add_field(
-                name=f"🆔 Card ID: `{code_str}` • {char_name}{tag_disp}",
-                value=f"Edition {ed_val} • Print #{mint_num} | {q_val}\n📺 *{series}* | {display_rarity(rarity)}",
-                inline=False
-            )
-
-        embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_pages} • Type /card code:<code> to see full card artwork!")
-        return embed
-
-    @discord.ui.button(label="◀️ Prev", style=discord.ButtonStyle.secondary, custom_id="coll_prev_btn")
-    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user.id:
-            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's menu!", ephemeral=True)
-            return
-        if self.current_page > 0:
-            self.current_page -= 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.build_embed(), view=self)
-
-    @discord.ui.button(label="Page 1/1", style=discord.ButtonStyle.primary, disabled=True, custom_id="coll_page_ind")
-    async def page_indicator(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
-
-    @discord.ui.button(label="Next ▶️", style=discord.ButtonStyle.secondary, custom_id="coll_next_btn")
-    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user.id:
-            await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's menu!", ephemeral=True)
-            return
-        if self.current_page < self.max_pages - 1:
-            self.current_page += 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
 class InventoryCog(commands.Cog):
     def __init__(self, bot):

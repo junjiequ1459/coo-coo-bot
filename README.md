@@ -1,6 +1,6 @@
 # 🐦 Coo Coo Discord Bot
 
-Coo Coo is a Karuta-style Anime & Game Card Collecting Discord Bot powered by a Supabase PostgreSQL database, custom PIL framed card rendering, and Gacha drop odds!
+Coo Coo is a Karuta-style anime and game card-collecting Discord bot powered by Supabase PostgreSQL, custom Pillow card rendering, and weighted gacha drops.
 
 ---
 
@@ -8,20 +8,31 @@ Coo Coo is a Karuta-style Anime & Game Card Collecting Discord Bot powered by a 
 
 - **⚡ 10,000+ Supabase Character Pool**: PostgreSQL-backed card drops covering top Anime, Manga, Genshin Impact, and Honkai: Star Rail characters.
 - **🎲 Gacha Rarity Distribution**:
-  - `✨ Legendary` — **1%**
-  - `🟣 Epic` — **8%**
-  - `🔷 Rare` — **15%**
-  - `⚪ Common` — **76%**
+  - `🌈 Mythic` — **0.1%**
+  - `✨ Legendary` — **0.5%**
+  - `🟣 Epic` — **5%**
+  - `🔷 Rare` — **10%**
+  - `⚪ Common` — **84.4%**
 - **⏱️ Cooldown & Priority System**:
   - **Drop Cooldown**: 15 minutes (`!cd` to check).
   - **Grab Cooldown**: 5 minutes.
-  - **Dropper Priority**: 5 minutes exclusive grab priority for the dropper.
+  - **Dropper Priority**: 10-second exclusive grab window for the dropper.
 - **🧪 Dusting & 🔥 Burning**:
-  - Burn duplicate cards to generate **Dust 🧪** (Interactive safety prompt for Epic & Legendary cards!).
+  - Burn duplicate cards to generate **Dust 🧪** (with a safety prompt for Epic, Legendary, and Mythic cards).
 - **🏷️ Tagging System**:
   - Organize cards into custom binder folders (`!tag <id> <folder>`, `!vt <folder>`).
 - **🔄 Karuta Trading**:
-  - Trade cards and Gems between players (`!t @user`, `!ta`, `!tr`).
+  - Trade cards and Gems between players (`!trade @user`, `!ta`, `!tr`).
+
+---
+
+## 🗂️ Project Layout
+
+- `cogs/` — Discord commands and event listeners.
+- `cogs/views/` — Buttons, modals, confirmation dialogs, and paginators.
+- `data/` — Supabase PostgreSQL schema, card, and user operations.
+- `utils/rendering/` — Artwork, fonts, frame, panel, badge, and gem drawing.
+- `database.py` and `utils/renderer.py` — Small compatibility entry points used by the cogs.
 
 ---
 

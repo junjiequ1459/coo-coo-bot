@@ -4,96 +4,10 @@ import time
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import BOT_OWNER_IDS, COLOR_ROLES, LEGACY_COLOR_ROLES, PIGEON_MESSAGES, DROP_PRIORITY_SEC
+from cogs.views.colors import ColorPickerView
+from config import BOT_OWNER_IDS, PIGEON_MESSAGES, DROP_PRIORITY_SEC
 from db import get_connection, release_connection
 from utils.color_preview import generate_color_preview
-
-COLOR_BUTTON_COOLDOWNS = {}  # {user_id: last_click_timestamp}
-COOLDOWN_DURATION_SEC = 5  # 5-second rate limit per user
-
-class ColorButton(discord.ui.Button):
-    def __init__(self, color_info):
-        btn_label = color_info.get("label", color_info["name"])
-        super().__init__(
-            label=btn_label,
-            style=discord.ButtonStyle.secondary,
-            custom_id=f"coocoo_color_{color_info['name'].lower().replace(' ', '_')}"
-        )
-        self.color_info = color_info
-
-    async def callback(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        member = interaction.user
-        try:
-            await interaction.response.defer(ephemeral=True)
-        except Exception:
-            pass
-
-        now = time.time()
-        last_press = COLOR_BUTTON_COOLDOWNS.get(member.id, 0)
-        remaining = COOLDOWN_DURATION_SEC - (now - last_press)
-
-        if remaining > 0:
-            await interaction.followup.send(
-                f"Coo coo! ⏳ Rate limit active! Please wait **{int(remaining) + 1}s** before changing your color again!",
-                ephemeral=True
-            )
-            return
-
-        COLOR_BUTTON_COOLDOWNS[member.id] = now
-
-        target_role_name = self.color_info["name"]
-        target_role = discord.utils.get(guild.roles, name=target_role_name)
-
-        if not target_role:
-            try:
-                target_role = await guild.create_role(
-                    name=target_role_name,
-                    color=discord.Color(self.color_info["hex"]),
-                    hoist=True,
-                    reason="Coo Coo Color Role Auto-Creation"
-                )
-            except discord.Forbidden:
-                await interaction.followup.send("Coo coo! ⚠️ I don't have 'Manage Roles' permission!", ephemeral=True)
-                return
-        else:
-            try:
-                await target_role.edit(color=discord.Color(self.color_info["hex"]), hoist=True)
-            except Exception:
-                pass
-
-        color_role_names = [c["name"] for c in COLOR_ROLES] + LEGACY_COLOR_ROLES
-        roles_to_remove = [r for r in member.roles if r.name in color_role_names and r.name != target_role_name]
-        if roles_to_remove:
-            try:
-                await member.remove_roles(*roles_to_remove)
-            except discord.Forbidden:
-                pass
-
-        if target_role not in member.roles:
-            try:
-                await member.add_roles(target_role)
-                color_desc = self.color_info.get("color_desc", "")
-                desc_str = f" ({color_desc})" if color_desc else ""
-                await interaction.followup.send(
-                    f"Coo coo! 🐦 Your name color is now **{target_role_name}**{desc_str}!",
-                    ephemeral=True
-                )
-            except discord.Forbidden:
-                await interaction.followup.send(
-                    "Coo coo! ⚠️ I cannot assign this role. Please ensure my **Coo Coo Bot** role is dragged **ABOVE** the color roles in Server Settings -> Roles!",
-                    ephemeral=True
-                )
-            except Exception as e:
-                await interaction.followup.send(f"Coo coo! ⚠️ Could not assign role: {e}", ephemeral=True)
-        else:
-            await interaction.followup.send(f"Coo coo! 🐦 You already have **{target_role_name}**!", ephemeral=True)
-
-class ColorPickerView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        for color in COLOR_ROLES:
-            self.add_item(ColorButton(color))
 
 class UtilitiesCog(commands.Cog):
     def __init__(self, bot):
@@ -107,6 +21,54 @@ class UtilitiesCog(commands.Cog):
             if perms.administrator or perms.manage_guild or perms.manage_roles:
                 return True
         return False
+
+    def build_users_overview(self) -> discord.Embed | None:
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    u.user_id,
+                    u.gems,
+                    u.dust,
+                    u.premium_until,
+                    (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id)
+                FROM users u
+                """
+            )
+            rows = cursor.fetchall()
+        finally:
+            release_connection(conn)
+
+        if not rows:
+            return None
+
+        embed = discord.Embed(
+            title="👥 Database Users Overview",
+            description=f"Total Registered Users: **{len(rows)}**",
+            color=discord.Color.blue(),
+        )
+
+        current_time = int(time.time())
+        for user_id, gems, dust, premium_until, card_count in rows[:15]:
+            user = self.bot.get_user(user_id)
+            username = user.display_name if user else f"User ID: {user_id}"
+            membership = (
+                "👑 Premium"
+                if current_time < (premium_until or 0)
+                else "⚪ Standard"
+            )
+            embed.add_field(
+                name=f"👤 {username}",
+                value=(
+                    f"💎 **{gems:,} Gems** | 🧪 **{dust:,} Dust** | "
+                    f"🎴 **{card_count} Cards** | {membership}"
+                ),
+                inline=False,
+            )
+
+        return embed
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -139,7 +101,10 @@ class UtilitiesCog(commands.Cog):
         )
         embed.set_thumbnail(url=member.display_avatar.url)
 
-        member_number = member.guild.member_count or len(member.guild.members)
+        member_number = (
+            member.guild.member_count
+            or len(member.guild.members)
+        )
         embed.set_footer(
             text=f"Member #{member_number:,} • Coo Coo is happy you're here 🐦"
         )
@@ -257,11 +222,11 @@ class UtilitiesCog(commands.Cog):
         embed.add_field(
             name="👑 Card Rarities & Burn Yields",
             value=(
-                "• **`🌈 Mythic` (Rainbow Frame)** — **0.1% Drop Rate** | Burns to **+500 🧪 Dust**\n"
-                "• **`✨ Legendary` (Gold Frame)** — **0.5% Drop Rate** | Burns to **+200 🧪 Dust**\n"
-                "• **`🟣 Epic` (Purple Frame)** — **5% Drop Rate** | Burns to **+100 🧪 Dust**\n"
-                "• **`🔷 Rare` (Cyan Frame)** — **10% Drop Rate** | Burns to **+50 🧪 Dust**\n"
-                "• **`⚪ Common` (Silver Frame)** — **84.4% Drop Rate** | Burns to **+20 🧪 Dust**"
+                "• **`🌈 Mythic` (Rainbow Gem)** — **0.1% Drop Rate** | Burns to **+500 🧪 Dust**\n"
+                "• **`✨ Legendary` (Gold Gem)** — **0.5% Drop Rate** | Burns to **+200 🧪 Dust**\n"
+                "• **`🟣 Epic` (Purple Gem)** — **5% Drop Rate** | Burns to **+100 🧪 Dust**\n"
+                "• **`🔷 Rare` (Cyan Gem)** — **10% Drop Rate** | Burns to **+50 🧪 Dust**\n"
+                "• **`⚪ Common` (Silver Gem)** — **84.4% Drop Rate** | Burns to **+20 🧪 Dust**"
             ),
             inline=False
         )
@@ -354,7 +319,6 @@ class UtilitiesCog(commands.Cog):
     @app_commands.command(name="users", description="[Owner Only] View all registered users and their balances in the database")
     @app_commands.default_permissions(administrator=True)
     async def users_slash(self, interaction: discord.Interaction):
-        from config import BOT_OWNER_IDS
         if interaction.user.id not in BOT_OWNER_IDS:
             await interaction.response.send_message("Coo coo! ⚠️ This command is restricted to the Bot Owner!", ephemeral=True)
             return
@@ -364,70 +328,23 @@ class UtilitiesCog(commands.Cog):
         except Exception:
             pass
 
-        import time
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT u.user_id, u.gems, u.dust, u.premium_until, (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id) FROM users u")
-        rows = cursor.fetchall()
-        release_connection(conn)
-
-        if not rows:
+        embed = self.build_users_overview()
+        if embed is None:
             await interaction.followup.send("Coo coo! 📭 No users found in the database yet!", ephemeral=True)
             return
-
-        embed = discord.Embed(
-            title="👥 Database Users Overview",
-            description=f"Total Registered Users: **{len(rows)}**",
-            color=discord.Color.blue()
-        )
-
-        for row in rows[:15]:
-            uid, gems, dust, prem_until, card_count = row
-            user_obj = self.bot.get_user(uid)
-            uname = user_obj.display_name if user_obj else f"User ID: {uid}"
-            is_prem = "👑 Premium" if int(time.time()) < (prem_until or 0) else "⚪ Standard"
-            embed.add_field(
-                name=f"👤 {uname}",
-                value=f"💎 **{gems:,} Gems** | 🧪 **{dust:,} Dust** | 🎴 **{card_count} Cards** | {is_prem}",
-                inline=False
-            )
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @commands.command(name="users")
     async def users_prefix(self, ctx):
-        from config import BOT_OWNER_IDS
         if ctx.author.id not in BOT_OWNER_IDS:
             await ctx.send("Coo coo! ⚠️ This command is restricted to the Bot Owner!")
             return
 
-        import time
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT u.user_id, u.gems, u.dust, u.premium_until, (SELECT COUNT(*) FROM inventory i WHERE i.user_id = u.user_id) FROM users u")
-        rows = cursor.fetchall()
-        release_connection(conn)
-
-        if not rows:
+        embed = self.build_users_overview()
+        if embed is None:
             await ctx.send("Coo coo! 📭 No users found in the database yet!")
             return
-
-        embed = discord.Embed(
-            title="👥 Database Users Overview",
-            description=f"Total Registered Users: **{len(rows)}**",
-            color=discord.Color.blue()
-        )
-
-        for row in rows[:15]:
-            uid, gems, dust, prem_until, card_count = row
-            user_obj = self.bot.get_user(uid)
-            uname = user_obj.display_name if user_obj else f"User ID: {uid}"
-            is_prem = "👑 Premium" if int(time.time()) < (prem_until or 0) else "⚪ Standard"
-            embed.add_field(
-                name=f"👤 {uname}",
-                value=f"💎 **{gems:,} Gems** | 🧪 **{dust:,} Dust** | 🎴 **{card_count} Cards** | {is_prem}",
-                inline=False
-            )
 
         await ctx.send(embed=embed)
 

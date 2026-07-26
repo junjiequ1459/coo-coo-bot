@@ -1,6 +1,9 @@
 import os
 import time
 from psycopg2.pool import SimpleConnectionPool
+from dotenv import load_dotenv
+
+load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 

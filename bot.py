@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from config import TOKEN
-from cogs.utilities import ColorPickerView
+from cogs.views.colors import ColorPickerView
 
 # ==========================================
 # 🤖 BOT DISCORD CLIENT SETUP & HEALTHCHECK
@@ -18,6 +18,9 @@ async def get_prefix(bot, message):
     return commands.when_mentioned_or("!", "")(bot, message)
 
 bot = commands.Bot(command_prefix=get_prefix, intents=intents, help_command=None, case_insensitive=True)
+commands_synced = False
+healthcheck_task = None
+persistent_views_registered = False
 
 async def handle_healthcheck(request):
     return web.Response(text="Coo Coo Bot is Healthy and Online 24/7! 🐦🎴")
@@ -35,8 +38,18 @@ async def start_healthcheck_server():
 
 @bot.event
 async def on_ready():
+    global commands_synced, healthcheck_task, persistent_views_registered
     print(f"🐦 Coo Coo is ONLINE as {bot.user.name} ({bot.user.id})!")
-    bot.loop.create_task(start_healthcheck_server())
+
+    if healthcheck_task is None:
+        healthcheck_task = asyncio.create_task(start_healthcheck_server())
+
+    if not persistent_views_registered:
+        bot.add_view(ColorPickerView())
+        persistent_views_registered = True
+
+    if commands_synced:
+        return
     
     # 1. Clear duplicate guild-level overrides from all servers
     for guild in bot.guilds:
@@ -51,10 +64,9 @@ async def on_ready():
     try:
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} Global Slash Commands to Discord (Zero Duplicates)!")
+        commands_synced = True
     except Exception as e:
         print(f"Global tree sync error: {e}")
-
-    bot.add_view(ColorPickerView())
 
 @bot.event
 async def on_message(message):
