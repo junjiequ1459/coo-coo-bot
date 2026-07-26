@@ -124,7 +124,44 @@ class UtilitiesCog(commands.Cog):
 
     async def send_help_menu(self, ctx_or_interaction):
         embed = discord.Embed(
-            title="🐦 Coo Coo Bot — Official Command & Rule Guide",
+            title="🐦 Coo Coo Quick Help",
+            description=(
+                "Collect cards, build your binder, and trade with friends.\n\n"
+                "Use **`/docs`** for the complete command and game guide."
+            ),
+            color=discord.Color.gold(),
+        )
+        embed.add_field(
+            name="🎴 Start Here",
+            value=(
+                "• **`/drop`** — Drop three cards\n"
+                "• **`/collection`** — View your card binder\n"
+                "• **`/card`** — View a card\n"
+                "• **`/inventory`** — View items and currencies\n"
+                "• **`/shop`** — Open the shop\n"
+                "• **`/trade`** — Trade with another member"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="⌨️ Shortcuts",
+            value=(
+                "Aliases up to three letters work without a prefix, such as "
+                "**`d`**, **`lu`**, **`cd`**, **`slu`**, and **`bal`**.\n"
+                "Longer text commands require **`!`**, such as **`!drop`**."
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Use /docs to see every command and rule.")
+
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.followup.send(embed=embed)
+        else:
+            await ctx_or_interaction.send(embed=embed)
+
+    async def send_docs_menu(self, ctx_or_interaction):
+        embed = discord.Embed(
+            title="📖 Coo Coo Bot — Complete Command & Rule Guide",
             description="Welcome to Coo Coo! Below is a complete list of commands, shortcuts, and card mechanics.",
             color=discord.Color.gold()
         )
@@ -231,17 +268,6 @@ class UtilitiesCog(commands.Cog):
             inline=False
         )
 
-        embed.add_field(
-            name="🎨 Server Utilities & Pigeon Wisdom",
-            value=(
-                "• **`!setup-colors`** or **`/setup-colors`** — Custom name color menu.\n"
-                "• **`!coo`** or **`/coo`** — Pigeon wisdom from NYC sidewalk!"
-            ),
-            inline=False
-        )
-
-        embed.set_footer(text="Coo Coo Bot • Anime Card, Tagging & Dusting Engine")
-
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.followup.send(embed=embed)
         else:
@@ -262,6 +288,18 @@ class UtilitiesCog(commands.Cog):
     @commands.command(name="h")
     async def help_prefix_h(self, ctx):
         await self.send_help_menu(ctx)
+
+    @app_commands.command(name="docs", description="Displays the complete Coo Coo command and game guide")
+    async def docs_slash(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        await self.send_docs_menu(interaction)
+
+    @commands.command(name="docs")
+    async def docs_prefix(self, ctx):
+        await self.send_docs_menu(ctx)
 
     @commands.command(name="setup-colors")
     async def setup_colors_prefix(self, ctx):

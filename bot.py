@@ -15,7 +15,12 @@ intents.message_content = True
 intents.members = True
 
 async def get_prefix(bot, message):
-    return commands.when_mentioned_or("!", "")(bot, message)
+    prefixes = ["!"]
+    message_words = message.content.lstrip().split(maxsplit=1)
+    command_word = message_words[0] if message_words else ""
+    if 0 < len(command_word) <= 3:
+        prefixes.append("")
+    return commands.when_mentioned_or(*prefixes)(bot, message)
 
 bot = commands.Bot(command_prefix=get_prefix, intents=intents, help_command=None, case_insensitive=True)
 commands_synced = False
