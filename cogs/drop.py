@@ -288,6 +288,7 @@ class DropCog(commands.Cog):
         await self.execute_card_drop(ctx, ctx.author, forced_character=char_name, bypass_cooldown=True)
 
     @app_commands.command(name="forcedrop", description="[Owner Only] Force a 3-card drop featuring a specific character")
+    @app_commands.default_permissions(administrator=True)
     async def force_drop_slash(self, interaction: discord.Interaction, character: str = None, target: discord.User = None):
         from config import BOT_OWNER_IDS
         if interaction.user.id not in BOT_OWNER_IDS:

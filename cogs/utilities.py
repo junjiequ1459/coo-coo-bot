@@ -132,28 +132,12 @@ class UtilitiesCog(commands.Cog):
             )
             return
 
-        profile = None
-        try:
-            profile = await self.bot.fetch_user(member.id)
-        except discord.HTTPException as error:
-            print(f"⚠️ Could not fetch {member}'s profile banner: {error}")
-
-        accent_color = (
-            profile.accent_color
-            if profile is not None and profile.accent_color is not None
-            else discord.Color.from_rgb(247, 193, 64)
-        )
         embed = discord.Embed(
             title=f"Welcome, {member.display_name}!",
-            color=accent_color,
+            color=discord.Color.from_rgb(247, 193, 64),
             timestamp=discord.utils.utcnow(),
         )
         embed.set_thumbnail(url=member.display_avatar.url)
-
-        banner = profile.banner if profile is not None else None
-        banner = banner or member.guild.banner or member.guild.splash
-        if banner is not None:
-            embed.set_image(url=banner.url)
 
         member_number = member.guild.member_count or len(member.guild.members)
         embed.set_footer(
@@ -368,6 +352,7 @@ class UtilitiesCog(commands.Cog):
         await interaction.followup.send(f"🐦 **Coo Coo**: {msg}")
 
     @app_commands.command(name="users", description="[Owner Only] View all registered users and their balances in the database")
+    @app_commands.default_permissions(administrator=True)
     async def users_slash(self, interaction: discord.Interaction):
         from config import BOT_OWNER_IDS
         if interaction.user.id not in BOT_OWNER_IDS:

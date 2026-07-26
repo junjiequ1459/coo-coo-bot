@@ -160,6 +160,7 @@ class EconomyCog(commands.Cog):
 
     # --- COMMAND HANDLERS ---
     @app_commands.command(name="givegems", description="[Owner Only] Grant Gems directly to any user")
+    @app_commands.default_permissions(administrator=True)
     async def givegems_slash(self, interaction: discord.Interaction, target: discord.User, amount: int):
         try:
             await interaction.response.defer()
