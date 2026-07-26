@@ -3,7 +3,7 @@ import os
 import asyncio
 import math
 import aiohttp
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 # ==========================================
 # 🔤 FONT LOADING
@@ -246,6 +246,80 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
                              radius=8, fill=(116, 122, 132), outline=(150, 156, 166), width=1)
 
+    # Directional metallic lighting: bright upper-left, shaded lower-right.
+    frame_mask = Image.new("L", (card_w, card_h), 0)
+    mask_draw = ImageDraw.Draw(frame_mask)
+    mask_draw.rounded_rectangle(
+        [0, 0, card_w - 1, card_h - 1],
+        radius=frame_r,
+        fill=255,
+    )
+    mask_draw.rounded_rectangle(
+        [view_x - 1, view_y - 1, view_x + view_w, view_y + view_h],
+        radius=9,
+        fill=0,
+    )
+
+    light_layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    light_draw = ImageDraw.Draw(light_layer)
+    light_draw.ellipse(
+        [
+            -card_w // 2,
+            -card_h // 3,
+            round(card_w * 0.9),
+            round(card_h * 0.72),
+        ],
+        fill=(255, 255, 255, 105),
+    )
+    light_layer = light_layer.filter(
+        ImageFilter.GaussianBlur(max(8, frame_width))
+    )
+    light_layer.putalpha(
+        ImageChops.multiply(light_layer.getchannel("A"), frame_mask)
+    )
+    frame_img = Image.alpha_composite(frame_img, light_layer)
+
+    shade_layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    shade_draw = ImageDraw.Draw(shade_layer)
+    shade_draw.ellipse(
+        [
+            round(card_w * 0.28),
+            round(card_h * 0.38),
+            round(card_w * 1.45),
+            round(card_h * 1.38),
+        ],
+        fill=(42, 47, 58, 55),
+    )
+    shade_layer = shade_layer.filter(
+        ImageFilter.GaussianBlur(max(8, frame_width))
+    )
+    shade_layer.putalpha(
+        ImageChops.multiply(shade_layer.getchannel("A"), frame_mask)
+    )
+    frame_img = Image.alpha_composite(frame_img, shade_layer)
+
+    lit_frame_draw = ImageDraw.Draw(frame_img)
+    lit_frame_draw.line(
+        [(frame_r, 2), (card_w - frame_r, 2)],
+        fill=(248, 250, 253, 210),
+        width=1,
+    )
+    lit_frame_draw.line(
+        [(2, frame_r), (2, card_h - frame_r)],
+        fill=(248, 250, 253, 185),
+        width=1,
+    )
+    lit_frame_draw.line(
+        [(frame_r, card_h - 3), (card_w - frame_r, card_h - 3)],
+        fill=(83, 89, 100, 170),
+        width=1,
+    )
+    lit_frame_draw.line(
+        [(card_w - 3, frame_r), (card_w - 3, card_h - frame_r)],
+        fill=(83, 89, 100, 150),
+        width=1,
+    )
+
     canvas.paste(frame_img, (x, y), frame_img)
 
     content_x = x + view_x
@@ -350,6 +424,40 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
             [(0, panel_y), (content_w - 1, panel_y)],
             fill=panel_color + (255,),
         )
+
+    panel_light = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
+    panel_light_draw = ImageDraw.Draw(panel_light)
+    panel_light_draw.ellipse(
+        [
+            -content_w // 2,
+            -bot_h,
+            round(content_w * 0.9),
+            round(bot_h * 1.2),
+        ],
+        fill=(255, 255, 245, 75),
+    )
+    panel_light = panel_light.filter(
+        ImageFilter.GaussianBlur(max(6, bot_h // 8))
+    )
+    bot_overlay = Image.alpha_composite(bot_overlay, panel_light)
+
+    panel_shade = Image.new("RGBA", (content_w, bot_h), (0, 0, 0, 0))
+    panel_shade_draw = ImageDraw.Draw(panel_shade)
+    panel_shade_draw.ellipse(
+        [
+            round(content_w * 0.35),
+            round(bot_h * 0.15),
+            round(content_w * 1.45),
+            round(bot_h * 1.65),
+        ],
+        fill=(115, 75, 20, 42),
+    )
+    panel_shade = panel_shade.filter(
+        ImageFilter.GaussianBlur(max(6, bot_h // 8))
+    )
+    bot_overlay = Image.alpha_composite(bot_overlay, panel_shade)
+
+    bo_draw = ImageDraw.Draw(bot_overlay)
     bo_draw.line([(0, 0), (content_w - 1, 0)], fill=(104, 83, 43, 225), width=2)
 
     canvas.paste(bot_overlay, (content_x, bot_y), bot_overlay)
