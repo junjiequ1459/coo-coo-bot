@@ -217,13 +217,6 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     f_draw.rounded_rectangle(
         [0, 0, card_w - 1, card_h - 1],
         radius=frame_r,
-        fill=(54, 58, 65),
-        outline=(16, 17, 20),
-        width=2,
-    )
-    f_draw.rounded_rectangle(
-        [2, 2, card_w - 3, card_h - 3],
-        radius=frame_r - 2,
         fill=(174, 180, 190),
         outline=(224, 228, 235),
         width=2,
@@ -238,7 +231,7 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     f_draw.rounded_rectangle(
         [10, 10, card_w - 11, card_h - 11],
         radius=frame_r - 10,
-        fill=(48, 52, 60),
+        fill=(150, 156, 166),
         outline=(202, 207, 216),
         width=2,
     )
@@ -247,11 +240,11 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     view_x, view_y = pad, pad
     view_w, view_h = card_w - pad * 2, card_h - pad * 2
 
-    # Inner Viewport Box Fill (Neutral dark border, no colored accent)
+    # Silver-gray inner edge with no black ring between frame and artwork.
     f_draw.rounded_rectangle([view_x - 3, view_y - 3, view_x + view_w + 2, view_y + view_h + 2],
-                             radius=11, fill=(28, 30, 35), outline=(8, 9, 11), width=2)
+                             radius=11, fill=(150, 156, 166), outline=(202, 207, 216), width=2)
     f_draw.rounded_rectangle([view_x, view_y, view_x + view_w - 1, view_y + view_h - 1],
-                             radius=8, fill=(18, 19, 22), outline=(73, 78, 87), width=1)
+                             radius=8, fill=(116, 122, 132), outline=(150, 156, 166), width=1)
 
     canvas.paste(frame_img, (x, y), frame_img)
 
@@ -323,6 +316,10 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
     ed_th = ed_bbox[3] - ed_bbox[1] if ed_bbox else 12
     ed_pw = ed_tw + 16
     ed_ph = ed_th + 6
+
+    # Keep the left card-code badge and right edition badge identical in size.
+    badge_pw = ed_pw = max(badge_pw, ed_pw)
+    badge_ph = ed_ph = max(badge_ph, ed_ph)
 
     # 3. Compact opaque overlay, expanding only when wrapped text needs it.
     base_panel_h = max(100, int(content_h * 0.24))
