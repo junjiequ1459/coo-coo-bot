@@ -65,15 +65,16 @@ def draw_rarity_gem(
         (center_x - half_width, center_y - half_height // 3),
     ]
 
-    if "mythic" in rarity or "exalted" in rarity:
-        rainbow_facets = [
-            (255, 74, 86),
-            (255, 157, 48),
-            (255, 220, 64),
-            (62, 210, 112),
-            (45, 170, 255),
-            (176, 93, 255),
-        ]
+    rainbow_facets = [
+        (255, 74, 86),
+        (255, 157, 48),
+        (255, 220, 64),
+        (62, 210, 112),
+        (45, 170, 255),
+        (176, 93, 255),
+    ]
+
+    if "exalted" in rarity:
         star_radius = max(half_width, half_height)
         star_scale_x = star_radius / math.cos(math.pi / 6)
         star_points = []
@@ -98,6 +99,23 @@ def draw_rarity_gem(
             )
         draw.line(
             star_points + [star_points[0]],
+            fill=(18, 18, 18),
+            width=1,
+        )
+        return
+
+    if "mythic" in rarity:
+        for index in range(6):
+            draw.polygon(
+                [
+                    center,
+                    gem_points[index],
+                    gem_points[(index + 1) % 6],
+                ],
+                fill=rainbow_facets[index],
+            )
+        draw.line(
+            gem_points + [gem_points[0]],
             fill=(18, 18, 18),
             width=1,
         )
