@@ -183,30 +183,3 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
         gem_half_w,
         gem_half_h,
     )
-
-    # Top Right Exalted Badge
-    if rarity_str == "exalted":
-        badge_text = "🌟 EXALTED"
-        b_box = font_badge.getbbox(badge_text)
-        b_tw = b_box[2] - b_box[0] if b_box else len(badge_text) * 7
-        b_th = b_box[3] - b_box[1] if b_box else 12
-        b_w = b_tw + 16
-        b_h = b_th + 6
-
-        b_x = content_x + content_w - b_w - 6
-        b_y = content_y + 6
-
-        draw.rounded_rectangle(
-            [b_x, b_y, b_x + b_w, b_y + b_h],
-            radius=6,
-            fill=(24, 25, 27, 230),
-            outline=(255, 215, 0, 150),
-            width=1
-        )
-        draw.text(
-            (b_x + b_w // 2, b_y + b_h // 2 - (b_th // 2)),
-            badge_text,
-            fill=(255, 215, 0),
-            font=font_badge,
-            anchor="mm"
-        )

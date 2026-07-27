@@ -180,27 +180,33 @@ def create_exalted_frame(
     # Convert hue (0.0 to 1.0) to RGB for the inner rainbow border
     r, g, b = [int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 1.0)]
     rainbow_color = (r, g, b, 255)
+    
+    dr, dg, db = [int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 0.7)]
+    dark_rainbow = (dr, dg, db, 255)
+    
+    ddr, ddg, ddb = [int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 0.4)]
+    darker_rainbow = (ddr, ddg, ddb, 255)
 
-    # Darker base layers to make the rainbow pop
+    # Base layers that pulse with the rainbow hue
     draw.rounded_rectangle(
         [0, 0, card_width - 1, card_height - 1],
         radius=frame_radius,
-        fill=(32, 35, 41),
-        outline=(85, 92, 106),
+        fill=darker_rainbow,
+        outline=rainbow_color,
         width=2,
     )
     draw.rounded_rectangle(
         [6, 6, card_width - 7, card_height - 7],
         radius=frame_radius - 6,
-        fill=(20, 22, 26),
-        outline=(45, 48, 56),
+        fill=dark_rainbow,
+        outline=rainbow_color,
         width=2,
     )
     draw.rounded_rectangle(
         [10, 10, card_width - 11, card_height - 11],
         radius=frame_radius - 10,
-        fill=(28, 30, 36),
-        outline=(52, 57, 66),
+        fill=darker_rainbow,
+        outline=rainbow_color,
         width=2,
     )
 
@@ -208,7 +214,7 @@ def create_exalted_frame(
     view_width = card_width - frame_width * 2
     view_height = card_height - frame_width * 2
 
-    # Inner border (dark base)
+    # Inner border
     draw.rounded_rectangle(
         [
             view_x - 3,
@@ -217,8 +223,8 @@ def create_exalted_frame(
             view_y + view_height + 2,
         ],
         radius=11,
-        fill=(28, 30, 36),
-        outline=(60, 65, 75),
+        fill=darker_rainbow,
+        outline=rainbow_color,
         width=2,
     )
 
@@ -233,7 +239,7 @@ def create_exalted_frame(
         radius=8,
         fill=(14, 15, 18),
         outline=rainbow_color,
-        width=2,  # Thicker so the rainbow is visible
+        width=2,
     )
 
     frame_mask = Image.new("L", (card_width, card_height), 0)
