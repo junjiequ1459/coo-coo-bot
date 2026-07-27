@@ -10,6 +10,79 @@ from database import (
     add_user_premium, save_card_to_inventory, generate_card_code, get_next_mint
 )
 
+async def _execute_card_spawn(ctx_or_interaction, target: discord.User, row: tuple):
+    char_name, series, img_url, rarity = row
+    mint_num = get_next_mint(char_name)
+    code = generate_card_code()
+
+    save_card_to_inventory(
+        user_id=target.id,
+        code=code,
+        character_name=char_name,
+        series_name=series,
+        image_url=img_url,
+        rarity=rarity,
+        mint_number=mint_num,
+        edition=1
+    )
+
+    embed = discord.Embed(
+        title=f"👑 Admin Grant: Card Spawner",
+        description=(
+            f"Spawned & granted card to {target.mention}!\n\n"
+            f"🎴 **{char_name}** ({display_rarity(rarity)})\n"
+            f"📺 **Series:** {series}\n"
+            f"🆔 **Card ID:** `{code}` | **Print:** #{mint_num}"
+        ),
+        color=discord.Color.green()
+    )
+    if isinstance(ctx_or_interaction, discord.Interaction):
+        if not ctx_or_interaction.response.is_done():
+            await ctx_or_interaction.response.send_message(embed=embed)
+        else:
+            await ctx_or_interaction.followup.send(embed=embed)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+class AdminSpawnSelect(discord.ui.Select):
+    def __init__(self, target: discord.User, rows: list[tuple], ctx_or_interaction):
+        self.target = target
+        self.rows = rows
+        self.ctx_or_interaction = ctx_or_interaction
+        
+        options = []
+        for i, row in enumerate(rows):
+            char_name, series, img_url, rarity = row
+            options.append(discord.SelectOption(
+                label=f"{char_name}",
+                description=f"{series} • {rarity}",
+                value=str(i)
+            ))
+        
+        super().__init__(placeholder="Multiple characters found. Select one to spawn...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        ctx_user = self.ctx_or_interaction.user if isinstance(self.ctx_or_interaction, discord.Interaction) else self.ctx_or_interaction.author
+        if interaction.user.id != ctx_user.id:
+            await interaction.response.send_message("Coo coo! You can't use this menu!", ephemeral=True)
+            return
+
+        selected_idx = int(self.values[0])
+        row = self.rows[selected_idx]
+        
+        await interaction.response.defer()
+        
+        for child in self.view.children:
+            child.disabled = True
+        await interaction.message.edit(view=self.view)
+        
+        await _execute_card_spawn(interaction, self.target, row)
+
+class AdminSpawnSelectView(discord.ui.View):
+    def __init__(self, target: discord.User, rows: list[tuple], ctx_or_interaction):
+        super().__init__(timeout=60)
+        self.add_item(AdminSpawnSelect(target, rows, ctx_or_interaction))
+
 class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -103,11 +176,11 @@ class AdminCog(commands.Cog):
         conn = get_connection()
         cursor = conn.cursor()
         query_str = f"%{character_query.strip().lower()}%"
-        cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) ILIKE %s ORDER BY favourites DESC LIMIT 1", (query_str,))
-        row = cursor.fetchone()
+        cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) ILIKE %s ORDER BY favourites DESC LIMIT 25", (query_str,))
+        rows = cursor.fetchall()
         release_connection(conn)
 
-        if not row:
+        if not rows:
             msg = f"Coo coo! ⚠️ Character matching `{character_query}` not found in master database pool!"
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(msg, ephemeral=True)
@@ -115,35 +188,15 @@ class AdminCog(commands.Cog):
                 await ctx_or_interaction.send(msg)
             return
 
-        char_name, series, img_url, rarity = row
-        mint_num = get_next_mint(char_name)
-        code = generate_card_code()
-
-        save_card_to_inventory(
-            user_id=target.id,
-            code=code,
-            character_name=char_name,
-            series_name=series,
-            image_url=img_url,
-            rarity=rarity,
-            mint_number=mint_num,
-            edition=1
-        )
-
-        embed = discord.Embed(
-            title=f"👑 Admin Grant: Card Spawner",
-            description=(
-                f"Spawned & granted card to {target.mention}!\n\n"
-                f"🎴 **{char_name}** ({display_rarity(rarity)})\n"
-                f"📺 **Series:** {series}\n"
-                f"🆔 **Card ID:** `{code}` | **Print:** #{mint_num}"
-            ),
-            color=discord.Color.green()
-        )
-        if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed)
+        if len(rows) == 1:
+            await _execute_card_spawn(ctx_or_interaction, target, rows[0])
         else:
-            await ctx_or_interaction.send(embed=embed)
+            view = AdminSpawnSelectView(target, rows, ctx_or_interaction)
+            msg = f"🔍 Found multiple characters matching `{character_query}`. Please select which one to spawn:"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.followup.send(msg, view=view)
+            else:
+                await ctx_or_interaction.send(msg, view=view)
 
     # --- UNIFIED PREFIX COMMAND GROUP ---
     @commands.group(name="give", invoke_without_command=True)
