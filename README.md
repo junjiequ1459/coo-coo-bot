@@ -51,3 +51,7 @@ cd /Users/user/Desktop/coo-coo-bot
 ## ☁️ Cloud Deployment (Railway)
 
 Coo Coo includes `requirements.txt` and `Procfile` ready for automatic worker deployment on Railway!
+
+
+--- 
+*Triggering manual redeploy*
