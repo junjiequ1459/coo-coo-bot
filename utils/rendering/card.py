@@ -55,7 +55,10 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
         or card_data.get("character_name")
         or "Citlali"
     )
-
+    
+    # Strip " EX" from the end of the name purely for visual display
+    if char_name.endswith(" EX"):
+        char_name = char_name[:-3]
     font_series, series_lines = _prepare_wrapped_text(
         font_series,
         series_name,
