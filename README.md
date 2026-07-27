@@ -6,10 +6,13 @@ Coo Coo is a Karuta-style anime and game card-collecting Discord bot powered by 
 
 ## 🎴 Features & Mechanics
 
-- **⚡ 10,000+ Supabase Character Pool**: PostgreSQL-backed card drops covering top Anime, Manga, Genshin Impact, and Honkai: Star Rail characters.
+- **⚡ 10,000+ Character Pool**: PostgreSQL-backed card drops covering top Anime, Manga, Genshin Impact, Wuthering Waves, and Honkai: Star Rail characters.
+- **🖼️ Automated Scrapers**: Included scripts like `update_wuwa_cards.py` to automatically hit the Fandom MediaWiki API and update missing character artworks in bulk.
+- **✨ Animated GIF Support**: Supports fully animated cards in Discord! Exalted cards have custom artificially generated frames to cycle through rainbow borders.
 - **🎲 Gacha Rarity Distribution**:
-  - `🌈 Mythic` — **0.1%**
-  - `✨ Legendary` — **0.5%**
+  - `🌟 Exalted` — **0.005%**
+  - `✨ Mythic` — **0.1%**
+  - `🟡 Legendary` — **0.5%**
   - `🟣 Epic` — **5%**
   - `🔷 Rare` — **10%**
   - `⚪ Common` — **84.4%**
