@@ -1,3 +1,4 @@
+import asyncio
 import time
 import random
 import discord
@@ -29,116 +30,141 @@ class CardGrabButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: CardDropView = self.view
-        if view.claimed:
-            await interaction.response.send_message("Coo coo! ⚠️ This drop has already been claimed!", ephemeral=True)
-            return
+        async with view.lock:
+            if self.index in view.claimed_by:
+                await interaction.response.send_message("Coo coo! ⚠️ This card has already been claimed!", ephemeral=True)
+                return
 
-        now_ts = int(time.time())
+            now_ts = int(time.time())
 
-        # Check Grab Cooldown (5 Minutes, or 2.5 Minutes for Premium)
-        _, l_grab, _ = get_user_cooldowns(interaction.user.id)
-        _, g_cd = get_effective_cooldowns(interaction.user.id)
-        elapsed_grab = now_ts - l_grab
-        used_grab_ticket = False
-        if elapsed_grab < g_cd:
-            g_tickets = get_user_grab_tickets(interaction.user.id)
-            if g_tickets > 0:
-                add_user_grab_tickets(interaction.user.id, -1)
-                used_grab_ticket = True
-            else:
-                rem = g_cd - elapsed_grab
-                mins = rem // 60
-                secs = rem % 60
+            # Check Grab Cooldown (5 Minutes, or 2.5 Minutes for Premium)
+            _, l_grab, _ = get_user_cooldowns(interaction.user.id)
+            _, g_cd = get_effective_cooldowns(interaction.user.id)
+            elapsed_grab = now_ts - l_grab
+            used_grab_ticket = False
+            if elapsed_grab < g_cd:
+                g_tickets = get_user_grab_tickets(interaction.user.id)
+                if g_tickets > 0:
+                    add_user_grab_tickets(interaction.user.id, -1)
+                    used_grab_ticket = True
+                else:
+                    rem = g_cd - elapsed_grab
+                    mins = rem // 60
+                    secs = rem % 60
+                    await interaction.response.send_message(
+                        f"Coo coo! ⏳ Your **Grab** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to view your cooldowns or `/shop` to buy Grab Tickets 🖐️!",
+                        ephemeral=True
+                    )
+                    return
+
+            # Check Exclusive Priority Window for the Dropper
+            elapsed_drop = time.time() - view.drop_time
+            if elapsed_drop < DROP_PRIORITY_SEC and interaction.user.id != view.dropper_id:
+                rem_prio = int(DROP_PRIORITY_SEC - elapsed_drop) + 1
                 await interaction.response.send_message(
-                    f"Coo coo! ⏳ Your **Grab** is on cooldown! Return in **{mins}m {secs}s**! Type `!cd` to view your cooldowns or `/shop` to buy Grab Tickets 🖐️!",
+                    f"Coo coo! ⏳ <@{view.dropper_id}> has **{int(DROP_PRIORITY_SEC)} seconds of exclusive drop priority**! ({rem_prio}s remaining)",
                     ephemeral=True
                 )
                 return
 
-        # Check Exclusive Priority Window for the Dropper
-        elapsed_drop = time.time() - view.drop_time
-        if elapsed_drop < DROP_PRIORITY_SEC and interaction.user.id != view.dropper_id:
-            rem_prio = int(DROP_PRIORITY_SEC - elapsed_drop) + 1
-            await interaction.response.send_message(
-                f"Coo coo! ⏳ <@{view.dropper_id}> has **{int(DROP_PRIORITY_SEC)} seconds of exclusive drop priority**! ({rem_prio}s remaining)",
-                ephemeral=True
+            view.claimed_by[self.index] = interaction.user.display_name
+            if not used_grab_ticket:
+                set_user_cooldown(interaction.user.id, "grab", now_ts)
+            
+            self.disabled = True
+            self.label = f"Card {self.index + 1}: {interaction.user.display_name}"
+            self.style = discord.ButtonStyle.success
+
+            q_val = self.card_info.get("quality") or roll_card_quality()
+            self.card_info["quality"] = q_val
+
+            save_card_to_inventory(
+                user_id=interaction.user.id,
+                code=self.card_info["code"],
+                character_name=self.card_info["name"],
+                series_name=self.card_info["series"],
+                image_url=self.card_info["image"],
+                rarity=self.card_info["rarity"],
+                mint_number=self.card_info["temp_mint"],
+                edition=1,
+                quality=q_val,
+                dropped_by=view.dropper_id,
+                frame="default",
             )
-            return
 
-        view.claimed = True
-        if not used_grab_ticket:
-            set_user_cooldown(interaction.user.id, "grab", now_ts)
-        
-        for child in view.children:
-            child.disabled = True
-            if child == self:
-                child.label = f"Claimed by {interaction.user.display_name}"
-                child.style = discord.ButtonStyle.success
+            if used_grab_ticket:
+                rem_gt = get_user_grab_tickets(interaction.user.id)
+                try:
+                    await interaction.channel.send(
+                        f"🖐️ {interaction.user.mention} used an **Extra Grab Ticket**! Grab cooldown bypassed! ({rem_gt} tickets remaining)"
+                    )
+                except Exception:
+                    pass
 
-        q_val = self.card_info.get("quality") or roll_card_quality()
-        self.card_info["quality"] = q_val
+            await interaction.response.edit_message(embed=view.build_embed(), view=view)
+            await interaction.followup.send(
+                f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']} • {q_val}**)! `Card ID: {self.card_info['code']}`"
+            )
 
-        save_card_to_inventory(
-            user_id=interaction.user.id,
-            code=self.card_info["code"],
-            character_name=self.card_info["name"],
-            series_name=self.card_info["series"],
-            image_url=self.card_info["image"],
-            rarity=self.card_info["rarity"],
-            mint_number=self.card_info["temp_mint"],
-            edition=1,
-            quality=q_val,
-            dropped_by=view.dropper_id,
-            frame="default",
-        )
-
-        embed = discord.Embed(
-            title=f"🎉 Claimed: {self.card_info['name']}",
-            description=(
-                f"👤 **Claimed by:** {interaction.user.mention}\n"
-                f"📺 **Series:** {self.card_info['series']}\n"
-                f"🌟 **Quality:** {q_val}\n"
-                f"🆔 **Card ID:** `{self.card_info['code']}`"
-            ),
-            color=discord.Color.gold()
-        )
-
-        if used_grab_ticket:
-            rem_gt = get_user_grab_tickets(interaction.user.id)
-            try:
-                await interaction.channel.send(
-                    f"🖐️ {interaction.user.mention} used an **Extra Grab Ticket**! Grab cooldown bypassed! ({rem_gt} tickets remaining)"
-                )
-            except Exception:
-                pass
-
-        await interaction.response.edit_message(embeds=[embed], view=view)
-        await interaction.followup.send(
-            f"🎉 {interaction.user.mention} grabbed **{self.card_info['name']}** (**Edition 1 • Print #{self.card_info['temp_mint']} • {q_val}**)! `Card ID: {self.card_info['code']}`"
-        )
 
 class CardDropView(discord.ui.View):
-    def __init__(self, cards: list, dropper_id: int):
+    def __init__(self, cards: list, dropper_user, used_ticket: bool = False):
         super().__init__(timeout=DROP_CLAIM_TIMEOUT_SEC)
+        self.lock = asyncio.Lock()
         self.cards = cards
-        self.dropper_id = dropper_id
+        self.dropper_user = dropper_user
+        self.dropper_id = dropper_user.id
+        self.used_ticket = used_ticket
         self.drop_time = time.time()
-        self.claimed = False
+        self.claimed_by = {}
         self.message = None
         for idx, card in enumerate(cards):
             self.add_item(CardGrabButton(idx, card))
 
+    @property
+    def is_fully_claimed(self) -> bool:
+        return len(self.claimed_by) == len(self.cards)
+
+    def build_embed(self) -> discord.Embed:
+        lines = []
+        emojis = ["1️⃣", "2️⃣", "3️⃣"]
+        for idx, card in enumerate(self.cards):
+            emoji = emojis[idx]
+            if idx in self.claimed_by:
+                lines.append(f"{emoji} ~~**{card['name']}**~~ · *{card['series']}* — ✅ **Claimed by {self.claimed_by[idx]}**")
+            else:
+                lines.append(f"{emoji} **{card['name']}** · *{card['series']}*")
+        
+        ticket_text = "🎟️ **Extra Drop Ticket Used!** (Drop Cooldown Bypassed!)\n" if self.used_ticket else ""
+        
+        desc = "\n".join(lines) + f"\n\n{ticket_text}"
+        if not self.is_fully_claimed:
+            desc += f"⏳ **Priority:** {self.dropper_user.mention} has **{int(DROP_PRIORITY_SEC)} seconds of exclusive drop priority**!\nClick a button below to grab a card!"
+        else:
+            desc += "🎉 **All cards from this drop have been claimed!**"
+
+        embed = discord.Embed(
+            title=f"🎴 {self.dropper_user.display_name}'s Card Drop!",
+            description=desc,
+            color=discord.Color.gold() if not self.is_fully_claimed else discord.Color.green()
+        )
+        embed.set_image(url="attachment://drop.png")
+        embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
+        return embed
+
     async def on_timeout(self):
-        if not self.claimed:
+        if not self.is_fully_claimed:
             for child in self.children:
-                child.disabled = True
-                child.label = "Drop Expired"
-                child.style = discord.ButtonStyle.secondary
+                if isinstance(child, CardGrabButton) and child.index not in self.claimed_by:
+                    child.disabled = True
+                    child.label = f"Card {child.index + 1} Expired"
+                    child.style = discord.ButtonStyle.secondary
             if self.message:
                 try:
-                    await self.message.edit(view=self)
+                    await self.message.edit(embed=self.build_embed(), view=self)
                 except Exception:
                     pass
+
 
 class DropCog(commands.Cog):
     def __init__(self, bot):
@@ -208,24 +234,8 @@ class DropCog(commands.Cog):
             buf = await render_three_cards_composite(cards)
             file = discord.File(fp=buf, filename="drop.png")
 
-            ticket_text = "🎟️ **Extra Drop Ticket Used!** (Drop Cooldown Bypassed!)\n" if used_ticket else ""
-
-            embed = discord.Embed(
-                title=f"🎴 {user.display_name}'s Card Drop!",
-                description=(
-                    f"1️⃣ **{cards[0]['name']}** · *{cards[0]['series']}*\n"
-                    f"2️⃣ **{cards[1]['name']}** · *{cards[1]['series']}*\n"
-                    f"3️⃣ **{cards[2]['name']}** · *{cards[2]['series']}*\n\n"
-                    f"{ticket_text}"
-                    f"⏳ **Priority:** {user.mention} has **{int(DROP_PRIORITY_SEC)} seconds of exclusive drop priority**!\n"
-                    f"Click a button below to grab a card!"
-                ),
-                color=discord.Color.gold()
-            )
-            embed.set_image(url="attachment://drop.png")
-            embed.set_footer(text="Coo Coo Card Engine • Side-By-Side View")
-
-            view = CardDropView(cards, dropper_id=user.id)
+            view = CardDropView(cards, dropper_user=user, used_ticket=used_ticket)
+            embed = view.build_embed()
 
             if used_ticket:
                 rem_t = get_user_drop_tickets(user.id)

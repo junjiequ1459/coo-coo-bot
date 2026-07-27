@@ -227,7 +227,7 @@ class UtilitiesCog(commands.Cog):
             name="🛠️ Repair, 🔥 Burning & 🏷️ Tagging",
             value=(
                 "• **`!repair <id>`** or **`/repair`** — Repair & upgrade card condition using Dust 🧪!\n"
-                "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic, Legendary & Mythic!).\n"
+                "• **`!burn <id>`** or **`/burn`** — Burn an unwanted card for Dust (Prompts for Epic, Legendary, Mythic & Exalted!).\n"
                 "• **`!t <name>`** or **`!tag <id> <name>`** — Assign a folder tag to a card (Defaults to latest!).\n"
                 "• **`!ut`** or **`!untag <id>`** — Remove a tag from a card (Defaults to latest!).\n"
                 "• **`!vt <tag>`** or **`!viewtag <tag>`** — View all cards in a tag folder!"
@@ -259,8 +259,9 @@ class UtilitiesCog(commands.Cog):
         embed.add_field(
             name="👑 Card Rarities & Burn Yields",
             value=(
-                "• **`🌈 Mythic` (Rainbow Gem)** — **0.1% Drop Rate** | Burns to **+500 🧪 Dust**\n"
-                "• **`✨ Legendary` (Gold Gem)** — **0.5% Drop Rate** | Burns to **+200 🧪 Dust**\n"
+                "• **`🌟 Exalted` (Star)** — **0.005% Drop Rate** | Burns to **+1000 🧪 Dust**\n"
+                "• **`✨ Mythic` (Sparkle)** — **0.1% Drop Rate** | Burns to **+500 🧪 Dust**\n"
+                "• **`🟡 Legendary` (Gold Gem)** — **0.5% Drop Rate** | Burns to **+200 🧪 Dust**\n"
                 "• **`🟣 Epic` (Purple Gem)** — **5% Drop Rate** | Burns to **+100 🧪 Dust**\n"
                 "• **`🔷 Rare` (Cyan Gem)** — **10% Drop Rate** | Burns to **+50 🧪 Dust**\n"
                 "• **`⚪ Common` (Silver Gem)** — **84.4% Drop Rate** | Burns to **+20 🧪 Dust**"

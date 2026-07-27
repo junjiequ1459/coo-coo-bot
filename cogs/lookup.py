@@ -44,8 +44,9 @@ class LookupCog(commands.Cog):
                 "image_url": iurl
             }
 
-            buf = await render_single_card(card_data)
-            file = discord.File(fp=buf, filename="card.png")
+            buf, is_gif = await render_single_card(card_data)
+            ext = "gif" if is_gif else "png"
+            file = discord.File(fp=buf, filename=f"card.{ext}")
             owner = self.bot.get_user(uid)
             owner_mention = owner.mention if owner else f"<@{uid}>"
 
@@ -154,8 +155,9 @@ class LookupCog(commands.Cog):
                     "image_url": iurl
                 }
 
-                buf = await render_single_card(card_data)
-                file = discord.File(fp=buf, filename="card.png")
+                buf, is_gif = await render_single_card(card_data)
+                ext = "gif" if is_gif else "png"
+                file = discord.File(fp=buf, filename=f"card.{ext}")
                 owner = self.bot.get_user(uid)
                 owner_mention = owner.mention if owner else f"<@{uid}>"
 
@@ -224,8 +226,9 @@ class LookupCog(commands.Cog):
                     "image_url": iurl
                 }
 
-                buf = await render_single_card(card_data)
-                file = discord.File(fp=buf, filename="card.png")
+                buf, is_gif = await render_single_card(card_data)
+                ext = "gif" if is_gif else "png"
+                file = discord.File(fp=buf, filename=f"card.{ext}")
                 owner = self.bot.get_user(uid)
                 owner_mention = owner.mention if owner else f"<@{uid}>"
 

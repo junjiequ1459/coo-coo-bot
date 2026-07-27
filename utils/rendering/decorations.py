@@ -65,7 +65,7 @@ def draw_rarity_gem(
         (center_x - half_width, center_y - half_height // 3),
     ]
 
-    if "mythic" in rarity:
+    if "mythic" in rarity or "exalted" in rarity:
         rainbow_facets = [
             (255, 74, 86),
             (255, 157, 48),

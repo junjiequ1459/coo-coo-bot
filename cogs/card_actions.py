@@ -54,7 +54,7 @@ class CardActionsCog(commands.Cog):
 
         final_dust = max(1, int(base_dust * mult))
 
-        if rarity in ["Epic", "Legendary", "Mythic"]:
+        if rarity in ["Epic", "Legendary", "Mythic", "Exalted"]:
             view = BurnConfirmView(user.id, code_str, char_name, rarity, final_dust)
             embed = discord.Embed(
                 title=f"⚠️ Are you sure you want to burn this {display_rarity(rarity)} card?",

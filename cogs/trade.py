@@ -56,10 +56,12 @@ class TradeCog(commands.Cog):
         await self.start_trade_session(interaction, partner)
 
     @commands.command(name="trade")
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def trade_prefix(self, ctx, partner: discord.User):
         await self.start_trade_session(ctx, partner)
 
     @commands.command(name="ta")
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def trade_add_prefix(self, ctx, code_or_gems: str):
         if ctx.channel.id not in ACTIVE_TRADES:
             await ctx.send("Coo coo! ⚠️ There is no active trade session in this channel!")
@@ -78,6 +80,7 @@ class TradeCog(commands.Cog):
         await session.add_card(ctx, code_or_gems)
 
     @commands.command(name="tr")
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def trade_remove_prefix(self, ctx, code_or_gems: str):
         if ctx.channel.id not in ACTIVE_TRADES:
             await ctx.send("Coo coo! ⚠️ There is no active trade session in this channel!")

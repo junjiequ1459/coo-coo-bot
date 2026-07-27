@@ -15,7 +15,7 @@ def init_pool():
         return
     for attempt in range(3):
         try:
-            _pool = SimpleConnectionPool(1, 5, dsn=DATABASE_URL)
+            _pool = SimpleConnectionPool(2, 20, dsn=DATABASE_URL)
             print("✅ PostgreSQL connection pool initialized!")
             return
         except Exception as e:

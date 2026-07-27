@@ -5,22 +5,29 @@ from utils.rendering.decorations import draw_badge, draw_rarity_gem
 from utils.rendering.fonts import (
     _font_line_height, _prepare_wrapped_text,
 )
-from utils.rendering.frame import create_metal_frame
+from utils.rendering.frame import create_metal_frame, create_exalted_frame
 from utils.rendering.panel import create_information_panel
 
 # ==========================================
 # 🖼️ DRAW CARD (Silver Metallic Border Design)
 # ==========================================
 def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h: int,
-                        raw_img: Image.Image, card_data: dict, font_title, font_series, font_badge):
+                        raw_img: Image.Image, card_data: dict, font_title, font_series, font_badge, hue: float = 0.0):
     """Draws a card with a sleek 3D silver-gray metallic outer border matching the user's mockup."""
     draw = ImageDraw.Draw(canvas)
     rarity_str = str(card_data.get("rarity", "Legendary")).lower()
 
-    frame_img, view_x, view_y, view_w, view_h = create_metal_frame(
-        card_w,
-        card_h,
-    )
+    if rarity_str == "exalted":
+        frame_img, view_x, view_y, view_w, view_h = create_exalted_frame(
+            card_w,
+            card_h,
+            hue,
+        )
+    else:
+        frame_img, view_x, view_y, view_w, view_h = create_metal_frame(
+            card_w,
+            card_h,
+        )
     canvas.paste(frame_img, (x, y), frame_img)
 
     content_x = x + view_x
@@ -176,3 +183,30 @@ def draw_card_on_canvas(canvas: Image.Image, x: int, y: int, card_w: int, card_h
         gem_half_w,
         gem_half_h,
     )
+
+    # Top Right Exalted Badge
+    if rarity_str == "exalted":
+        badge_text = "🌟 EXALTED"
+        b_box = font_badge.getbbox(badge_text)
+        b_tw = b_box[2] - b_box[0] if b_box else len(badge_text) * 7
+        b_th = b_box[3] - b_box[1] if b_box else 12
+        b_w = b_tw + 16
+        b_h = b_th + 6
+
+        b_x = content_x + content_w - b_w - 6
+        b_y = content_y + 6
+
+        draw.rounded_rectangle(
+            [b_x, b_y, b_x + b_w, b_y + b_h],
+            radius=6,
+            fill=(24, 25, 27, 230),
+            outline=(255, 215, 0, 150),
+            width=1
+        )
+        draw.text(
+            (b_x + b_w // 2, b_y + b_h // 2 - (b_th // 2)),
+            badge_text,
+            fill=(255, 215, 0),
+            font=font_badge,
+            anchor="mm"
+        )

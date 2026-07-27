@@ -17,12 +17,14 @@ RARITY_WEIGHTS = [
     ("Rare", 0.10),          # 10% Drop Rate
     ("Epic", 0.05),          #  5% Drop Rate
     ("Legendary", 0.005),    #  0.5% Drop Rate
-    ("Mythic", 0.001)        #  0.1% Drop Rate
+    ("Mythic", 0.001),       #  0.1% Drop Rate
+    ("Exalted", 0.00005)     #  0.005% Drop Rate
 ]
 
 RARITY_EMOJIS = {
-    "Mythic": "🌈",
-    "Legendary": "✨",
+    "Exalted": "🌟",
+    "Mythic": "✨",
+    "Legendary": "🟡",
     "Epic": "🟣",
     "Rare": "🔷",
     "Common": "⚪",
@@ -34,6 +36,7 @@ def display_rarity(rarity: str) -> str:
     return f"{emoji} {rarity}" if emoji else rarity
 
 BURN_REWARDS = {
+    "Exalted": {"dust": 1000},
     "Mythic": {"dust": 500},
     "Legendary": {"dust": 200},
     "Epic": {"dust": 100},

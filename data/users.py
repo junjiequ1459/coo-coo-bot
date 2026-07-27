@@ -69,22 +69,20 @@ def transfer_gems(from_user_id: int, to_user_id: int, amount: int) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT gems FROM users WHERE user_id = %s", (from_user_id,))
-        row1 = cursor.fetchone()
-        from_gems = row1[0] if row1 else 0
-
-        if from_gems < amount:
+        cursor.execute(
+            "UPDATE users SET gems = gems - %s WHERE user_id = %s AND gems >= %s",
+            (amount, from_user_id, amount)
+        )
+        if cursor.rowcount == 0:
+            conn.rollback()
             release_connection(conn)
             return False
 
-        cursor.execute("UPDATE users SET gems = gems - %s WHERE user_id = %s", (amount, from_user_id))
-
-        cursor.execute("SELECT gems FROM users WHERE user_id = %s", (to_user_id,))
-        row2 = cursor.fetchone()
-        if not row2:
-            cursor.execute("INSERT INTO users (user_id, gems, dust) VALUES (%s, %s, 0)", (to_user_id, amount))
-        else:
-            cursor.execute("UPDATE users SET gems = gems + %s WHERE user_id = %s", (amount, to_user_id))
+        cursor.execute(
+            "INSERT INTO users (user_id, gems, dust) VALUES (%s, %s, 0) "
+            "ON CONFLICT (user_id) DO UPDATE SET gems = users.gems + EXCLUDED.gems",
+            (to_user_id, amount)
+        )
 
         conn.commit()
         release_connection(conn)

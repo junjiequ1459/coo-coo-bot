@@ -127,9 +127,19 @@ def transfer_cards_between_users(user1_id: int, user1_codes: list, user2_id: int
     cursor = conn.cursor()
     try:
         for code in user1_codes:
-            cursor.execute("UPDATE inventory SET user_id = %s WHERE code = %s", (user2_id, code))
+            cursor.execute(
+                "UPDATE inventory SET user_id = %s WHERE code = %s AND user_id = %s",
+                (user2_id, code, user1_id)
+            )
+            if cursor.rowcount == 0:
+                raise Exception(f"Card {code} is no longer owned by user {user1_id}")
         for code in user2_codes:
-            cursor.execute("UPDATE inventory SET user_id = %s WHERE code = %s", (user1_id, code))
+            cursor.execute(
+                "UPDATE inventory SET user_id = %s WHERE code = %s AND user_id = %s",
+                (user1_id, code, user2_id)
+            )
+            if cursor.rowcount == 0:
+                raise Exception(f"Card {code} is no longer owned by user {user2_id}")
         conn.commit()
         release_connection(conn)
         return True

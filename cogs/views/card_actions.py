@@ -84,8 +84,9 @@ class RepairConfirmView(discord.ui.View):
         update_card_quality(self.card_data["code"], self.owner_id, self.next_quality)
 
         self.card_data["quality"] = self.next_quality
-        buf = await render_single_card(self.card_data)
-        file = discord.File(fp=buf, filename="repaired.png")
+        buf, is_gif = await render_single_card(self.card_data)
+        ext = "gif" if is_gif else "png"
+        file = discord.File(fp=buf, filename=f"repaired.{ext}")
 
         for child in self.children:
             child.disabled = True

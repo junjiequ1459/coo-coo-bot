@@ -33,9 +33,9 @@ class InventoryCog(commands.Cog):
         embed = view.build_embed()
 
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed, view=view if view.max_pages > 1 else None)
+            await ctx_or_interaction.followup.send(embed=embed, view=view if view.max_pages > 1 else discord.utils.MISSING)
         else:
-            await ctx_or_interaction.send(embed=embed, view=view if view.max_pages > 1 else None)
+            await ctx_or_interaction.send(embed=embed, view=view if view.max_pages > 1 else discord.utils.MISSING)
 
     async def process_view_card(self, ctx_or_interaction, card_code_query: str = None):
         try:
@@ -95,8 +95,9 @@ class InventoryCog(commands.Cog):
                 "image_url": img_url
             }
 
-            buf = await render_single_card(card_data)
-            file = discord.File(fp=buf, filename="card.png")
+            buf, is_gif = await render_single_card(card_data)
+            ext = "gif" if is_gif else "png"
+            file = discord.File(fp=buf, filename=f"card.{ext}")
 
             tag_disp = f"🏷️ **Tag:** `[{tag_val}]`\n" if tag_val else ""
 
