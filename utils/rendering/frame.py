@@ -177,44 +177,34 @@ def create_exalted_frame(
     )
     draw = ImageDraw.Draw(frame)
 
-    # Convert hue (0.0 to 1.0) to RGB for the inner rainbow border
-    r, g, b = [int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 1.0)]
-    rainbow_color = (r, g, b, 255)
-    
-    dr, dg, db = [int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 0.7)]
-    dark_rainbow = (dr, dg, db, 255)
-    
-    ddr, ddg, ddb = [int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 0.4)]
-    darker_rainbow = (ddr, ddg, ddb, 255)
-
-    # Base layers that pulse with the rainbow hue
+    # 1. Base dark layers (static)
     draw.rounded_rectangle(
         [0, 0, card_width - 1, card_height - 1],
         radius=frame_radius,
-        fill=darker_rainbow,
-        outline=rainbow_color,
-        width=2,
+        fill=(32, 35, 41),
+        outline=(0, 0, 0, 0),
+        width=0,
     )
     draw.rounded_rectangle(
         [6, 6, card_width - 7, card_height - 7],
         radius=frame_radius - 6,
-        fill=dark_rainbow,
-        outline=rainbow_color,
-        width=2,
+        fill=(20, 22, 26),
+        outline=(0, 0, 0, 0),
+        width=0,
     )
     draw.rounded_rectangle(
         [10, 10, card_width - 11, card_height - 11],
         radius=frame_radius - 10,
-        fill=darker_rainbow,
-        outline=rainbow_color,
-        width=2,
+        fill=(28, 30, 36),
+        outline=(0, 0, 0, 0),
+        width=0,
     )
 
     view_x = view_y = frame_width
     view_width = card_width - frame_width * 2
     view_height = card_height - frame_width * 2
 
-    # Inner border
+    # Inner border base
     draw.rounded_rectangle(
         [
             view_x - 3,
@@ -223,12 +213,11 @@ def create_exalted_frame(
             view_y + view_height + 2,
         ],
         radius=11,
-        fill=darker_rainbow,
-        outline=rainbow_color,
-        width=2,
+        fill=(28, 30, 36),
+        outline=(0, 0, 0, 0),
+        width=0,
     )
 
-    # Rainbow animated inner stroke!
     draw.rounded_rectangle(
         [
             view_x,
@@ -238,9 +227,62 @@ def create_exalted_frame(
         ],
         radius=8,
         fill=(14, 15, 18),
-        outline=rainbow_color,
+        outline=(0, 0, 0, 0),
+        width=0,
+    )
+
+    # 2. Moving Rainbow Gradient
+    rainbow_1d = Image.new("RGBA", (256, 1))
+    pixels = []
+    for i in range(256):
+        r, g, b = [int(c * 255) for c in colorsys.hsv_to_rgb(i / 256.0, 0.65, 0.9)] 
+        pixels.append((r, g, b, 255))
+    rainbow_1d.putdata(pixels)
+    
+    tex_w, tex_h = int(card_width * 2.5), int(card_height * 2.5)
+    rainbow_tex = rainbow_1d.resize((tex_w, tex_h)).rotate(45, expand=True)
+    
+    slide_dist = card_width
+    x_offset = int(hue * slide_dist)
+    y_offset = int(hue * slide_dist)
+    
+    rainbow_crop = rainbow_tex.crop((x_offset, y_offset, x_offset + card_width, y_offset + card_height))
+    
+    # 3. Mask for the strokes
+    border_mask = Image.new("L", (card_width, card_height), 0)
+    mask_draw = ImageDraw.Draw(border_mask)
+    
+    mask_draw.rounded_rectangle(
+        [0, 0, card_width - 1, card_height - 1],
+        radius=frame_radius,
+        fill=0,
+        outline=255,
+        width=4,
+    )
+    mask_draw.rounded_rectangle(
+        [6, 6, card_width - 7, card_height - 7],
+        radius=frame_radius - 6,
+        fill=0,
+        outline=200,
         width=2,
     )
+    mask_draw.rounded_rectangle(
+        [view_x - 3, view_y - 3, view_x + view_width + 2, view_y + view_height + 2],
+        radius=11,
+        fill=0,
+        outline=200,
+        width=2,
+    )
+    mask_draw.rounded_rectangle(
+        [view_x, view_y, view_x + view_width - 1, view_y + view_height - 1],
+        radius=8,
+        fill=0,
+        outline=255,
+        width=3,
+    )
+
+    rainbow_crop.putalpha(border_mask)
+    frame.alpha_composite(rainbow_crop)
 
     frame_mask = Image.new("L", (card_width, card_height), 0)
     mask_draw = ImageDraw.Draw(frame_mask)

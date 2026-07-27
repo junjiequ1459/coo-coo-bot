@@ -64,7 +64,7 @@ async def render_single_card(card_data: dict) -> tuple[io.BytesIO, bool]:
         durations = 40
     elif is_gif:
         from PIL import ImageSequence
-        frames_source = list(ImageSequence.Iterator(raw_img))
+        frames_source = [f.copy() for f in ImageSequence.Iterator(raw_img)]
         durations = raw_img.info.get('duration', 100)
     else:
         frames_source = None
