@@ -165,12 +165,77 @@ class CardDropView(discord.ui.View):
                 except Exception:
                     pass
 
+class AdminForceDropSelect(discord.ui.Select):
+    def __init__(self, drop_cog, ctx_or_interaction, user, rows: list[tuple]):
+        self.drop_cog = drop_cog
+        self.ctx_or_interaction = ctx_or_interaction
+        self.user = user
+        self.rows = rows
+        
+        options = []
+        for i, row in enumerate(rows):
+            char_name, series, img_url, rarity = row
+            options.append(discord.SelectOption(
+                label=f"{char_name}",
+                description=f"{series} • {rarity}",
+                value=str(i)
+            ))
+        
+        super().__init__(placeholder="Multiple characters found. Select one to force drop...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        ctx_user = self.ctx_or_interaction.user if isinstance(self.ctx_or_interaction, discord.Interaction) else self.ctx_or_interaction.author
+        if interaction.user.id != ctx_user.id:
+            await interaction.response.send_message("Coo coo! You can't use this menu!", ephemeral=True)
+            return
+
+        selected_idx = int(self.values[0])
+        row = self.rows[selected_idx]
+        
+        await interaction.response.defer()
+        
+        for child in self.view.children:
+            child.disabled = True
+        await interaction.message.edit(view=self.view)
+        
+        await self.drop_cog.execute_card_drop(self.ctx_or_interaction, self.user, forced_row=row, bypass_cooldown=True)
+
+class AdminForceDropSelectView(discord.ui.View):
+    def __init__(self, drop_cog, ctx_or_interaction, user, rows: list[tuple]):
+        super().__init__(timeout=60)
+        self.add_item(AdminForceDropSelect(drop_cog, ctx_or_interaction, user, rows))
+
 
 class DropCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def execute_card_drop(self, ctx_or_interaction, user, forced_character: str = None, bypass_cooldown: bool = False):
+    async def execute_card_drop(self, ctx_or_interaction, user, forced_character: str = None, forced_row: tuple = None, bypass_cooldown: bool = False):
+        if forced_character:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) ILIKE %s ORDER BY favourites DESC LIMIT 25", (f"%{forced_character.strip().lower()}%",))
+            rows = cursor.fetchall()
+            release_connection(conn)
+            
+            if not rows:
+                msg = f"Coo coo! ⚠️ Character matching `{forced_character}` not found in master pool!"
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await ctx_or_interaction.send(msg)
+                return
+            
+            if len(rows) == 1:
+                forced_row = rows[0]
+            else:
+                view = AdminForceDropSelectView(self, ctx_or_interaction, user, rows)
+                msg = f"🔍 Found multiple characters matching `{forced_character}`. Please select which one to force drop:"
+                if isinstance(ctx_or_interaction, discord.Interaction):
+                    await ctx_or_interaction.followup.send(msg, view=view)
+                else:
+                    await ctx_or_interaction.send(msg, view=view)
+                return
         try:
             now_ts = int(time.time())
             l_drop, _, _ = get_user_cooldowns(user.id)
@@ -197,25 +262,19 @@ class DropCog(commands.Cog):
 
             cards = get_cards_from_db_pool(3)
 
-            if forced_character:
-                conn = get_connection()
-                cursor = conn.cursor()
-                cursor.execute("SELECT character_name, series_name, image_url, rarity FROM cards_pool WHERE LOWER(character_name) ILIKE %s LIMIT 1", (f"%{forced_character.strip().lower()}%",))
-                row = cursor.fetchone()
-                release_connection(conn)
-                if row:
-                    fc_name, fc_series, fc_img, fc_rarity = row
-                    fc_mint = get_next_mint(fc_name)
-                    cards[0] = {
-                        "code": generate_card_code(),
-                        "name": fc_name,
-                        "series": fc_series,
-                        "image": fc_img,
-                        "rarity": fc_rarity,
-                        "quality": roll_card_quality(),
-                        "temp_mint": fc_mint,
-                        "edition": 1
-                    }
+            if forced_row:
+                fc_name, fc_series, fc_img, fc_rarity = forced_row
+                fc_mint = get_next_mint(fc_name)
+                cards[0] = {
+                    "code": generate_card_code(),
+                    "name": fc_name,
+                    "series": fc_series,
+                    "image": fc_img,
+                    "rarity": fc_rarity,
+                    "quality": roll_card_quality(),
+                    "temp_mint": fc_mint,
+                    "edition": 1
+                }
 
             if not cards or len(cards) < 3:
                 cards = await fetch_random_anilist_cards(3)

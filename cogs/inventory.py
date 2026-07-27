@@ -113,7 +113,7 @@ class InventoryCog(commands.Cog):
                 ),
                 color=discord.Color.magenta()
             )
-            embed.set_image(url="attachment://card.png")
+            embed.set_image(url=f"attachment://card.{ext}")
             embed.set_footer(text=f"Coo Coo Card Vault • Card ID: {code_str}")
 
             if isinstance(ctx_or_interaction, discord.Interaction):

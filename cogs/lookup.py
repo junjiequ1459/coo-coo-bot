@@ -61,7 +61,7 @@ class LookupCog(commands.Cog):
                 ),
                 color=discord.Color.purple()
             )
-            embed.set_image(url="attachment://card.png")
+            embed.set_image(url=f"attachment://card.{ext}")
 
             if isinstance(ctx_or_interaction, discord.Interaction):
                 await ctx_or_interaction.followup.send(embed=embed, file=file)
@@ -172,7 +172,7 @@ class LookupCog(commands.Cog):
                     ),
                     color=discord.Color.purple()
                 )
-                embed.set_image(url="attachment://card.png")
+                embed.set_image(url=f"attachment://card.{ext}")
 
                 if isinstance(ctx_or_interaction, discord.Interaction):
                     await ctx_or_interaction.followup.send(embed=embed, file=file)
@@ -243,7 +243,7 @@ class LookupCog(commands.Cog):
                     ),
                     color=discord.Color.purple()
                 )
-                embed.set_image(url="attachment://card.png")
+                embed.set_image(url=f"attachment://card.{ext}")
 
                 if isinstance(ctx_or_interaction, discord.Interaction):
                     await ctx_or_interaction.followup.send(embed=embed, file=file)

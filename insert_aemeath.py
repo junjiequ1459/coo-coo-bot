@@ -9,7 +9,7 @@ def run():
             # Check if it already exists
             cur.execute(
                 "SELECT id FROM cards_pool WHERE character_name = %s AND rarity = %s",
-                ("Aemeath", "Exalted")
+                ("Aemeath EX", "Exalted")
             )
             res = cur.fetchone()
             if not res:
@@ -20,12 +20,12 @@ def run():
                     """,
                     (
                         "Wuthering Waves",
-                        "Aemeath",
+                        "Aemeath EX",
                         "Exalted",
                         "https://static.wikia.nocookie.net/wutheringwaves/images/4/4f/Aemeath_Profile_Convene_Animation.gif"
                     )
                 )
-                print("Inserted Aemeath into cards_pool.")
+                print("Inserted Aemeath EX into cards_pool.")
             else:
                 cur.execute(
                     """
@@ -36,7 +36,7 @@ def run():
                         res[0]
                     )
                 )
-                print("Updated existing Aemeath in cards_pool.")
+                print("Updated existing Aemeath EX in cards_pool.")
             
             conn.commit()
     except Exception as e:
