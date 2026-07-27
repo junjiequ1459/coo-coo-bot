@@ -91,7 +91,8 @@ class LookupCog(commands.Cog):
             "mint_number": "?",
             "edition": 1,
             "quality": "Mint ⭐⭐⭐⭐",
-            "image_url": img_url
+            "image_url": img_url,
+            "code": "PREVIEW"
         }
         
         buf, is_gif = await render_single_card(card_data)
