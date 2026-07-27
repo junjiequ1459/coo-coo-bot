@@ -231,22 +231,29 @@ def create_exalted_frame(
         width=0,
     )
 
-    # 2. Moving Rainbow Gradient
+    # 2. Seamless Moving Rainbow Gradient
     rainbow_1d = Image.new("RGBA", (256, 1))
     pixels = []
     for i in range(256):
-        r, g, b = [int(c * 255) for c in colorsys.hsv_to_rgb(i / 256.0, 0.65, 0.9)] 
+        # Shift the hue by the offset 'hue' to animate it
+        h = ((i / 256.0) + hue) % 1.0
+        r, g, b = [int(c * 255) for c in colorsys.hsv_to_rgb(h, 0.65, 0.9)] 
         pixels.append((r, g, b, 255))
     rainbow_1d.putdata(pixels)
     
-    tex_w, tex_h = int(card_width * 2.5), int(card_height * 2.5)
-    rainbow_tex = rainbow_1d.resize((tex_w, tex_h)).rotate(45, expand=True)
+    # We want a large texture so when we rotate, it covers the card completely
+    tex_size = max(card_width, card_height) * 2
+    rainbow_tex = rainbow_1d.resize((tex_size, tex_size)).rotate(45, expand=True)
     
-    slide_dist = card_width
-    x_offset = int(hue * slide_dist)
-    y_offset = int(hue * slide_dist)
-    
-    rainbow_crop = rainbow_tex.crop((x_offset, y_offset, x_offset + card_width, y_offset + card_height))
+    # Center crop the texture so the gradient is perfectly centered over the frame
+    cx = rainbow_tex.width // 2
+    cy = rainbow_tex.height // 2
+    rainbow_crop = rainbow_tex.crop((
+        cx - card_width // 2, 
+        cy - card_height // 2, 
+        cx + card_width // 2 + (card_width % 2), 
+        cy + card_height // 2 + (card_height % 2)
+    ))
     
     # 3. Mask for the strokes
     border_mask = Image.new("L", (card_width, card_height), 0)

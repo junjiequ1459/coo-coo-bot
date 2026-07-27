@@ -22,7 +22,7 @@ async def fetch_image(session, url):
             async with session.get(url, timeout=8) as resp:
                 if resp.status == 200:
                     data = await resp.read()
-                    return Image.open(io.BytesIO(data)).convert("RGBA")
+                    return Image.open(io.BytesIO(data))
     except Exception as e:
         print(f"Failed to fetch image '{url}': {e}")
     img = Image.new("RGBA", (280, 420), (32, 34, 37, 255))
