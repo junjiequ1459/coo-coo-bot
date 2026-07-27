@@ -13,12 +13,12 @@ DROP_CLAIM_TIMEOUT_SEC = 60  # 60 Seconds Claim Window before cards expire
 DAILY_COOLDOWN_SEC = 86400  # 24 Hours
 
 RARITY_WEIGHTS = [
-    ("Common", 0.844),       # 84.4% Drop Rate
-    ("Rare", 0.10),          # 10% Drop Rate
-    ("Epic", 0.05),          #  5% Drop Rate
-    ("Legendary", 0.005),    #  0.5% Drop Rate
-    ("Mythic", 0.001),       #  0.1% Drop Rate
-    ("Exalted", 0.00005)     #  0.005% Drop Rate
+    ("Common", 0.6879),      # 68.79% Drop Rate
+    ("Rare", 0.20),          # 20% Drop Rate
+    ("Epic", 0.10),          # 10% Drop Rate
+    ("Legendary", 0.01),     # 1% Drop Rate
+    ("Mythic", 0.002),       # 0.2% Drop Rate
+    ("Exalted", 0.0001)      # 0.01% Drop Rate
 ]
 
 RARITY_EMOJIS = {

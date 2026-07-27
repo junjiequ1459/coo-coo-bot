@@ -1,0 +1,702 @@
+[
+    {
+        "character_name": "Levi EX",
+        "series_name": "Attack on Titan",
+        "image_url": "https://media1.tenor.com/m/8jAj2waTqK8AAAAC/big-hugs.gif",
+        "rarity": "Exalted",
+        "favourites": 42813
+    },
+    {
+        "character_name": "Satoru Gojou EX",
+        "series_name": "Jujutsu Kaisen",
+        "image_url": "https://media1.tenor.com/m/25BVKUe_uFAAAAAC/satoru-gojo.gif",
+        "rarity": "Exalted",
+        "favourites": 41492
+    },
+    {
+        "character_name": "Killua Zoldyck EX",
+        "series_name": "Hunter x Hunter",
+        "image_url": "https://media1.tenor.com/m/vjC8ZcDcBO4AAAAC/killua.gif",
+        "rarity": "Exalted",
+        "favourites": 37404
+    },
+    {
+        "character_name": "Luffy Monkey EX",
+        "series_name": "ONE PIECE",
+        "image_url": "https://media1.tenor.com/m/6Rk6Z96eMIoAAAAC/gear-5-one-piece.gif",
+        "rarity": "Exalted",
+        "favourites": 35986
+    },
+    {
+        "character_name": "Eren Yeager EX",
+        "series_name": "Attack on Titan",
+        "image_url": "https://media1.tenor.com/m/ymT3S19issMAAAAC/aot-attack-on-titan.gif",
+        "rarity": "Exalted",
+        "favourites": 34529
+    },
+    {
+        "character_name": "L Lawliet EX",
+        "series_name": "Death Note",
+        "image_url": "https://media1.tenor.com/m/4oFN28ZFcNUAAAAC/lawliet-l-dea.gif",
+        "rarity": "Exalted",
+        "favourites": 28789
+    },
+    {
+        "character_name": "Zoro Roronoa EX",
+        "series_name": "ONE PIECE",
+        "image_url": "https://media1.tenor.com/m/f9fubXKKWZYAAAAC/one-piece-zoro.gif",
+        "rarity": "Exalted",
+        "favourites": 28753
+    },
+    {
+        "character_name": "Lelouch Lamperouge EX",
+        "series_name": "Code Geass: Lelouch of the Rebellion",
+        "image_url": "https://media1.tenor.com/m/wICNExwUKS0AAAAC/code-geass.gif",
+        "rarity": "Exalted",
+        "favourites": 28557
+    },
+    {
+        "character_name": "Emilia EX",
+        "series_name": "Re:ZERO -Starting Life in Another World-",
+        "image_url": "https://media1.tenor.com/m/J2zTtDMTN94AAAAC/anime-emilia.gif",
+        "rarity": "Exalted",
+        "favourites": 28523
+    },
+    {
+        "character_name": "Mikasa Ackerman EX",
+        "series_name": "Attack on Titan",
+        "image_url": "https://media1.tenor.com/m/iX37aDvWo7YAAAAC/attack-on-titan-aot.gif",
+        "rarity": "Exalted",
+        "favourites": 28471
+    },
+    {
+        "character_name": "Ken Kaneki EX",
+        "series_name": "Tokyo Ghoul",
+        "image_url": "https://media1.tenor.com/m/GtNsuql_QJUAAAAC/ken-kaneki-kaneki.gif",
+        "rarity": "Exalted",
+        "favourites": 27728
+    },
+    {
+        "character_name": "Arataka Reigen EX",
+        "series_name": "Mob Psycho 100",
+        "image_url": "https://media1.tenor.com/m/7j6a7IlmRqMAAAAC/reigen-meme-sad-reigen.gif",
+        "rarity": "Exalted",
+        "favourites": 24895
+    },
+    {
+        "character_name": "Guts EX",
+        "series_name": "Berserk",
+        "image_url": "https://media1.tenor.com/m/N3IR3qLiRX0AAAAC/berserk-guts.gif",
+        "rarity": "Exalted",
+        "favourites": 24116
+    },
+    {
+        "character_name": "Itachi Uchiha EX",
+        "series_name": "Naruto",
+        "image_url": "https://media1.tenor.com/m/3V7mp_ySz5EAAAAC/mateo-ko-memang.gif",
+        "rarity": "Exalted",
+        "favourites": 23110
+    },
+    {
+        "character_name": "Kurisu Makise EX",
+        "series_name": "Steins;Gate",
+        "image_url": "https://media1.tenor.com/m/JTGmThK3PNcAAAAC/steins-gate-kurisu-makise.gif",
+        "rarity": "Exalted",
+        "favourites": 22930
+    },
+    {
+        "character_name": "Makima EX",
+        "series_name": "Chainsaw Man",
+        "image_url": "https://media1.tenor.com/m/UvQi5m4BIzIAAAAC/griffcarsonhakun-shadowsgardenhakun.gif",
+        "rarity": "Exalted",
+        "favourites": 22768
+    },
+    {
+        "character_name": "Yuuji Itadori EX",
+        "series_name": "Jujutsu Kaisen",
+        "image_url": "https://media1.tenor.com/m/o-VzEPxGLycAAAAC/jujutsu-kaisen-jjk.gif",
+        "rarity": "Exalted",
+        "favourites": 22580
+    },
+    {
+        "character_name": "Kakashi Hatake EX",
+        "series_name": "Naruto",
+        "image_url": "https://media1.tenor.com/m/7hI-4ayFhxUAAAAC/obito-kakashi.gif",
+        "rarity": "Exalted",
+        "favourites": 22559
+    },
+    {
+        "character_name": "Thorfinn Karlsefni EX",
+        "series_name": "Vinland Saga",
+        "image_url": "https://media1.tenor.com/m/kVvzfrJlHLkAAAAC/vinland-saga-anime.gif",
+        "rarity": "Exalted",
+        "favourites": 22512
+    },
+    {
+        "character_name": "Mai Sakurajima EX",
+        "series_name": "Rascal Does Not Dream of Bunny Girl Senpai",
+        "image_url": "https://media1.tenor.com/m/L_JX9p45MuYAAAAC/mai-mai-sakurajima.gif",
+        "rarity": "Exalted",
+        "favourites": 22437
+    },
+    {
+        "character_name": "Frieren EX",
+        "series_name": "Frieren: Beyond Journey\u2019s End",
+        "image_url": "https://media1.tenor.com/m/Z8csDD-ANl0AAAAC/frieren-beyond-journey%27s-end-anime.gif",
+        "rarity": "Exalted",
+        "favourites": 22084
+    },
+    {
+        "character_name": "Kurapika EX",
+        "series_name": "Hunter x Hunter",
+        "image_url": "https://media1.tenor.com/m/8z3O7ZlgyAoAAAAC/kurapika-kurapika-kurta.gif",
+        "rarity": "Exalted",
+        "favourites": 21782
+    },
+    {
+        "character_name": "Rintarou Okabe EX",
+        "series_name": "Steins;Gate",
+        "image_url": "https://media1.tenor.com/m/oeoHmlYxjnkAAAAC/okabe-okabe-rintarou.gif",
+        "rarity": "Exalted",
+        "favourites": 21748
+    },
+    {
+        "character_name": "Light Yagami EX",
+        "series_name": "Death Note",
+        "image_url": "https://media1.tenor.com/m/32H8OJbPIlAAAAAC/death-note-light.gif",
+        "rarity": "Exalted",
+        "favourites": 21698
+    },
+    {
+        "character_name": "Kaguya Shinomiya EX",
+        "series_name": "Kaguya-sama: Love is War",
+        "image_url": "https://media1.tenor.com/m/lK3QNCVcz7IAAAAC/kaguya-sama-kaguya-shinomiya.gif",
+        "rarity": "Exalted",
+        "favourites": 21459
+    },
+    {
+        "character_name": "Denji EX",
+        "series_name": "Chainsaw Man",
+        "image_url": "https://media1.tenor.com/m/W63JK6r1v3AAAAAC/chainsaw-man.gif",
+        "rarity": "Exalted",
+        "favourites": 21290
+    },
+    {
+        "character_name": "Violet Evergarden EX",
+        "series_name": "Violet Evergarden",
+        "image_url": "https://media1.tenor.com/m/o0y4p792EpAAAAAC/violet-evergarden.gif",
+        "rarity": "Exalted",
+        "favourites": 21228
+    },
+    {
+        "character_name": "Shigeo Kageyama EX",
+        "series_name": "Mob Psycho 100",
+        "image_url": "https://media1.tenor.com/m/STpm4oNa1H4AAAAC/mob-good-morning.gif",
+        "rarity": "Exalted",
+        "favourites": 20988
+    },
+    {
+        "character_name": "Power EX",
+        "series_name": "Chainsaw Man",
+        "image_url": "https://media1.tenor.com/m/NiHF9ex_AR0AAAAC/chainsaw-man-power-csm.gif",
+        "rarity": "Exalted",
+        "favourites": 20915
+    },
+    {
+        "character_name": "Edward Elric EX",
+        "series_name": "Fullmetal Alchemist",
+        "image_url": "https://media1.tenor.com/m/tFxqdMj85YMAAAAC/edward-elric.gif",
+        "rarity": "Exalted",
+        "favourites": 20038
+    },
+    {
+        "character_name": "Naruto Uzumaki EX",
+        "series_name": "Naruto",
+        "image_url": "https://media1.tenor.com/m/5QDHvRTEoQIAAAAC/good-morning.gif",
+        "rarity": "Exalted",
+        "favourites": 19848
+    },
+    {
+        "character_name": "Tanjirou Kamado EX",
+        "series_name": "Demon Slayer: Kimetsu no Yaiba",
+        "image_url": "https://media1.tenor.com/m/ye2gBll58csAAAAC/demon-slayer-kimetsu-no-yaiba.gif",
+        "rarity": "Exalted",
+        "favourites": 19806
+    },
+    {
+        "character_name": "Shouto Todoroki EX",
+        "series_name": "My Hero Academia",
+        "image_url": "https://media1.tenor.com/m/0JxuRmPMkc0AAAAC/my-hero-academia-sakuga.gif",
+        "rarity": "Exalted",
+        "favourites": 19603
+    },
+    {
+        "character_name": "Megumi Fushiguro EX",
+        "series_name": "Jujutsu Kaisen",
+        "image_url": "https://media1.tenor.com/m/jOgEPG2tyxwAAAAC/megumi.gif",
+        "rarity": "Exalted",
+        "favourites": 18688
+    },
+    {
+        "character_name": "Katsuki Bakugou EX",
+        "series_name": "My Hero Academia",
+        "image_url": "https://media1.tenor.com/m/hphlTPkZSg8AAAAC/the-baby-sleeping-mha.gif",
+        "rarity": "Exalted",
+        "favourites": 18549
+    },
+    {
+        "character_name": "Sakura Matou EX",
+        "series_name": "Fate/stay night",
+        "image_url": "https://media1.tenor.com/m/MkQbMfCqeO0AAAAC/evil-sakura-fate.gif",
+        "rarity": "Exalted",
+        "favourites": 18241
+    },
+    {
+        "character_name": "Osamu Dazai EX",
+        "series_name": "Bungo Stray Dogs",
+        "image_url": "https://media1.tenor.com/m/ma7NHCXnDeUAAAAC/dazai-osamu-dazai.gif",
+        "rarity": "Exalted",
+        "favourites": 17812
+    },
+    {
+        "character_name": "Joseph Joestar EX",
+        "series_name": "JoJo's Bizarre Adventure (2000)",
+        "image_url": "https://media1.tenor.com/m/T0PX7Rmg41AAAAAC/jojos-bizarre-adventure-yoshikage-kira.gif",
+        "rarity": "Exalted",
+        "favourites": 17618
+    },
+    {
+        "character_name": "Megumin EX",
+        "series_name": "KONOSUBA -God's blessing on this wonderful world!",
+        "image_url": "https://media1.tenor.com/m/sMIeKl5kq4UAAAAC/megumin-blush-megumin-konosuba.gif",
+        "rarity": "Exalted",
+        "favourites": 17414
+    },
+    {
+        "character_name": "Marin Kitagawa EX",
+        "series_name": "My Dress-Up Darling",
+        "image_url": "https://media1.tenor.com/m/ur161nJp0iUAAAAC/marin-kitagawa-my-dress-up-darling.gif",
+        "rarity": "Exalted",
+        "favourites": 17238
+    },
+    {
+        "character_name": "Chika Fujiwara EX",
+        "series_name": "Kaguya-sama: Love is War",
+        "image_url": "https://media1.tenor.com/m/dJgaavqDRU8AAAAC/speech-bubble-love-is-war.gif",
+        "rarity": "Exalted",
+        "favourites": 17050
+    },
+    {
+        "character_name": "Rem EX",
+        "series_name": "Re:ZERO -Starting Life in Another World-",
+        "image_url": "https://media1.tenor.com/m/JsAMY_M2N2sAAAAC/ram-rem.gif",
+        "rarity": "Exalted",
+        "favourites": 17006
+    },
+    {
+        "character_name": "Askeladd EX",
+        "series_name": "Vinland Saga",
+        "image_url": "https://media1.tenor.com/m/7n7NZKskbBUAAAAC/askeladd-vinland-saga.gif",
+        "rarity": "Exalted",
+        "favourites": 16831
+    },
+    {
+        "character_name": "Gintoki Sakata EX",
+        "series_name": "Gintama",
+        "image_url": "https://media1.tenor.com/m/8TqVl-FDOqcAAAAC/gintoki-sakata-gintama.gif",
+        "rarity": "Exalted",
+        "favourites": 16538
+    },
+    {
+        "character_name": "Gon Freecss EX",
+        "series_name": "Hunter x Hunter",
+        "image_url": "https://media1.tenor.com/m/qnGVjCI2hacAAAAC/hunter-x-hunter-hxh.gif",
+        "rarity": "Exalted",
+        "favourites": 16530
+    },
+    {
+        "character_name": "Nezuko Kamado EX",
+        "series_name": "Demon Slayer: Kimetsu no Yaiba",
+        "image_url": "https://media1.tenor.com/m/CCj7fIMsWPYAAAAC/demon-slayer-demon-slayer-s3.gif",
+        "rarity": "Exalted",
+        "favourites": 16391
+    },
+    {
+        "character_name": "Kiyotaka Ayanokouji EX",
+        "series_name": "Classroom of the Elite",
+        "image_url": "https://media1.tenor.com/m/bj4vIi36nxQAAAAC/ayano-koji-speech-bubble.gif",
+        "rarity": "Exalted",
+        "favourites": 16387
+    },
+    {
+        "character_name": "Ichigo EX",
+        "series_name": "DARLING in the FRANXX",
+        "image_url": "https://media1.tenor.com/m/X9DgML5jL9MAAAAC/dalring-in-the-franxx-darling-in-the-franxx-ichigo.gif",
+        "rarity": "Exalted",
+        "favourites": 16328
+    },
+    {
+        "character_name": "Senkuu Ishigami EX",
+        "series_name": "Dr. STONE",
+        "image_url": "https://media1.tenor.com/m/_umrCZCpw04AAAAC/dr-stone-senku-ishigami.gif",
+        "rarity": "Exalted",
+        "favourites": 16255
+    },
+    {
+        "character_name": "Zero Two EX",
+        "series_name": "DARLING in the FRANXX",
+        "image_url": "https://media1.tenor.com/m/VeKxjDU_LUQAAAAC/retribution-supremacy-ret.gif",
+        "rarity": "Exalted",
+        "favourites": 16228
+    },
+    {
+        "character_name": "Itsuki Nakano EX",
+        "series_name": "Go-toubun no Hanayome",
+        "image_url": "https://media1.tenor.com/m/CLqTwP4OW4cAAAAC/tqq-tqq-5-brides.gif",
+        "rarity": "Exalted",
+        "favourites": 16193
+    },
+    {
+        "character_name": "Saitama EX",
+        "series_name": "One-Punch Man",
+        "image_url": "https://media1.tenor.com/m/KAs3afM2XYwAAAAC/saitama-power-get-the-power.gif",
+        "rarity": "Exalted",
+        "favourites": 16192
+    },
+    {
+        "character_name": "Shouyou Hinata EX",
+        "series_name": "HAIKYU!!",
+        "image_url": "https://media1.tenor.com/m/aBd6dRtTImAAAAAC/brace-for-impact-smash.gif",
+        "rarity": "Exalted",
+        "favourites": 16057
+    },
+    {
+        "character_name": "Armin Arlert EX",
+        "series_name": "Attack on Titan",
+        "image_url": "https://media1.tenor.com/m/O0wzcYlj1V0AAAAC/armin.gif",
+        "rarity": "Exalted",
+        "favourites": 16016
+    },
+    {
+        "character_name": "Inosuke Hashibira EX",
+        "series_name": "Demon Slayer: Kimetsu no Yaiba",
+        "image_url": "https://media1.tenor.com/m/Gipg13DDgEAAAAAC/tanjiro-zenitsu.gif",
+        "rarity": "Exalted",
+        "favourites": 15989
+    },
+    {
+        "character_name": "Hisoka Morow EX",
+        "series_name": "Hunter x Hunter",
+        "image_url": "https://media1.tenor.com/m/QnYKEH8no-UAAAAC/ok.gif",
+        "rarity": "Exalted",
+        "favourites": 15875
+    },
+    {
+        "character_name": "Izuku Midoriya EX",
+        "series_name": "My Hero Academia",
+        "image_url": "https://media1.tenor.com/m/eiBfhTiYqikAAAAC/izuku-midoriya-grow-up.gif",
+        "rarity": "Exalted",
+        "favourites": 15855
+    },
+    {
+        "character_name": "Kusuo Saiki EX",
+        "series_name": "Saiki Kusuo no \u03a8-nan (ONA)",
+        "image_url": "https://media1.tenor.com/m/lMFEzIJF9aEAAAAC/sybau-meme-sybau.gif",
+        "rarity": "Exalted",
+        "favourites": 15834
+    },
+    {
+        "character_name": "Izumi Miyamura EX",
+        "series_name": "Hori-san to Miyamura-kun",
+        "image_url": "https://media1.tenor.com/m/IyItY8Aoz5kAAAAC/hey-horimiya.gif",
+        "rarity": "Exalted",
+        "favourites": 15827
+    },
+    {
+        "character_name": "Miko Iino EX",
+        "series_name": "Kaguya-sama: Love is War",
+        "image_url": "https://media1.tenor.com/m/lXxkLPud_WAAAAAC/miko-iino-kaguya-sama.gif",
+        "rarity": "Exalted",
+        "favourites": 15672
+    },
+    {
+        "character_name": "Jin-U Seong EX",
+        "series_name": "Solo Leveling",
+        "image_url": "https://media1.tenor.com/m/gVbkgo52yPQAAAAC/last-day-of-school-happy-last-day-of-school.gif",
+        "rarity": "Exalted",
+        "favourites": 15559
+    },
+    {
+        "character_name": "Yuu Ishigami EX",
+        "series_name": "Kaguya-sama: Love is War",
+        "image_url": "https://media1.tenor.com/m/GiwMcSzVbc4AAAAC/ishigami-kaguya-sama-wa-kokurasetai-tensai-tachi-no-renai-zunousen.gif",
+        "rarity": "Exalted",
+        "favourites": 15404
+    },
+    {
+        "character_name": "Hange Zoe EX",
+        "series_name": "Attack on Titan",
+        "image_url": "https://media1.tenor.com/m/KNhdcI-B-m8AAAAC/hange-zoe-attack-on-titan.gif",
+        "rarity": "Exalted",
+        "favourites": 15310
+    },
+    {
+        "character_name": "Zenitsu Agatsuma EX",
+        "series_name": "Demon Slayer: Kimetsu no Yaiba",
+        "image_url": "https://media1.tenor.com/m/Y5D_JidkwdIAAAAC/zenitsu-vs-kaigaku-kimetsu-no-yaiba.gif",
+        "rarity": "Exalted",
+        "favourites": 15291
+    },
+    {
+        "character_name": "Subaru Natsuki EX",
+        "series_name": "Re:ZERO -Starting Life in Another World-",
+        "image_url": "https://media1.tenor.com/m/y-v-pC8CzycAAAAC/subaru-re-zero-subaru-natsuki.gif",
+        "rarity": "Exalted",
+        "favourites": 15249
+    },
+    {
+        "character_name": "Sanji EX",
+        "series_name": "ONE PIECE",
+        "image_url": "https://media1.tenor.com/m/IpimchDCe50AAAAC/sanji-one-piece.gif",
+        "rarity": "Exalted",
+        "favourites": 15220
+    },
+    {
+        "character_name": "Hitagi Senjougahara EX",
+        "series_name": "Bakemonogatari",
+        "image_url": "https://media1.tenor.com/m/b_shG2JqREsAAAAC/hitagi-senjougahara.gif",
+        "rarity": "Exalted",
+        "favourites": 15205
+    },
+    {
+        "character_name": "Aki Hayakawa EX",
+        "series_name": "Chainsaw Man",
+        "image_url": "https://media1.tenor.com/m/ht9nyWTWczMAAAAC/aki-aki-hayakawa.gif",
+        "rarity": "Exalted",
+        "favourites": 15020
+    },
+    {
+        "character_name": "Roy Mustang EX",
+        "series_name": "Fullmetal Alchemist",
+        "image_url": "https://media1.tenor.com/m/Mi-BvlpeyQEAAAAC/fmab-roy-mustang.gif",
+        "rarity": "Exalted",
+        "favourites": 15002
+    },
+    {
+        "character_name": "Mococo Abyssgard EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/KEeXbNPKRMsAAAAC/fuwamoco-mococo.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Nanashi Mumei EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/fKiTNJwoYp4AAAAC/nanashi-mumei-%E4%B8%83%E8%A9%A9%E3%83%A0%E3%83%A1%E3%82%A4.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Nerissa Ravencroft EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/TBDqLz60IoUAAAAC/nerissa-ravencroft-nerissa.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Ninomae Ina'nis EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/sJVi89AGQVcAAAAC/ninomae-ina%27nis-ina-ina-ina.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Inugami Korone EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/r550aYM3bT0AAAAC/inugami-korone-korone.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Sakamata Chloe EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/OGyFcXM7QGsAAAAC/sakamata-chloe-sakamata.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Yukihana Lamy EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/9K37jklgd0MAAAAC/hololive.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Ceres Fauna EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/b4zAZ8GCvtkAAAAC/ceres-fauna-parrot4chan.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Ouro Kronii EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/v4wDYzJ0xRoAAAAC/ouro-kronii-monkey-thinking.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Shiori Novella EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/PJQeNp1MV0IAAAAC/shiori-novella-hololive.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "La+ Darknesss EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/lWtMlCxQTHMAAAAC/laplus-laplus-darknesss.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Raiden Shogun EX",
+        "series_name": "Genshin Impact",
+        "image_url": "https://media1.tenor.com/m/eBLkZBWBHlYAAAAC/raiden-shogun-raiden-ei.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Houshou Marine EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/g7vtTa60OP4AAAAC/marine-senchou-hololive.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Shirakami Fubuki EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/DkqIfxH2jr8AAAAC/fubuki-confused.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Shishiro Botan EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/UPGPDpWO9BIAAAAC/shishiro-botan-headpat.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Koseki Bijou EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/I4n0AUzyaBEAAAAC/biboo-scared-biboo-gasp.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Fuwawa Abyssgard EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/MLy82FSy5OIAAAAC/fuwamoco-fuwawa.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Gawr Gura EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/xR9-ee5T8jcAAAAC/letterigawr.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Hakos Baelz EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/CHHlOjRn89EAAAAC/irys-holopromise.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Usada Pekora EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/hgPJUvR3gssAAAAC/usada-pekora-pekora.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Takanashi Kiara EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/f1t9Y0jsS6QAAAAC/kfp-takanashi-kiara.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Tokoyami Towa EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/1yEXf2FXK68AAAAC/towa-%E5%B8%B8%E9%97%87%E3%83%88%E3%83%AF.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Hoshimachi Suisei EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/Lv0ttnxGF5AAAAAC/hoshimachi-sui-hoshimachi-suisei-dance.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Minato Aqua EX",
+        "series_name": "Hololive",
+        "image_url": "https://media1.tenor.com/m/s2hAz4R8-EMAAAAC/aqua-%E6%B9%8A%E3%81%82%E3%81%8F%E3%81%82.gif",
+        "rarity": "Exalted",
+        "favourites": 15000
+    },
+    {
+        "character_name": "Asuka Langley Souryuu EX",
+        "series_name": "Neon Genesis Evangelion",
+        "image_url": "https://media1.tenor.com/m/HIxI5qQ9-VUAAAAC/evangelion-asuka.gif",
+        "rarity": "Exalted",
+        "favourites": 14929
+    },
+    {
+        "character_name": "Joutarou Kuujou EX",
+        "series_name": "JoJo's Bizarre Adventure (2000)",
+        "image_url": "https://media1.tenor.com/m/aBXTpGyyok8AAAAC/jojo-jojo-meme.gif",
+        "rarity": "Exalted",
+        "favourites": 14853
+    },
+    {
+        "character_name": "Spike Spiegel EX",
+        "series_name": "Cowboy Bebop",
+        "image_url": "https://media1.tenor.com/m/riv9yeunv58AAAAC/annoyed-spike-spiegel.gif",
+        "rarity": "Exalted",
+        "favourites": 14817
+    },
+    {
+        "character_name": "Robin Nico EX",
+        "series_name": "ONE PIECE",
+        "image_url": "https://media1.tenor.com/m/IYNfDFwJKEMAAAAC/i-want-to-larp-nico-robin.gif",
+        "rarity": "Exalted",
+        "favourites": 14703
+    },
+    {
+        "character_name": "Nobara Kugisaki EX",
+        "series_name": "Jujutsu Kaisen",
+        "image_url": "https://media1.tenor.com/m/GwE_Dd2_v1cAAAAC/nobara-kugisaki.gif",
+        "rarity": "Exalted",
+        "favourites": 14672
+    },
+    {
+        "character_name": "Yor Forger EX",
+        "series_name": "SPY x FAMILY",
+        "image_url": "https://media1.tenor.com/m/3CTcz3ePrHkAAAAC/spy-family.gif",
+        "rarity": "Exalted",
+        "favourites": 14663
+    },
+    {
+        "character_name": "Ichigo Kurosaki EX",
+        "series_name": "Bleach",
+        "image_url": "https://media1.tenor.com/m/CrkGz9RzrhsAAAAC/ichigo.gif",
+        "rarity": "Exalted",
+        "favourites": 14537
+    }
+]

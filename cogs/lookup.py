@@ -83,7 +83,21 @@ class LookupCog(commands.Cog):
             ),
             color=discord.Color.purple()
         )
-        embed.set_thumbnail(url=img_url)
+        # Generate a generic preview of the card
+        card_data = {
+            "character_name": char_name,
+            "series_name": series,
+            "rarity": rarity,
+            "mint_number": "?",
+            "edition": 1,
+            "quality": "Mint ⭐⭐⭐⭐",
+            "image_url": img_url
+        }
+        
+        buf, is_gif = await render_single_card(card_data)
+        ext = "gif" if is_gif else "png"
+        file = discord.File(fp=buf, filename=f"preview.{ext}")
+        embed.set_image(url=f"attachment://preview.{ext}")
 
         if not inv_rows:
             embed.add_field(
@@ -111,9 +125,9 @@ class LookupCog(commands.Cog):
                 embed.set_footer(text=f"Type !lu {char_name} <print_num> to view a specific card!")
 
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.followup.send(embed=embed)
+            await ctx_or_interaction.followup.send(embed=embed, file=file)
         else:
-            await ctx_or_interaction.send(embed=embed)
+            await ctx_or_interaction.send(embed=embed, file=file)
 
     async def process_character_lookup(self, ctx_or_interaction, query: str):
         user = ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author
