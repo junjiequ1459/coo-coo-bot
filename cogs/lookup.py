@@ -321,7 +321,7 @@ class LookupCog(commands.Cog):
         q = f"{character} {print_num}" if print_num else character
         await self.process_character_lookup(interaction, q)
 
-    @commands.command(name="lu", aliases=["lookup", "klu", "klookup"])
+    @commands.command(name="lu", aliases=["lookup"])
     async def lu_prefix(self, ctx, *, query: str = None):
         if query and query.lower().startswith("s:"):
             s_query = query[2:].strip()
