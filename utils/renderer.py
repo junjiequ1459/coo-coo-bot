@@ -66,11 +66,6 @@ async def render_single_card(card_data: dict) -> tuple[io.BytesIO, bool]:
         from PIL import ImageSequence
         frames_source = [f.copy() for f in ImageSequence.Iterator(raw_img)]
         durations = raw_img.info.get('duration', 100)
-        
-        # Performance optimization: If GIF is very heavy, skip every other frame
-        if len(frames_source) > 35:
-            frames_source = frames_source[::2]
-            durations = durations * 2
     else:
         frames_source = None
 
