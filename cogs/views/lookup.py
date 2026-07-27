@@ -99,7 +99,9 @@ class CharacterSearchPaginatorView(discord.ui.View):
             if interaction.user.id != self.user.id:
                 await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
                 return
-            await interaction.response.defer()
+            for child in self.children:
+                child.disabled = True
+            await interaction.response.edit_message(view=self)
             cname, sname, iurl, rval = match_data
             cog = self.bot.get_cog("LookupCog")
             if cog:
@@ -208,7 +210,9 @@ class SeriesListPaginatorView(discord.ui.View):
             if interaction.user.id != self.user.id:
                 await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
                 return
-            await interaction.response.defer()
+            for child in self.children:
+                child.disabled = True
+            await interaction.response.edit_message(view=self)
             cog = self.bot.get_cog("LookupCog")
             if cog:
                 await cog.display_single_series_roster(interaction, series_name)
@@ -323,7 +327,9 @@ class SeriesCharacterPaginatorView(discord.ui.View):
             if interaction.user.id != self.user.id:
                 await interaction.response.send_message("Coo coo! ⚠️ You cannot control someone else's lookup menu!", ephemeral=True)
                 return
-            await interaction.response.defer()
+            for child in self.children:
+                child.disabled = True
+            await interaction.response.edit_message(view=self)
             cname, sname, iurl, rval = match_data
             cog = self.bot.get_cog("LookupCog")
             if cog:
