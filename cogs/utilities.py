@@ -387,5 +387,37 @@ class UtilitiesCog(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @app_commands.command(name="droprates", description="View the percentage chance of dropping each card rarity")
+    async def slash_droprates(self, interaction: discord.Interaction):
+        from config import RARITY_WEIGHTS, RARITY_EMOJIS
+        
+        embed = discord.Embed(
+            title="🎲 Drop Rates",
+            description="When you use `/drop`, here are the exact odds of getting each rarity:",
+            color=discord.Color.gold()
+        )
+        
+        # Calculate total weight (should be close to 1.0 but this is safer)
+        total_weight = sum(w for _, w in RARITY_WEIGHTS)
+        
+        for rarity_name, weight in RARITY_WEIGHTS:
+            percentage = (weight / total_weight) * 100
+            emoji = RARITY_EMOJIS.get(rarity_name, "💠")
+            
+            # Format percentage cleanly (e.g. 0.005% instead of 0.005000000000%)
+            formatted_pct = f"{percentage:.4f}".rstrip('0').rstrip('.')
+            if '.' not in formatted_pct and percentage < 100:
+                formatted_pct += ".0"
+                
+            embed.add_field(
+                name=f"{emoji} {rarity_name}",
+                value=f"**{formatted_pct}%**",
+                inline=False
+            )
+            
+        embed.set_footer(text="Best of luck on your next drop!")
+        await interaction.response.send_message(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(UtilitiesCog(bot))
+
